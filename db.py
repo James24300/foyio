@@ -178,3 +178,14 @@ def migrate_database():
                 )"""))
             conn.commit()
         print("Migration v4.6 : table savings_movements créée")
+
+    # v4.7 : transfer_account_id sur categories
+    inspector = inspect(engine)
+    if _table_exists(inspector, "categories") and \
+       not _col_exists(inspector, "categories", "transfer_account_id"):
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE categories "
+                "ADD COLUMN transfer_account_id INTEGER REFERENCES accounts(id)"))
+            conn.commit()
+        print("Migration v4.7 : transfer_account_id ajouté sur categories")

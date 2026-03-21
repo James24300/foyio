@@ -10,17 +10,22 @@ DEFAULT_ACCOUNTS = [
     ("Compte courant", "checking", "#3b82f6", "bank.png"),
     ("Compte joint",   "joint",    "#8b5cf6", "bank.png"),
     ("Livret A",       "savings",  "#22c55e", "money.png"),
+    ("PEL",            "savings",  "#14b8a6", "epargne.png"),
+    ("LEP",            "savings",  "#06b6d4", "epargne.png"),
+    ("CEL",            "savings",  "#3b82f6", "epargne.png"),
+    ("Assurance Vie",  "savings",  "#f59e0b", "epargne.png"),
 ]
 
 
 def init_accounts():
     """
-    Crée les comptes par défaut si la table est vide.
-    Appelé au démarrage.
+    Crée les comptes par défaut au premier démarrage,
+    et ajoute les nouveaux comptes manquants aux démarrages suivants.
     """
     with safe_session() as session:
-        if session.query(Account).count() == 0:
-            for name, atype, color, icon in DEFAULT_ACCOUNTS:
+        existing = {a.name for a in session.query(Account).all()}
+        for name, atype, color, icon in DEFAULT_ACCOUNTS:
+            if name not in existing:
                 session.add(Account(
                     name=name, type=atype,
                     color=color, icon=icon, active=True

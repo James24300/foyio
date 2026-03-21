@@ -378,7 +378,7 @@ class SavingsView(QWidget):
         return tab
 
     def _build_goal_card(self, goal) -> QWidget:
-        """Construit une carte objectif avec barre de progression."""
+        """Construit une carte objectif avec indicateur visuel et détails."""
         pct = min((goal.current_amount / goal.target_amount * 100)
                   if goal.target_amount > 0 else 0, 100)
 
@@ -390,15 +390,42 @@ class SavingsView(QWidget):
                 border-left:4px solid {goal.color};
             }}
         """)
-        card_layout = QVBoxLayout(card)
+        card_layout = QHBoxLayout(card)
         card_layout.setContentsMargins(16, 14, 16, 14)
-        card_layout.setSpacing(8)
+        card_layout.setSpacing(16)
 
-        # Ligne du haut : icône + nom + montants + boutons
+        # ── Indicateur pourcentage (gauche) ──
+        pct_widget = QWidget()
+        pct_widget.setFixedSize(72, 72)
+        pct_widget.setStyleSheet(f"""
+            QWidget {{
+                background:#1e2124;
+                border:3px solid {goal.color};
+                border-radius:36px;
+            }}
+        """)
+        pct_inner = QVBoxLayout(pct_widget)
+        pct_inner.setContentsMargins(0, 0, 0, 0)
+        pct_inner.setAlignment(Qt.AlignCenter)
+        pct_label = QLabel(f"{pct:.0f}%")
+        pct_label.setAlignment(Qt.AlignCenter)
+        pct_label.setStyleSheet(
+            f"font-size:16px; font-weight:700; color:{goal.color}; "
+            "background:transparent; border:none;"
+        )
+        pct_inner.addWidget(pct_label)
+        card_layout.addWidget(pct_widget)
+
+        # ── Contenu principal (droite) ──
+        right = QVBoxLayout()
+        right.setSpacing(6)
+
+        # Ligne 1 : nom + deadline + boutons
         top = QHBoxLayout()
+        top.setSpacing(8)
 
         icon_lbl = QLabel()
-        icon_lbl.setPixmap(get_icon(goal.icon, 22).pixmap(22, 22))
+        icon_lbl.setPixmap(get_icon(goal.icon, 20).pixmap(20, 20))
         icon_lbl.setStyleSheet("background:transparent; border:none;")
 
         name_lbl = QLabel(goal.name)
@@ -407,27 +434,30 @@ class SavingsView(QWidget):
             "background:transparent; border:none;"
         )
 
-        # Deadline
+        # Deadline badge
         deadline_lbl = QLabel()
-        deadline_lbl.setStyleSheet("font-size:11px; color:#7a8494; background:transparent; border:none;")
+        deadline_lbl.setStyleSheet("font-size:10px; color:#7a8494; background:transparent; border:none;")
         if goal.deadline:
             from datetime import date
             today = date.today()
             delta = (goal.deadline - today).days
             if delta < 0:
-                deadline_lbl.setText("⚠ Échéance dépassée")
-                deadline_lbl.setStyleSheet("font-size:11px; color:#ef4444; background:transparent; border:none;")
-            elif delta <= 30:
-                deadline_lbl.setText(f"⏰ Dans {delta} jours")
-                deadline_lbl.setStyleSheet("font-size:11px; color:#f59e0b; background:transparent; border:none;")
-            else:
-                deadline_lbl.setText(
-                    f"Échéance : {goal.deadline.strftime('%d/%m/%Y')}"
+                deadline_lbl.setText("Échéance dépassée")
+                deadline_lbl.setStyleSheet(
+                    "font-size:10px; color:#ef4444; font-weight:600; "
+                    "background:#3a1a1a; border-radius:4px; padding:2px 6px; border:none;"
                 )
+            elif delta <= 30:
+                deadline_lbl.setText(f"J-{delta}")
+                deadline_lbl.setStyleSheet(
+                    "font-size:10px; color:#f59e0b; font-weight:600; "
+                    "background:#2e2415; border-radius:4px; padding:2px 6px; border:none;"
+                )
+            else:
+                deadline_lbl.setText(goal.deadline.strftime("%d/%m/%Y"))
 
         top.addWidget(icon_lbl)
         top.addWidget(name_lbl)
-        top.addSpacing(8)
         top.addWidget(deadline_lbl)
 
         # Badge catégorie liée
@@ -438,7 +468,7 @@ class SavingsView(QWidget):
                 cat = s.query(_C2).filter_by(id=goal.category_id).first()
                 cat_name = cat.name if cat else ''
             if cat_name:
-                cat_badge = QLabel(f'  {cat_name}')
+                cat_badge = QLabel(cat_name)
                 cat_badge.setStyleSheet(
                     'font-size:10px; color:#848c94; background:#2e3238; '
                     'border-radius:4px; padding:1px 6px; border:none;'
@@ -447,96 +477,79 @@ class SavingsView(QWidget):
 
         top.addStretch()
 
-        # Montants
+        # Boutons action
+        for btn_text, btn_style, btn_action in [
+            ("+ Versement",
+             f"background:{goal.color}22; color:{goal.color}; border:1px solid {goal.color}55;",
+             lambda checked=False, gid=goal.id: self._add_contribution(gid)),
+            ("- Retrait",
+             "background:#3a1a1a; color:#ef4444; border:1px solid #7a2a2a;",
+             lambda checked=False, gid=goal.id: self._withdraw_contribution(gid)),
+        ]:
+            b = QPushButton(btn_text)
+            b.setFixedHeight(26)
+            b.setStyleSheet(
+                f"{btn_style} border-radius:6px; font-size:10px; font-weight:600; padding:0 8px;"
+            )
+            b.clicked.connect(btn_action)
+            top.addWidget(b)
+
+        for btn_icon, btn_tip, btn_action in [
+            ("stats.png", "Historique", lambda checked=False, gid=goal.id, gname=goal.name: self._show_movements(gid, gname)),
+            ("budget.png", "Modifier", lambda checked=False, gid=goal.id: self._edit_goal(gid)),
+            ("delete.png", "Supprimer", lambda checked=False, gid=goal.id: self._delete_goal(gid)),
+        ]:
+            b = QPushButton()
+            b.setIcon(get_icon(btn_icon, 14))
+            b.setFixedSize(26, 26)
+            b.setStyleSheet("background:#3e4550; border-radius:6px; border:none;")
+            b.setToolTip(btn_tip)
+            b.clicked.connect(btn_action)
+            top.addWidget(b)
+
+        right.addLayout(top)
+
+        # Ligne 2 : montants + barre linéaire
+        amounts_row = QHBoxLayout()
         amounts_lbl = QLabel(
-            f"{format_money(goal.current_amount)} / {format_money(goal.target_amount)}"
+            f"{format_money(goal.current_amount)}  /  {format_money(goal.target_amount)}"
         )
         amounts_lbl.setStyleSheet(
-            "font-size:13px; font-weight:600; color:#c8cdd4; "
-            "background:transparent; border:none;"
+            "font-size:12px; color:#c8cdd4; background:transparent; border:none;"
         )
-        top.addWidget(amounts_lbl)
 
-        # Boutons
-        btn_add_contrib = QPushButton("+ Versement")
-        btn_add_contrib.setFixedHeight(28)
-        btn_add_contrib.setStyleSheet(
-            f"background:{goal.color}22; color:{goal.color}; border:1px solid {goal.color}55;"
-            "border-radius:6px; font-size:11px; font-weight:600; padding:0 8px;"
-        )
-        btn_add_contrib.clicked.connect(lambda: self._add_contribution(goal.id))
-
-        btn_withdraw = QPushButton("- Retrait")
-        btn_withdraw.setFixedHeight(28)
-        btn_withdraw.setStyleSheet(
-            "background:#3a1a1a; color:#ef4444; border:1px solid #7a2a2a;"
-            "border-radius:6px; font-size:11px; font-weight:600; padding:0 8px;"
-        )
-        btn_withdraw.clicked.connect(lambda: self._withdraw_contribution(goal.id))
-
-        btn_edit = QPushButton()
-        btn_edit.setIcon(get_icon("budget.png", 16))
-        btn_edit.setFixedSize(28, 28)
-        btn_edit.setStyleSheet("background:#3e4550; border-radius:6px; border:none;")
-        btn_edit.setToolTip("Modifier")
-        btn_edit.clicked.connect(lambda: self._edit_goal(goal.id))
-
-        btn_hist = QPushButton()
-        btn_hist.setIcon(get_icon("stats.png", 16))
-        btn_hist.setFixedSize(28, 28)
-        btn_hist.setStyleSheet("background:#3e4550; border-radius:6px; border:none;")
-        btn_hist.setToolTip("Historique")
-        btn_hist.clicked.connect(lambda: self._show_movements(goal.id, goal.name))
-
-        btn_del = QPushButton()
-        btn_del.setIcon(get_icon("delete.png", 16))
-        btn_del.setFixedSize(28, 28)
-        btn_del.setStyleSheet("background:#3e4550; border-radius:6px; border:none;")
-        btn_del.setToolTip("Supprimer")
-        btn_del.clicked.connect(lambda: self._delete_goal(goal.id))
-
-        top.addWidget(btn_add_contrib)
-        top.addWidget(btn_withdraw)
-        top.addWidget(btn_hist)
-        top.addWidget(btn_edit)
-        top.addWidget(btn_del)
-        card_layout.addLayout(top)
-
-        # Barre de progression
-        bar = QProgressBar()
-        bar.setMinimum(0)
-        bar.setMaximum(100)
-        bar.setValue(int(pct))
-        bar.setFixedHeight(10)
-        bar.setTextVisible(False)
-        bar.setStyleSheet(f"""
-            QProgressBar {{
-                background:#3d4248; border-radius:5px; border:none;
-            }}
-            QProgressBar::chunk {{
-                background:{goal.color}; border-radius:5px;
-            }}
-        """)
-        card_layout.addWidget(bar)
-
-        # Pourcentage + reste + estimation
-        bottom = QHBoxLayout()
-        pct_lbl = QLabel(f"{pct:.1f}%")
-        pct_lbl.setStyleSheet(
-            f"font-size:12px; font-weight:700; color:{goal.color}; "
-            "background:transparent; border:none;"
-        )
         reste = goal.target_amount - goal.current_amount
         reste_lbl = QLabel(
-            f"Reste : {format_money(reste)}" if reste > 0 else "✓ Objectif atteint !"
+            f"Reste : {format_money(reste)}" if reste > 0 else "Objectif atteint !"
         )
+        reste_lbl.setAlignment(Qt.AlignRight)
         reste_lbl.setStyleSheet(
             "font-size:11px; color:#7a8494; background:transparent; border:none;"
             if reste > 0 else
             "font-size:11px; color:#22c55e; font-weight:600; background:transparent; border:none;"
         )
+        amounts_row.addWidget(amounts_lbl)
+        amounts_row.addStretch()
+        amounts_row.addWidget(reste_lbl)
+        right.addLayout(amounts_row)
 
-        # Versement mensuel cible
+        # Barre de progression linéaire fine
+        bar = QProgressBar()
+        bar.setMinimum(0)
+        bar.setMaximum(100)
+        bar.setValue(int(pct))
+        bar.setFixedHeight(6)
+        bar.setTextVisible(False)
+        bar.setStyleSheet(f"""
+            QProgressBar {{ background:#3d4248; border-radius:3px; border:none; }}
+            QProgressBar::chunk {{ background:{goal.color}; border-radius:3px; }}
+        """)
+        right.addWidget(bar)
+
+        # Ligne 3 : estimation + versement mensuel
+        bottom = QHBoxLayout()
+        bottom.setSpacing(8)
+
         monthly_t = getattr(goal, "monthly_target", 0) or 0
         if monthly_t > 0 and reste > 0:
             monthly_badge = QLabel(f"↗ {format_money(monthly_t)}/mois")
@@ -545,34 +558,25 @@ class SavingsView(QWidget):
                 f"background:{goal.color}22; border-radius:4px; padding:1px 6px; "
                 "border:none;"
             )
-        else:
-            monthly_badge = QLabel("")
-            monthly_badge.setStyleSheet("background:transparent; border:none;")
+            bottom.addWidget(monthly_badge)
 
-        # Estimation
         from services.savings_service import estimate_months_to_goal
         est = estimate_months_to_goal(goal)
         if est["months"] is not None and reste > 0:
             on_track = est.get("on_track", True)
             est_color = "#22c55e" if on_track else "#f59e0b"
-            est_lbl = QLabel(f"→ {est['date']}")
+            est_text = f"Atteint en {est['date']}" if on_track else f"En retard → {est['date']}"
+            est_lbl = QLabel(est_text)
             est_lbl.setStyleSheet(
-                f"font-size:11px; color:{est_color}; font-weight:600; "
+                f"font-size:10px; color:{est_color}; font-weight:600; "
                 "background:transparent; border:none;"
             )
-        else:
-            est_lbl = QLabel("")
-            est_lbl.setStyleSheet("background:transparent; border:none;")
+            bottom.addWidget(est_lbl)
 
-        bottom.addWidget(pct_lbl)
-        bottom.addSpacing(8)
-        bottom.addWidget(est_lbl)
-        bottom.addSpacing(8)
-        bottom.addWidget(monthly_badge)
         bottom.addStretch()
-        bottom.addWidget(reste_lbl)
-        card_layout.addLayout(bottom)
+        right.addLayout(bottom)
 
+        card_layout.addLayout(right, 1)
         return card
 
     # ─────────────────────────────────────────────
@@ -1104,7 +1108,15 @@ class SavingsView(QWidget):
         if dlg.exec() == QDialog.Accepted:
             from services.savings_service import add_goal
             data = dlg.get_data()
-            add_goal(**data)
+            add_goal(
+                name=data["name"],
+                target=data["target_amount"],
+                current=data["current_amount"],
+                color=data["color"],
+                deadline=data.get("deadline"),
+                monthly_target=data.get("monthly_target", 0),
+                category_id=data.get("category_id"),
+            )
             self._reload_goals()
             from ui.toast import Toast
             Toast.show(self, "Objectif ajouté", kind="success")
@@ -1244,8 +1256,8 @@ class SavingsView(QWidget):
             qd = deadline_edit.date()
             return {
                 "name":           name_inp.text().strip(),
-                "target":         target_spin.value(),
-                "current":        current_spin.value(),
+                "target_amount":  target_spin.value(),
+                "current_amount": current_spin.value(),
                 "monthly_target": monthly_spin.value(),
                 "category_id":    cat_combo.currentData(),
                 "color":          color_combo.currentData(),

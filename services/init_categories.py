@@ -1,5 +1,5 @@
 from db import Session
-from models import Category
+from models import Category, Account
 
 
 def init_categories():
@@ -23,6 +23,61 @@ def init_categories():
         for name, icon, color in default_categories:
             session.add(Category(name=name, icon=icon, color=color))
         session.commit()
+
+
+# Catégories épargne à lier automatiquement aux comptes du même nom
+SAVINGS_CATEGORIES = [
+    ("Livret A",      "epargne.png", "#22c55e"),
+    ("PEL",           "epargne.png", "#14b8a6"),
+    ("LEP",           "epargne.png", "#06b6d4"),
+    ("CEL",           "epargne.png", "#3b82f6"),
+    ("Assurance Vie", "epargne.png", "#f59e0b"),
+]
+
+
+def init_savings_categories():
+    """
+    Crée les catégories épargne manquantes et les lie
+    au compte du même nom (transfer_account_id).
+    Appelé au démarrage après init_accounts().
+    """
+    with Session() as session:
+        existing_cats = {c.name: c for c in session.query(Category).all()}
+        accounts = {a.name: a.id for a in session.query(Account).all()}
+
+        changed = False
+        for name, icon, color in SAVINGS_CATEGORIES:
+            acc_id = accounts.get(name)
+
+            if name not in existing_cats:
+                # Créer la catégorie
+                cat = Category(
+                    name=name, icon=icon, color=color,
+                    transfer_account_id=acc_id
+                )
+                session.add(cat)
+                changed = True
+                print(f"Catégorie épargne créée : {name}" +
+                      (f" → compte {name}" if acc_id else ""))
+            else:
+                # Catégorie existe — mettre à jour le lien si manquant
+                cat = existing_cats[name]
+                if acc_id and not cat.transfer_account_id:
+                    cat.transfer_account_id = acc_id
+                    changed = True
+                    print(f"Catégorie {name} liée au compte {name}")
+
+        # Lier aussi "Épargne" existante au Livret A si pas encore liée
+        if "Épargne" in existing_cats:
+            epargne = existing_cats["Épargne"]
+            livret_id = accounts.get("Livret A")
+            if livret_id and not epargne.transfer_account_id:
+                epargne.transfer_account_id = livret_id
+                changed = True
+                print("Catégorie Épargne liée au Livret A")
+
+        if changed:
+            session.commit()
 
 
 # Mapping de migration : emoji → fichier PNG

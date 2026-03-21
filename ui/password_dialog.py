@@ -107,6 +107,13 @@ class PasswordDialog(QDialog):
         self._confirm_input.setVisible(self._mode == "create")
         layout.addWidget(self._confirm_input)
 
+        # Checkbox afficher le mot de passe
+        from PySide6.QtWidgets import QCheckBox
+        self._show_pwd = QCheckBox("Afficher le mot de passe")
+        self._show_pwd.setStyleSheet("font-size:11px; color:#7a8494; background:transparent;")
+        self._show_pwd.toggled.connect(self._toggle_visibility)
+        layout.addWidget(self._show_pwd)
+
         # Message d'erreur
         self._error_lbl = QLabel("")
         self._error_lbl.setAlignment(Qt.AlignCenter)
@@ -126,6 +133,11 @@ class PasswordDialog(QDialog):
 
         layout.addStretch()
         self._pwd_input.setFocus()
+
+    def _toggle_visibility(self, checked):
+        mode = QLineEdit.Normal if checked else QLineEdit.Password
+        self._pwd_input.setEchoMode(mode)
+        self._confirm_input.setEchoMode(mode)
 
     def _submit(self):
         pwd = self._pwd_input.text()
@@ -204,6 +216,13 @@ class ChangePasswordDialog(QDialog):
         self._confirm.returnPressed.connect(self._submit)
         layout.addWidget(self._confirm)
 
+        # Checkbox afficher les mots de passe
+        from PySide6.QtWidgets import QCheckBox
+        self._show_pwd = QCheckBox("Afficher les mots de passe")
+        self._show_pwd.setStyleSheet("font-size:11px; color:#7a8494; background:transparent;")
+        self._show_pwd.toggled.connect(self._toggle_visibility)
+        layout.addWidget(self._show_pwd)
+
         self._error = QLabel("")
         self._error.setAlignment(Qt.AlignCenter)
         self._error.setStyleSheet("font-size:12px; color:#ef4444; background:transparent;")
@@ -226,6 +245,12 @@ class ChangePasswordDialog(QDialog):
 
         layout.addStretch()
         self._current.setFocus()
+
+    def _toggle_visibility(self, checked):
+        mode = QLineEdit.Normal if checked else QLineEdit.Password
+        self._current.setEchoMode(mode)
+        self._new.setEchoMode(mode)
+        self._confirm.setEchoMode(mode)
 
     def _submit(self):
         current = self._current.text()

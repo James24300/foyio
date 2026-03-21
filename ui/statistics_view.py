@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QScrollArea, QFrame, QSizePolicy, QGraphicsTextItem,
+    QScrollArea, QFrame, QSizePolicy,
     QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget
 )
 from PySide6.QtCharts import (
@@ -114,7 +114,6 @@ class StatisticsView(QWidget):
         tab2_layout.setSpacing(12)
         tab2_layout.setContentsMargins(0, 12, 0, 0)
         self._stat_tabs.addTab(tab2, "  Comparaison mois")
-        self._build_comparison_tab(tab2_layout)
 
         # Onglet 3 : Camembert
         tab3 = QWidget()
@@ -123,7 +122,6 @@ class StatisticsView(QWidget):
         tab3_layout.setContentsMargins(0, 4, 0, 0)
         self._stat_tabs.addTab(tab3, "  Répartition")
         self._pie_tab_layout = tab3_layout
-        self._build_pie_tab(tab3_layout)
 
         self._pie_tab_built = False
         self._comp_tab_built = False
@@ -138,6 +136,7 @@ class StatisticsView(QWidget):
 
         self._stat_tabs.currentChanged.connect(_on_tab_changed)
 
+        self._tab1_layout = tab1_layout
         layout = tab1_layout  # continuer à remplir tab1
 
         # ══════════════════════════════════════
@@ -165,17 +164,35 @@ class StatisticsView(QWidget):
         self._pie_view.setMinimumHeight(340)
         self._pie_view.setMaximumHeight(400)
         self._pie_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        layout.addWidget(self._pie_view)
+        self._pie_view.setStyleSheet("background:transparent; border:none;")
 
-        # Label centré dans le trou du donut
-        self._center_label = QGraphicsTextItem()
-        self._center_label.setFont(QFont("Segoe UI", 11, QFont.Bold))
-        self._center_label.setDefaultTextColor(QColor("#c8cdd4"))
-        self._center_label.setZValue(10)
-        self._pie_view.scene().addItem(self._center_label)
-        self._pie_view.chart().plotAreaChanged.connect(
-            lambda _: self._reposition_center_label()
+        # Container empilé : chart + label overlay
+        from PySide6.QtWidgets import QStackedLayout
+        analysis_chart_container = QWidget()
+        analysis_chart_container.setStyleSheet("background:transparent; border:none;")
+        analysis_stack = QStackedLayout(analysis_chart_container)
+        analysis_stack.setStackingMode(QStackedLayout.StackAll)
+        analysis_stack.addWidget(self._pie_view)
+
+        # Label central overlay (QLabel fiable)
+        self._center_label = QLabel()
+        self._center_label.setAlignment(Qt.AlignCenter)
+        self._center_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._center_label.setFixedSize(160, 60)
+        self._center_label.setStyleSheet(
+            "background:transparent; border:none; "
+            "color:#c8cdd4; font-size:12px; font-weight:700;"
         )
+        center_wrapper = QWidget()
+        center_wrapper.setAttribute(Qt.WA_TransparentForMouseEvents)
+        center_wrapper.setStyleSheet("background:transparent; border:none;")
+        cw_layout = QVBoxLayout(center_wrapper)
+        cw_layout.setContentsMargins(0, 0, 0, 0)
+        cw_layout.setAlignment(Qt.AlignCenter)
+        cw_layout.addWidget(self._center_label)
+        analysis_stack.addWidget(center_wrapper)
+
+        layout.addWidget(analysis_chart_container)
 
         # Légende détaillée en tableau
         self._legend_table = QTableWidget()
@@ -428,37 +445,15 @@ class StatisticsView(QWidget):
 
     def _update_center_label(self, line1: str, line2: str = ""):
         text = f"{line1}\n{line2}" if line2 else line1
-        self._center_label.setPlainText(text)
-        self._reposition_center_label()
+        self._center_label.setText(text)
 
     def _reposition_center_label(self):
-        """Repositionne le label — différé si plotArea pas encore calculé."""
-        from PySide6.QtCore import QTimer
-        chart = self._pie_view.chart()
-        plot  = chart.plotArea()
-        if plot.width() < 10:
-            QTimer.singleShot(200, self._reposition_center_label)
-            return
-        rect = self._center_label.boundingRect()
-        cx = plot.center().x() - rect.width()  / 2
-        cy = plot.center().y() - rect.height() / 2
-        self._center_label.setPos(cx, cy)
-        # Replanifier une fois de plus pour s'assurer que c'est bien centré
-        QTimer.singleShot(300, lambda: self._force_center())
+        """Plus nécessaire avec QLabel overlay — gardé pour compatibilité."""
+        pass
 
     def _force_center(self):
-        """Force le recentrage après rendu complet."""
-        if not hasattr(self, '_center_label'):
-            return
-        chart = self._pie_view.chart()
-        plot  = chart.plotArea()
-        if plot.width() < 10:
-            return
-        rect = self._center_label.boundingRect()
-        self._center_label.setPos(
-            plot.center().x() - rect.width()  / 2,
-            plot.center().y() - rect.height() / 2
-        )
+        """Plus nécessaire avec QLabel overlay — gardé pour compatibilité."""
+        pass
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -467,22 +462,20 @@ class StatisticsView(QWidget):
 
     def _on_hover(self, state):
         sl = self.sender()
-        if not sl:
+        if not sl or not hasattr(self, '_center_label'):
             return
         if state:
             sl.setExploded(True)
             sl.setBrush(QColor(sl.base_color).lighter(135))
             pct = (sl.amount_value / self._total * 100) if self._total else 0
-            self._update_center_label(
-                format_money(sl.amount_value),
-                f"{sl.category_name}\n{pct:.1f}%"
+            self._center_label.setText(
+                f"{sl.category_name}\n{format_money(sl.amount_value)} · {pct:.1f}%"
             )
         else:
             sl.setExploded(False)
             sl.setBrush(sl.base_color)
-            self._update_center_label(
-                format_money(self._total),
-                "D\u00e9penses"
+            self._center_label.setText(
+                f"{format_money(self._total)}\nDépenses"
             )
 
     def _rebuild_legend(self, data):
@@ -666,22 +659,22 @@ class StatisticsView(QWidget):
         # Reconstruire le tableau récapitulatif
         old_table = self._recap_table
         self._recap_table = self._build_recap_table()
-        layout = self.layout()
-        for i in range(layout.count()):
-            item = layout.itemAt(i)
+        tab1_layout = self._tab1_layout
+        for i in range(tab1_layout.count()):
+            item = tab1_layout.itemAt(i)
             if item and item.widget() == old_table:
-                layout.removeWidget(old_table)
+                tab1_layout.removeWidget(old_table)
                 old_table.deleteLater()
-                layout.insertWidget(i, self._recap_table)
+                tab1_layout.insertWidget(i, self._recap_table)
                 break
         # Forcer la reconstruction des onglets au prochain clic
         self._pie_tab_built = False
         self._comp_tab_built = False
 
     def _replace_chart(self, attr: str, new_view, stretch: int):
-        """Remplace un graphique dans le layout sans tout reconstruire."""
+        """Remplace un graphique dans le layout tab1 sans tout reconstruire."""
         old_view = getattr(self, attr)
-        layout   = self.layout()
+        layout   = self._tab1_layout
         for i in range(layout.count()):
             item = layout.itemAt(i)
             if item and item.widget() == old_view:
@@ -785,6 +778,7 @@ class StatisticsView(QWidget):
         left_l = QVBoxLayout(left_w)
         left_l.setContentsMargins(0, 0, 0, 0)
         left_l.setSpacing(2)
+        left_l.setAlignment(Qt.AlignTop)
 
         period_lbl = QLabel(f"Répartition — {period_state.label()}")
         period_lbl.setAlignment(Qt.AlignCenter)
@@ -818,33 +812,36 @@ class StatisticsView(QWidget):
         chart.setAnimationDuration(400)
         chart.setMargins(QMargins(0, 0, 0, 0))
 
-        # Container empilé : chartview + QLabel overlay (pas QGraphicsTextItem)
-        chart_container = QWidget()
-        chart_container.setStyleSheet("background:transparent; border:none;")
-        stack = QStackedLayout(chart_container)
-        stack.setStackingMode(QStackedLayout.StackAll)
-
         view = QChartView(chart)
         view.setRenderHint(QPainter.Antialiasing)
         view.setStyleSheet("background:transparent; border:none;")
         view.setMinimumHeight(280)
         view.setMaximumHeight(310)
         view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        stack.addWidget(view)
 
-        # QLabel overlay centré dans le trou du donut — remplace QGraphicsTextItem
-        self._pie_tab_center = QLabel()
+        # QLabel positionné en absolu par-dessus le chart view
+        self._pie_tab_center = QLabel(view)
         self._pie_tab_center.setAlignment(Qt.AlignCenter)
         self._pie_tab_center.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._pie_tab_center.setStyleSheet(
             "background:transparent; border:none; "
-            "color:#c8cdd4; font-size:13px; font-weight:700;"
+            "color:#c8cdd4; font-size:12px; font-weight:700;"
         )
         self._pie_tab_center.setText(f"{format_money(total)}\nDépenses")
-        stack.addWidget(self._pie_tab_center)
+        self._pie_tab_center.setFixedSize(160, 50)
 
+        # Centrer le label quand le chart se redimensionne
         self._pie_tab_chart_view = view
-        left_l.addWidget(chart_container)
+        original_resize = view.resizeEvent
+        def _on_resize(event):
+            original_resize(event)
+            self._center_pie_tab_label()
+        view.resizeEvent = _on_resize
+
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, self._center_pie_tab_label)
+
+        left_l.addWidget(view)
 
         hint = QLabel("Survolez pour détailler — Cliquez pour filtrer")
         hint.setAlignment(Qt.AlignCenter)
@@ -950,7 +947,7 @@ class StatisticsView(QWidget):
             sl.setBrush(QColor(sl.base_color).lighter(130))
             pct = sl.amount_value / self._pie_tab_total * 100 if self._pie_tab_total else 0
             self._pie_tab_center.setText(
-                f"{format_money(sl.amount_value)}\n{sl.category_name}\n{pct:.1f}%"
+                f"{sl.category_name}\n{format_money(sl.amount_value)} · {pct:.1f}%"
             )
         else:
             sl.setExploded(False)
@@ -958,3 +955,18 @@ class StatisticsView(QWidget):
             self._pie_tab_center.setText(
                 f"{format_money(self._pie_tab_total)}\nDépenses"
             )
+
+    def _center_pie_tab_label(self):
+        """Positionne le label au centre du trou du donut."""
+        if not hasattr(self, '_pie_tab_chart_view') or not hasattr(self, '_pie_tab_center'):
+            return
+        view = self._pie_tab_chart_view
+        plot = view.chart().plotArea()
+        if plot.width() < 10:
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(200, self._center_pie_tab_label)
+            return
+        lbl = self._pie_tab_center
+        cx = int(plot.center().x() - lbl.width() / 2)
+        cy = int(plot.center().y() - lbl.height() / 2)
+        lbl.move(cx, cy)

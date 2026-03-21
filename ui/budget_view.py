@@ -33,22 +33,48 @@ class BudgetView(QWidget):
         self._form_label.setStyleSheet("font-size:15px; font-weight:600; color:#c8cdd4;")
         layout.addWidget(self._form_label)
 
-        # ── Formulaire ajout ──
+        # ── Formulaire ajout en carte ──
+        form_card = QWidget()
+        form_card.setStyleSheet("""
+            QWidget {
+                background:#26292e; border-radius:12px;
+                border:1px solid #3a3f47;
+            }
+        """)
+        form_inner = QVBoxLayout(form_card)
+        form_inner.setContentsMargins(16, 12, 16, 12)
+        form_inner.setSpacing(8)
+
+        form_title = QLabel("Définir un budget mensuel")
+        form_title.setStyleSheet(
+            "font-size:13px; font-weight:600; color:#c8cdd4; "
+            "background:transparent; border:none;"
+        )
+        form_inner.addWidget(form_title)
+
+        form_row = QHBoxLayout()
+        form_row.setSpacing(8)
+
         self.category = QComboBox()
         self.category.setMinimumHeight(36)
-        layout.addWidget(self.category)
+        form_row.addWidget(self.category, 2)
 
         self.amount = QLineEdit()
-        self.amount.setPlaceholderText("Montant limite mensuel (€)")
+        self.amount.setPlaceholderText("Limite mensuelle (€)")
         self.amount.setMinimumHeight(36)
-        layout.addWidget(self.amount)
+        self.amount.setFixedWidth(160)
+        self.amount.returnPressed.connect(self.save)
+        form_row.addWidget(self.amount)
 
-        btn = QPushButton("  Enregistrer le budget")
+        btn = QPushButton("  Enregistrer")
         btn.setIcon(get_icon("budget.png"))
         btn.setIconSize(QSize(20, 20))
-        btn.setMinimumHeight(40)
+        btn.setMinimumHeight(36)
         btn.clicked.connect(self.save)
-        layout.addWidget(btn)
+        form_row.addWidget(btn)
+
+        form_inner.addLayout(form_row)
+        layout.addWidget(form_card)
 
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
@@ -222,6 +248,26 @@ class BudgetView(QWidget):
             self.results_layout.insertWidget(0, empty)
             return
 
+        # Calculer les dépenses du mois précédent pour la tendance
+        p = period_state.get()
+        pm, py = p.month - 1, p.year
+        if pm <= 0:
+            pm += 12
+            py -= 1
+        prev_spent = {}
+        with Session() as session:
+            for cat_id, limit, spent in data:
+                q = session.query(func.sum(Transaction.amount)).filter(
+                    Transaction.category_id == cat_id,
+                    Transaction.type == "expense",
+                    func.extract("year",  Transaction.date) == py,
+                    func.extract("month", Transaction.date) == pm,
+                )
+                acc_id = account_state.get_id()
+                if acc_id is not None:
+                    q = q.filter(Transaction.account_id == acc_id)
+                prev_spent[cat_id] = q.scalar() or 0
+
         for cat_id, limit, spent in data:
             cat   = categories.get(cat_id)
             name  = cat.name if cat else "Inconnu"
@@ -235,13 +281,51 @@ class BudgetView(QWidget):
             row_layout.setContentsMargins(12, 10, 12, 10)
             row_layout.setSpacing(6)
 
+            # Ligne 1 : nom + tendance + montants + supprimer
             header = QHBoxLayout()
             name_label = QLabel(name)
-            name_label.setStyleSheet("font-weight:600; font-size:13px;")
+            name_label.setStyleSheet(
+                "font-weight:600; font-size:13px; background:transparent; border:none;"
+            )
+
+            # Indicateur de tendance vs mois précédent
+            prev = prev_spent.get(cat_id, 0)
+            if prev > 0:
+                diff_pct = ((spent - prev) / prev) * 100
+                if diff_pct > 5:
+                    trend_text = f"▲ {diff_pct:.0f}%"
+                    trend_color = "#ef4444"
+                elif diff_pct < -5:
+                    trend_text = f"▼ {abs(diff_pct):.0f}%"
+                    trend_color = "#22c55e"
+                else:
+                    trend_text = "≈"
+                    trend_color = "#7a8494"
+                trend_label = QLabel(trend_text)
+                trend_label.setStyleSheet(
+                    f"font-size:11px; font-weight:600; color:{trend_color}; "
+                    "background:transparent; border:none;"
+                )
+                trend_label.setToolTip(
+                    f"Mois précédent : {format_money(prev)}"
+                )
+            else:
+                trend_label = None
+
             percent = min((spent / limit) * 100, 100) if limit > 0 else 0
+            reste = max(limit - spent, 0)
             amounts_label = QLabel(f"{format_money(spent)} / {format_money(limit)}")
             amounts_label.setAlignment(Qt.AlignRight)
-            amounts_label.setStyleSheet("color:#7a8494; font-size:12px;")
+            amounts_label.setStyleSheet(
+                "color:#7a8494; font-size:12px; background:transparent; border:none;"
+            )
+            btn_edit = QPushButton("Modifier")
+            btn_edit.setFixedHeight(26)
+            btn_edit.setStyleSheet(
+                "background:#1a2a3a; color:#60a5fa; border:1px solid #2a4a6a;"
+                "border-radius:5px; font-size:11px; padding:0 8px;"
+            )
+            btn_edit.clicked.connect(lambda _, cid=cat_id, lim=limit: self._edit_budget(cid, lim))
             btn_del = QPushButton("Supprimer")
             btn_del.setFixedHeight(26)
             btn_del.setStyleSheet(
@@ -250,12 +334,16 @@ class BudgetView(QWidget):
             )
             btn_del.clicked.connect(lambda _, cid=cat_id: self._delete_budget(cid))
             header.addWidget(name_label)
+            if trend_label:
+                header.addWidget(trend_label)
             header.addStretch()
             header.addWidget(amounts_label)
             header.addSpacing(8)
+            header.addWidget(btn_edit)
             header.addWidget(btn_del)
             row_layout.addLayout(header)
 
+            # Barre de progression
             bar = QProgressBar()
             bar.setMaximum(100)
             bar.setValue(int(percent))
@@ -263,11 +351,17 @@ class BudgetView(QWidget):
             bar.setFixedHeight(8)
 
             if percent >= 100:
-                bar_color, status_text, status_color = "#ef4444", "⚠ Budget dépassé", "#ef4444"
+                bar_color = "#ef4444"
+                status_text = f"⚠ Budget dépassé de {format_money(spent - limit)}"
+                status_color = "#ef4444"
             elif percent >= 80:
-                bar_color, status_text, status_color = "#f59e0b", "Attention — bientôt atteint", "#f59e0b"
+                bar_color = "#f59e0b"
+                status_text = f"Attention — reste {format_money(reste)}"
+                status_color = "#f59e0b"
             else:
-                bar_color, status_text, status_color = color, f"{percent:.0f}% utilisé", "#22c55e"
+                bar_color = color
+                status_text = f"Reste {format_money(reste)} disponible"
+                status_color = "#22c55e"
 
             bar.setStyleSheet(f"""
                 QProgressBar {{ background:#17191c; border-radius:4px; }}
@@ -275,16 +369,60 @@ class BudgetView(QWidget):
             """)
             row_layout.addWidget(bar)
 
+            # Ligne statut
+            status_row = QHBoxLayout()
             status_label = QLabel(status_text)
-            status_label.setStyleSheet(f"color:{status_color}; font-size:11px;")
-            status_label.setAlignment(Qt.AlignRight)
-            row_layout.addWidget(status_label)
+            status_label.setStyleSheet(
+                f"color:{status_color}; font-size:11px; "
+                "background:transparent; border:none;"
+            )
+            pct_label = QLabel(f"{percent:.0f}%")
+            pct_label.setAlignment(Qt.AlignRight)
+            pct_label.setStyleSheet(
+                f"color:{status_color}; font-size:11px; font-weight:600; "
+                "background:transparent; border:none;"
+            )
+            status_row.addWidget(status_label)
+            status_row.addStretch()
+            status_row.addWidget(pct_label)
+            row_layout.addLayout(status_row)
 
             self.results_layout.insertWidget(self.results_layout.count() - 1, row_widget)
 
         # Rafraîchir l'historique si visible
         if self._tabs.currentIndex() == 1:
             self._build_history()
+
+    # ------------------------------------------------------------------
+    def _edit_budget(self, category_id: int, current_limit: float):
+        """Modifie le montant limite d'un budget existant."""
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Modifier le budget")
+        dlg.setFixedWidth(320)
+        form = QFormLayout(dlg)
+        form.setContentsMargins(20, 20, 20, 20)
+        form.setSpacing(10)
+
+        spin = QDoubleSpinBox()
+        spin.setRange(1, 999999)
+        spin.setValue(current_limit)
+        spin.setSuffix(" €")
+        spin.setMinimumHeight(36)
+        form.addRow(QLabel("Nouvelle limite :"), spin)
+
+        btns = QDialogButtonBox()
+        btns.addButton("Enregistrer", QDialogButtonBox.AcceptRole)
+        btns.addButton("Annuler", QDialogButtonBox.RejectRole)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        form.addRow(btns)
+
+        if dlg.exec() == QDialog.Accepted:
+            set_budget(category_id, spin.value())
+            self.refresh()
+            Toast.show(self, "Budget modifié", kind="success")
 
     # ------------------------------------------------------------------
     def _on_tab_changed(self, index):
@@ -324,7 +462,7 @@ class BudgetView(QWidget):
             cat_names = {c.id: c.name for c in session.query(Category).all()}
 
         categories = []
-        bar_spent  = QBarSet("Depense")
+        bar_spent  = QBarSet("Dépensé")
         bar_limit  = QBarSet("Limite")
         bar_spent.setColor(QColor("#3b82f6"))
         bar_limit.setColor(QColor("#3d4248"))

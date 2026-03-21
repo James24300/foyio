@@ -23,6 +23,7 @@ class Category(Base):
     name  = Column(String,  nullable=False)
     icon  = Column(String)
     color = Column(String,  default="#3b82f6")
+    transfer_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
 
 
 class RecurringTransaction(Base):

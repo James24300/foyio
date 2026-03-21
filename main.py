@@ -15,7 +15,7 @@ from models import Category, Transaction
 
 import period_state
 
-from services.init_categories import init_categories, migrate_category_icons
+from services.init_categories import init_categories, migrate_category_icons, init_savings_categories
 from services.account_service import init_accounts, migrate_transactions_to_default_account
 import account_state
 from services.recurring_service import apply_recurring
@@ -947,7 +947,7 @@ class MainWindow(QWidget):
             n_budget = len(alerts)
             if hasattr(self, "btn_budget"):
                 if n_budget > 0:
-                    self.btn_budget.setText(f" Budgets  🔴{n_budget}")
+                    self.btn_budget.setText(f" Budgets ({n_budget})")
                 else:
                     self.btn_budget.setText(" Budgets")
 
@@ -955,7 +955,7 @@ class MainWindow(QWidget):
             n_rec = len(overdue) + len(upcoming)
             if hasattr(self, "btn_recurring"):
                 if n_rec > 0:
-                    self.btn_recurring.setText(f" Récurrentes  🔔{n_rec}")
+                    self.btn_recurring.setText(f" Récurrentes ({n_rec})")
                 else:
                     self.btn_recurring.setText(" Récurrentes")
         except Exception:
@@ -984,6 +984,7 @@ def main():
     init_categories()
     migrate_category_icons()
     init_accounts()
+    init_savings_categories()
     migrate_transactions_to_default_account()
     account_state.init_default()
     apply_recurring()

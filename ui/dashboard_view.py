@@ -107,9 +107,17 @@ class DashboardView(QWidget):
         main_layout.setSpacing(14)
         main_layout.setContentsMargins(20, 20, 20, 20)
 
-        # ── Cartes KPI (ligne 1 : solde global) ──
-        self.global_card = create_card("Solde de la période", "#22c55e", "wallet.png")
+        # ── Carte solde global tous comptes ──
+        self.global_card = create_card("Solde tous comptes", "#22c55e", "wallet.png")
         main_layout.addWidget(self.global_card["widget"])
+
+        # ── Sous-label : nombre de transactions du mois ──
+        self._tx_count_label = QLabel()
+        self._tx_count_label.setAlignment(Qt.AlignRight)
+        self._tx_count_label.setStyleSheet(
+            "font-size:11px; color:#5a6472; background:transparent; margin-top:-8px;"
+        )
+        main_layout.addWidget(self._tx_count_label)
 
         # ── Cartes KPI (ligne 2 : revenus / dépenses / solde) ──
         cards_layout = QGridLayout()
@@ -874,16 +882,29 @@ class DashboardView(QWidget):
         income, expense, balance = get_month_summary()
         self._total_expense = expense
 
+        # ── Solde tous comptes ──
+        try:
+            from services.account_service import get_accounts, get_account_balance
+            all_balance = sum(get_account_balance(a.id)[2] for a in get_accounts())
+        except Exception:
+            all_balance = balance
+
+        # ── Nombre de transactions du mois ──
+        try:
+            from services.transaction_service import get_transactions_for_period
+            tx_count = len(get_transactions_for_period(limit=9999))
+            self._tx_count_label.setText(f"{tx_count} transaction(s) ce mois")
+        except Exception:
+            self._tx_count_label.setText("")
+
         # ── Graphique solde ──
         self._update_balance_chart()
 
         # ── Cartes KPI ──
-        # Couleurs dynamiques selon signe
-        global_color  = "#22c55e" if balance >= 0 else "#ef4444"
+        global_color  = "#22c55e" if all_balance >= 0 else "#ef4444"
         balance_color = "#22c55e" if balance >= 0 else "#ef4444"
         bar_style = "border-radius:4px 0 0 4px; border:none; background:{c};"
 
-        # Mise à jour couleurs
         self.global_card["value"].setStyleSheet(
             f"font-size:24px; font-weight:700; color:{global_color}; background:transparent; border:none;"
         )
@@ -896,11 +917,12 @@ class DashboardView(QWidget):
             self.balance_card["bar"].setStyleSheet(bar_style.format(c=balance_color))
 
         # Compteurs animés
-        sign = "+" if balance >= 0 else ""
-        self._anim_global  = CounterAnimation(self.global_card["value"],  abs(balance), prefix="" if balance >= 0 else "-")
+        sign_g = "+" if all_balance >= 0 else "-"
+        sign_b = "+" if balance >= 0 else ""
+        self._anim_global  = CounterAnimation(self.global_card["value"],  abs(all_balance), prefix="" if all_balance >= 0 else "-")
         self._anim_income  = CounterAnimation(self.income_card["value"],  income)
         self._anim_expense = CounterAnimation(self.expense_card["value"], expense)
-        self._anim_balance = CounterAnimation(self.balance_card["value"], abs(balance), prefix=sign if balance >= 0 else "-")
+        self._anim_balance = CounterAnimation(self.balance_card["value"], abs(balance), prefix=sign_b if balance >= 0 else "-")
         for anim in [self._anim_global, self._anim_income, self._anim_expense, self._anim_balance]:
             anim.start()
 
@@ -978,6 +1000,8 @@ class DashboardView(QWidget):
         # ── Nouveaux widgets ──
         self._rebuild_alerts()
         self._rebuild_recent()
+        self._refresh_rev_dep_chart()
+        self._refresh_savings_widget()
 
         self._update_analysis(income, expense, balance)
 

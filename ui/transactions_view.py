@@ -48,8 +48,27 @@ class Transactions(QWidget):
         layout.addWidget(self.total_label)
 
         # ── Formulaire d'ajout ──
-        form_layout = QHBoxLayout()
-        form_layout.setSpacing(8)
+        form_card = QWidget()
+        form_card.setStyleSheet("""
+            QWidget {
+                background:#26292e; border-radius:12px;
+                border:1px solid #3a3f47;
+            }
+        """)
+        form_card_layout = QVBoxLayout(form_card)
+        form_card_layout.setContentsMargins(16, 12, 16, 12)
+        form_card_layout.setSpacing(8)
+
+        form_title = QLabel("Nouvelle transaction")
+        form_title.setStyleSheet(
+            "font-size:13px; font-weight:600; color:#c8cdd4; "
+            "background:transparent; border:none;"
+        )
+        form_card_layout.addWidget(form_title)
+
+        # Ligne 1 : Type + Montant + Catégorie + Description
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
 
         self.type = QComboBox()
         self.type.addItems(["Dépense", "Revenu"])
@@ -61,6 +80,7 @@ class Transactions(QWidget):
         validator.setNotation(QDoubleValidator.StandardNotation)
         self.amount.setValidator(validator)
         self.amount.setMinimumHeight(36)
+        self.amount.setFixedWidth(130)
         self.amount.setPlaceholderText("Montant (€)")
         self.amount.returnPressed.connect(self.add)
 
@@ -75,6 +95,27 @@ class Transactions(QWidget):
         self.note.returnPressed.connect(self.add)
         self.note.textChanged.connect(self._auto_category)
 
+        row1.addWidget(self.type)
+        row1.addWidget(self.amount)
+        row1.addWidget(self.category, 1)
+        row1.addWidget(self.note, 2)
+        form_card_layout.addLayout(row1)
+
+        # Ligne 2 : Date + Ajouter + Supprimer + Exporter + Importer
+        row2 = QHBoxLayout()
+        row2.setSpacing(8)
+
+        date_lbl = QLabel("Date :")
+        date_lbl.setStyleSheet(
+            "color:#7a8494; font-size:12px; background:transparent; border:none;"
+        )
+        self._add_date = QDateEdit()
+        self._add_date.setCalendarPopup(True)
+        self._add_date.setDate(QDate.currentDate())
+        self._add_date.setDisplayFormat("dd/MM/yyyy")
+        self._add_date.setMinimumHeight(34)
+        self._add_date.setFixedWidth(130)
+
         self.btn = QPushButton("  Ajouter")
         self.btn.setIcon(get_icon("add.png"))
         self.btn.setMinimumHeight(34)
@@ -86,10 +127,6 @@ class Transactions(QWidget):
         self.delete_btn.setObjectName("danger")
         self.delete_btn.clicked.connect(self.delete_selected)
 
-        form_layout.addWidget(self.type)
-        form_layout.addWidget(self.amount)
-        form_layout.addWidget(self.category, 1)
-        form_layout.addWidget(self.note, 2)
         self.export_btn = QPushButton("  Exporter")
         self.export_btn.setIcon(get_icon("expense.png"))
         self.export_btn.setMinimumHeight(34)
@@ -102,12 +139,16 @@ class Transactions(QWidget):
         self.import_btn.setObjectName("import")
         self.import_btn.clicked.connect(self.import_csv)
 
+        row2.addWidget(date_lbl)
+        row2.addWidget(self._add_date)
+        row2.addStretch()
+        row2.addWidget(self.btn)
+        row2.addWidget(self.delete_btn)
+        row2.addWidget(self.export_btn)
+        row2.addWidget(self.import_btn)
+        form_card_layout.addLayout(row2)
 
-        form_layout.addWidget(self.btn)
-        form_layout.addWidget(self.delete_btn)
-        form_layout.addWidget(self.export_btn)
-        form_layout.addWidget(self.import_btn)
-        layout.addLayout(form_layout)
+        layout.addWidget(form_card)
 
         # ── Barre de recherche ──
         self.search = QLineEdit()
@@ -188,7 +229,6 @@ class Transactions(QWidget):
             }
         """)
 
-        self.table.itemDoubleClicked.connect(self.edit_transaction)
         # Widget message "aucune transaction"
         self._empty_widget = QWidget()
         empty_layout = QVBoxLayout(self._empty_widget)
@@ -211,7 +251,6 @@ class Transactions(QWidget):
 
         # ── Filtre période personnalisée ──
         from PySide6.QtWidgets import QCheckBox
-        from PySide6.QtCore import QDate
         period_row = QHBoxLayout()
         period_row.setSpacing(8)
 
@@ -321,8 +360,12 @@ class Transactions(QWidget):
         ttype = "income" if self.type.currentText() == "Revenu" else "expense"
         if hasattr(self.note, 'correct_current'):
             self.note.correct_current()
+        # Récupérer la date depuis le sélecteur
+        from datetime import datetime as _dt
+        qd = self._add_date.date()
+        tx_date = _dt(qd.year(), qd.month(), qd.day())
         try:
-            add_transaction(amount, ttype, category_id, self.note.text().strip())
+            add_transaction(amount, ttype, category_id, self.note.text().strip(), date=tx_date)
         except Exception as e:
             Toast.show(self, f"✕  Erreur : {e}", kind="error")
             return
@@ -338,6 +381,7 @@ class Transactions(QWidget):
 
         self.amount.clear()
         self.note.clear()
+        self._add_date.setDate(QDate.currentDate())  # remettre à aujourd'hui
         self.load_categories()   # recharge et remet à l'entrée neutre
         self.amount.setFocus()
         self.table.scrollToTop()
@@ -349,6 +393,95 @@ class Transactions(QWidget):
         Toast.show(self, f"✓  {label}  {sign}{_fmt(added_amount)}", kind="success")
         self._check_duplicates()
         self._flash_row(0, added_type)
+
+        # Transfert automatique épargne
+        if ttype == "expense":
+            self._check_auto_transfer(category_id, added_amount, tx_date, added_note)
+
+    # ------------------------------------------------------------------
+    def _check_auto_transfer(self, category_id, amount, tx_date, note):
+        """Propose un transfert automatique si la catégorie est liée à un compte épargne."""
+        from services.transfer_service import get_transfer_account, create_mirror_transaction
+        from utils.formatters import format_money as _fmt
+
+        acc_id, acc_name = get_transfer_account(category_id)
+        if not acc_id:
+            return
+
+        # Popup de confirmation avec montant modifiable
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
+            QLabel, QDoubleSpinBox, QDialogButtonBox)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Transfert épargne")
+        dlg.setMinimumWidth(380)
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(12)
+
+        info = QLabel(
+            f"Cette dépense est liée au compte <b>{acc_name}</b>.<br>"
+            f"Voulez-vous créditer ce compte ?"
+        )
+        info.setTextFormat(Qt.RichText)
+        info.setStyleSheet("font-size:13px; color:#c8cdd4;")
+        info.setWordWrap(True)
+        vl.addWidget(info)
+
+        # Montant modifiable
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        lbl = QLabel("Montant à créditer :")
+        lbl.setStyleSheet("font-size:12px; color:#848c94;")
+        spin = QDoubleSpinBox()
+        spin.setRange(0.01, 999999.99)
+        spin.setValue(amount)
+        spin.setSuffix(" €")
+        spin.setMinimumHeight(36)
+        spin.setFixedWidth(150)
+        row.addWidget(lbl)
+        row.addWidget(spin)
+        row.addStretch()
+        vl.addLayout(row)
+
+        # Résumé
+        summary = QLabel(
+            f"→ +{_fmt(amount)} sur {acc_name}"
+        )
+        summary.setStyleSheet(
+            "font-size:12px; font-weight:600; color:#22c55e; "
+            "background:#1a2a1a; border-radius:8px; padding:8px 12px;"
+        )
+        vl.addWidget(summary)
+
+        # Mettre à jour le résumé quand le montant change
+        def _update_summary():
+            summary.setText(f"→ +{_fmt(spin.value())} sur {acc_name}")
+        spin.valueChanged.connect(_update_summary)
+
+        btns = QDialogButtonBox()
+        btns.addButton("Transférer", QDialogButtonBox.AcceptRole)
+        btns.addButton("Ignorer", QDialogButtonBox.RejectRole)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        vl.addWidget(btns)
+
+        if dlg.exec() == QDialog.Accepted:
+            transfer_amount = spin.value()
+            create_mirror_transaction(
+                source_date=tx_date,
+                amount=transfer_amount,
+                category_id=category_id,
+                destination_account_id=acc_id,
+                note=note or "Transfert épargne"
+            )
+            Toast.show(self,
+                f"✓  +{_fmt(transfer_amount)} crédité sur {acc_name}",
+                kind="success"
+            )
+            main = self.window()
+            if hasattr(main, "refresh_all"):
+                main.refresh_all()
 
     # ------------------------------------------------------------------
     def delete_selected(self):
@@ -859,7 +992,7 @@ class Transactions(QWidget):
         if not item:
             return
         row = item.row()
-        txn_id = self.table.item(row, 0)
+        txn_id = self.table.item(row, 1)  # colonne 1 = Date, qui porte l'ID en UserRole
         if not txn_id:
             return
         tid = txn_id.data(Qt.UserRole)
@@ -958,7 +1091,7 @@ class Transactions(QWidget):
 
         # Type
         type_combo = QComboBox()
-        type_combo.addItem("Depense",  "expense")
+        type_combo.addItem("Dépense",  "expense")
         type_combo.addItem("Revenu",   "income")
         type_combo.setCurrentIndex(0 if t_type == "expense" else 1)
         type_combo.setMinimumHeight(34)
@@ -983,7 +1116,7 @@ class Transactions(QWidget):
             cat_combo.addItem(get_icon(icon_file, 18), c.name, c.id)
             if c.id == t_cat_id:
                 cat_combo.setCurrentIndex(cat_combo.count() - 1)
-        form.addRow("Categorie :", cat_combo)
+        form.addRow("Catégorie :", cat_combo)
 
         # Description
         from ui.spellcheck_lineedit import SpellCheckLineEdit
@@ -1045,49 +1178,66 @@ class Transactions(QWidget):
             return
 
         # Sauvegarder
-        from datetime import datetime as _dt
+        from datetime import datetime as _dt, date as _date_type
         from db import safe_session
         qd = date_edit.date()
-        new_date = _dt(qd.year(), qd.month(), qd.day(),
-                       t_date.hour, t_date.minute, t_date.second)
+        # t_date peut être un date ou un datetime
+        if hasattr(t_date, 'hour'):
+            new_date = _dt(qd.year(), qd.month(), qd.day(),
+                           t_date.hour, t_date.minute, t_date.second)
+        else:
+            new_date = _dt(qd.year(), qd.month(), qd.day())
 
         from models import TransactionHistory
         from datetime import datetime as _now
-        with safe_session() as session:
-            t = session.query(Transaction).filter_by(id=transaction_id).first()
-            if t:
-                changes = []
-                new_amount = round(amount_spin.value(), 2)
-                new_type   = type_combo.currentData()
-                new_cat    = cat_combo.currentData()
-                new_note   = note_input.text().strip() or None
-                if t.amount      != new_amount: changes.append(("amount",      str(t.amount),      str(new_amount)))
-                if t.type        != new_type:   changes.append(("type",        t.type,             new_type))
-                if t.category_id != new_cat:    changes.append(("category_id", str(t.category_id), str(new_cat)))
-                if (t.note or "") != (new_note or ""): changes.append(("note", t.note or "", new_note or ""))
-                if t.date.date() != new_date.date(): changes.append(("date",   str(t.date.date()), str(new_date.date())))
+        try:
+            with safe_session() as session:
+                t = session.query(Transaction).filter_by(id=transaction_id).first()
+                if t:
+                    new_amount = round(amount_spin.value(), 2)
+                    new_type   = type_combo.currentData()
+                    new_cat    = cat_combo.currentData()
+                    new_note   = note_input.text().strip() or None
 
-                t.amount      = new_amount
-                t.type        = new_type
-                t.category_id = new_cat
-                t.note        = new_note
-                t.date        = new_date
+                    # Historique des changements
+                    changes = []
+                    if t.amount      != new_amount: changes.append(("amount",      str(t.amount),      str(new_amount)))
+                    if t.type        != new_type:   changes.append(("type",        t.type,             new_type))
+                    if t.category_id != new_cat:    changes.append(("category_id", str(t.category_id), str(new_cat)))
+                    if (t.note or "") != (new_note or ""): changes.append(("note", t.note or "", new_note or ""))
+                    old_date = t.date if isinstance(t.date, _date_type) else t.date.date()
+                    if old_date != new_date.date(): changes.append(("date", str(old_date), str(new_date.date())))
 
-                for field, old_v, new_v in changes:
-                    session.add(TransactionHistory(
-                        transaction_id=transaction_id,
-                        changed_at=_now.now(),
-                        field_name=field,
-                        old_value=old_v,
-                        new_value=new_v,
-                        account_id=t.account_id,
-                    ))
+                    t.amount      = new_amount
+                    t.type        = new_type
+                    t.category_id = new_cat
+                    t.note        = new_note
+                    t.date        = new_date
+
+                    for field, old_v, new_v in changes:
+                        session.add(TransactionHistory(
+                            transaction_id=transaction_id,
+                            changed_at=_now.now(),
+                            field_name=field,
+                            old_value=old_v,
+                            new_value=new_v,
+                            account_id=t.account_id,
+                        ))
+        except Exception as e:
+            from ui.toast import Toast
+            Toast.show(self, f"Erreur sauvegarde : {e}", kind="error")
+            return
 
         self.load()
-        if hasattr(self, 'accueil_ref'):
-            self.accueil_ref.refresh()
+        main = self.window()
+        if hasattr(main, "refresh_all"):
+            main.refresh_all()
         from ui.toast import Toast
-        Toast.show(self, "Transaction modifiee", kind="success")
+        Toast.show(self, "Transaction modifiée", kind="success")
+
+        # Transfert automatique si catégorie épargne changée vers une catégorie liée
+        if new_type == "expense" and new_cat != t_cat_id:
+            self._check_auto_transfer(new_cat, new_amount, new_date, new_note or "")
 
     def _flash_row(self, row: int, ttype: str):
         """Flash vert ou rouge sur la ligne ajoutée."""
@@ -1108,23 +1258,16 @@ class Transactions(QWidget):
     def _check_duplicates(self):
         """Vérifie silencieusement les doublons du mois courant."""
         import period_state as _ps
-        import traceback
         try:
             p = _ps.get()
-            print(f"[doublons] periode={p.year}/{p.month}")
             from services.transaction_service import find_monthly_duplicates
             pairs = find_monthly_duplicates(p.year, p.month)
-            print(f"[doublons] paires trouvées={len(pairs)}")
-            for t1, t2, r in pairs:
-                print(f"  -> {t1.amount} | {t1.note} / {t2.note} | {r}")
             if len(pairs) > 0:
                 self._dup_btn.setText(f"  {len(pairs)} doublon(s) probable(s) ce mois")
                 self._dup_btn.setVisible(True)
             else:
                 self._dup_btn.setVisible(False)
-        except Exception as e:
-            print(f"[doublons] ERREUR: {e}")
-            traceback.print_exc()
+        except Exception:
             self._dup_btn.setVisible(False)
 
     def _show_duplicates(self):
@@ -1148,7 +1291,7 @@ class Transactions(QWidget):
         layout.setContentsMargins(16, 16, 16, 16)
 
         msg = (f"{len(pairs)} paire(s) de transactions potentiellement en doublon. "
-               "Verifiez et supprimez manuellement si necessaire.")
+               "Vérifiez et supprimez manuellement si nécessaire.")
         info = QLabel(msg)
         info.setStyleSheet("font-size:12px; color:#848c94;")
         info.setWordWrap(True)
@@ -1156,7 +1299,7 @@ class Transactions(QWidget):
 
         table = QTableWidget()
         table.setColumnCount(5)
-        table.setHorizontalHeaderLabels(["Date A", "Date B", "Montant", "Libelle A", "Libelle B"])
+        table.setHorizontalHeaderLabels(["Date A", "Date B", "Montant", "Libellé A", "Libellé B"])
         table.setRowCount(len(pairs))
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setShowGrid(False)
