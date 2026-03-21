@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="52" fill="#2a2e34"/>
+  <!-- Porte -->
+  <path d="M108 56 H68 Q56 56 56 68 V188 Q56 200 68 200 H108"
+    fill="none" stroke="#c8cdd4" stroke-width="12"
+    stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Flèche vers la droite (sortie) -->
+  <line x1="104" y1="128" x2="200" y2="128"
+    stroke="#c8cdd4" stroke-width="12"
+    stroke-linecap="round"/>
+  <polyline points="168,96 200,128 168,160"
+    fill="none" stroke="#c8cdd4" stroke-width="12"
+    stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

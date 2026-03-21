@@ -1,0 +1,10 @@
+__pycache__/  
+*.pyc  
+*.db  
+dist/  
+build/  
+Output/  
+*.spec  
+settings.json  
+auth.key  
+backups/ 

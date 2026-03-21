@@ -1,0 +1,20 @@
+[Setup]
+AppName=Finance Foyer PRO
+AppVersion=1.0
+DefaultDirName={pf}\FinanceFoyer
+DefaultGroupName=Finance Foyer
+OutputDir=output
+OutputBaseFilename=Setup_FinanceFoyer
+Compression=lzma
+SolidCompression=yes
+SetupIconFile=icon.ico
+
+[Files]
+Source: "dist\main.exe"; DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{group}\Finance Foyer"; Filename: "{app}\main.exe"
+Name: "{commondesktop}\Finance Foyer"; Filename: "{app}\main.exe"
+
+[Run]
+Filename: "{app}\main.exe"; Description: "Lancer l'application"; Flags: nowait postinstall skipifsilent

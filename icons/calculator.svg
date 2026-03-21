@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="52" fill="#2a2e34"/>
+  <!-- Corps calculatrice -->
+  <rect x="56" y="44" width="144" height="168" rx="16"
+    fill="none" stroke="#c8cdd4" stroke-width="12"
+    stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Écran -->
+  <rect x="76" y="64" width="104" height="44" rx="8"
+    fill="#3d4248" stroke="none"/>
+  <!-- Ligne séparatrice -->
+  <line x1="56" y1="132" x2="200" y2="132"
+    stroke="#3d4248" stroke-width="8"/>
+  <!-- Boutons : rangée 1 -->
+  <rect x="72" y="144" width="28" height="20" rx="5" fill="#5a6472"/>
+  <rect x="114" y="144" width="28" height="20" rx="5" fill="#5a6472"/>
+  <rect x="156" y="144" width="28" height="20" rx="5" fill="#3b5bdb"/>
+  <!-- Boutons : rangée 2 -->
+  <rect x="72" y="174" width="28" height="20" rx="5" fill="#5a6472"/>
+  <rect x="114" y="174" width="28" height="20" rx="5" fill="#5a6472"/>
+  <rect x="156" y="174" width="28" height="20" rx="5" fill="#3b5bdb"/>
+  <!-- Bouton = large -->
+  <rect x="72" y="204" width="70" height="20" rx="5" fill="#22c55e"/>
+  <rect x="156" y="204" width="28" height="20" rx="5" fill="#3b5bdb"/>
+</svg>
