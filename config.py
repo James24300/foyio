@@ -36,6 +36,8 @@ if os.path.isdir(_OLD_DIR) and not os.path.exists(DB_PATH):
                 shutil.copy2(src, dst)
             elif os.path.isdir(src) and not os.path.exists(dst):
                 shutil.copytree(src, dst)
-        print(f"Migration : données déplacées de {_OLD_NAME} → {APP_NAME}")
+        import logging as _log
+        _log.getLogger(__name__).info("Migration : données déplacées de %s → %s", _OLD_NAME, APP_NAME)
     except Exception as e:
-        print(f"Migration warning : {e}")
+        import logging as _log
+        _log.getLogger(__name__).warning("Migration warning : %s", e)

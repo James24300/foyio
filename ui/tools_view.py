@@ -86,9 +86,11 @@ def _fetch_rates():
                 RATES_EUR[code] = rates[code]
         _rates_updated = True
         _rates_date = data.get("date", "")
-        print(f"Taux de change mis à jour : {_rates_date}")
+        import logging as _log
+        _log.getLogger(__name__).info("Taux de change mis à jour : %s", _rates_date)
     except Exception as e:
-        print(f"Taux de change : impossible de mettre à jour ({e}), taux indicatifs utilisés")
+        import logging as _log
+        _log.getLogger(__name__).warning("Taux de change : impossible de mettre à jour (%s), taux indicatifs utilisés", e)
 
 
 # Mise à jour asynchrone au chargement du module

@@ -5,6 +5,7 @@ Formats supportés :
   - Format interne Foyio (export maison)
 """
 import csv
+import logging
 import re
 from datetime import datetime
 from dataclasses import dataclass, field
@@ -13,6 +14,8 @@ from typing import List, Optional
 from db import Session, safe_session
 from models import Transaction, Category
 from services.transaction_recognition import find_rule
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -44,13 +47,16 @@ def detect_format(filepath: str) -> str:
     - sg_gdb  : export application mobile SG (Date transaction;...;Num Compte;...;Montant)
     - sg      : relevé classique avec colonnes Débit/Crédit séparées
     """
+    lines = []
     for enc in ["utf-8-sig", "latin-1", "cp1252"]:
         try:
             with open(filepath, "r", encoding=enc, errors="replace") as f:
                 lines = [f.readline() for _ in range(5)]
             break
         except Exception:
-            lines = []
+            continue
+    if not lines:
+        logger.warning("Impossible de lire le fichier : %s", filepath)
 
     # Texte complet des premières lignes (insensible à la casse et aux accents)
     all_text = " ".join(lines).lower()
@@ -108,15 +114,17 @@ def parse_sg(filepath: str) -> List[ImportRow]:
     La SG exporte parfois avec BOM UTF-8 et encodage latin-1.
     """
     rows = []
-    encodings = ["utf-8-sig", "latin-1", "cp1252"]
-
-    for enc in encodings:
+    content = ""
+    for enc in ["utf-8-sig", "latin-1", "cp1252"]:
         try:
             with open(filepath, "r", encoding=enc, errors="replace") as f:
                 content = f.read()
             break
         except Exception:
             continue
+    if not content:
+        logger.warning("Impossible de lire le fichier SG : %s", filepath)
+        return rows
 
     lines = content.splitlines()
 
@@ -199,7 +207,7 @@ def parse_sg_web(filepath: str) -> List[ImportRow]:
     Encodage : utf-8-sig, séparateur ;, montant signé avec virgule
     """
     rows = []
-
+    raw = ""
     for enc in ["utf-8-sig", "latin-1", "cp1252"]:
         try:
             with open(filepath, "r", encoding=enc, errors="replace") as f:
@@ -207,6 +215,9 @@ def parse_sg_web(filepath: str) -> List[ImportRow]:
             break
         except Exception:
             continue
+    if not raw:
+        logger.warning("Impossible de lire le fichier SG web : %s", filepath)
+        return rows
 
     lines = raw.splitlines()
 
@@ -284,7 +295,7 @@ def parse_sg_gdb(filepath: str) -> List[ImportRow]:
     Montant signé : négatif = dépense, positif = revenu
     """
     rows = []
-
+    content_raw = ""
     for enc in ["latin-1", "cp1252", "utf-8-sig"]:
         try:
             with open(filepath, "r", encoding=enc, errors="replace") as f:
@@ -292,6 +303,9 @@ def parse_sg_gdb(filepath: str) -> List[ImportRow]:
             break
         except Exception:
             continue
+    if not content_raw:
+        logger.warning("Impossible de lire le fichier SG GDB : %s", filepath)
+        return rows
 
     lines = content_raw.splitlines()
     if not lines:
@@ -480,24 +494,28 @@ def load_csv(filepath: str):
 
 def insert_row(row: ImportRow, category_id: int,
                account_id: int = None) -> bool:
-    """Insère une ImportRow en base. Retourne True si succès."""
+    """Insère une ImportRow en base. Retourne True si succès, False si échec."""
     # Nettoyer les caractères invisibles de la note
     note = row.label or ''
     note = note.replace('\xa0', ' ')  # espace insécable
     note = note.replace('\ufffd', '')  # caractère de remplacement
     note = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', note)  # contrôle
     note = re.sub(r'\s{2,}', ' ', note).strip()
-    with safe_session() as session:
-        t = Transaction(
-            date=row.date,
-            amount=row.amount,
-            type=row.type,
-            note=note,
-            category_id=category_id,
-            account_id=account_id,
-        )
-        session.add(t)
-    return True
+    try:
+        with safe_session() as session:
+            t = Transaction(
+                date=row.date,
+                amount=row.amount,
+                type=row.type,
+                note=note,
+                category_id=category_id,
+                account_id=account_id,
+            )
+            session.add(t)
+        return True
+    except Exception:
+        logger.exception("Échec import ligne : %s %.2f %s", note, row.amount, row.date)
+        return False
 
 
 # ──────────────────────────────────────────────────────────────
@@ -606,7 +624,7 @@ def parse_pdf_sg(filepath: str) -> List[ImportRow]:
                                     category_id=None,
                                 ))
                             except ValueError:
-                                pass
+                                logger.warning("Date invalide ignorée dans le PDF : %s", d)
 
                     db = parse_amount(debit_str)
                     cr = parse_amount(credit_str)
