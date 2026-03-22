@@ -2,12 +2,15 @@
 Module base de données — Foyio
 Gère la connexion SQLAlchemy, les sessions et les migrations de schéma.
 """
+import logging
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 from config import DB_PATH
+
+logger = logging.getLogger(__name__)
 
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
@@ -25,11 +28,9 @@ def safe_session():
     try:
         yield session
         session.commit()
-    except Exception as e:
+    except Exception:
         session.rollback()
-        import traceback
-        print("Erreur SQL :", e)
-        traceback.print_exc()
+        logger.exception("Erreur SQL")
         raise
     finally:
         session.close()
@@ -63,7 +64,7 @@ def migrate_database():
                 "ALTER TABLE transactions ADD COLUMN recurring_id "
                 "INTEGER REFERENCES recurring_transactions(id)"))
             conn.commit()
-        print("Migration v3.1 : recurring_id ajouté")
+        logger.info("Migration v3.1 : recurring_id ajouté")
 
     # v3.2a : account_id sur transactions
     if _table_exists(inspector, "transactions") and \
@@ -73,7 +74,7 @@ def migrate_database():
                 "ALTER TABLE transactions ADD COLUMN account_id "
                 "INTEGER REFERENCES accounts(id)"))
             conn.commit()
-        print("Migration v3.2a : account_id sur transactions ajouté")
+        logger.info("Migration v3.2a : account_id sur transactions ajouté")
 
     # v3.2b : account_id sur recurring_transactions
     if _table_exists(inspector, "recurring_transactions") and \
@@ -83,7 +84,7 @@ def migrate_database():
                 "ALTER TABLE recurring_transactions ADD COLUMN account_id "
                 "INTEGER REFERENCES accounts(id)"))
             conn.commit()
-        print("Migration v3.2b : account_id sur recurring_transactions ajouté")
+        logger.info("Migration v3.2b : account_id sur recurring_transactions ajouté")
 
     # v3.3 : account_id sur budgets
     if _table_exists(inspector, "budgets") and \
@@ -93,7 +94,7 @@ def migrate_database():
                 "ALTER TABLE budgets ADD COLUMN account_id "
                 "INTEGER REFERENCES accounts(id)"))
             conn.commit()
-        print("Migration v3.3 : account_id sur budgets ajouté")
+        logger.info("Migration v3.3 : account_id sur budgets ajouté")
 
     # v3.4 : url sur accounts
     if _table_exists(inspector, "accounts") and \
@@ -101,7 +102,7 @@ def migrate_database():
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE accounts ADD COLUMN url VARCHAR(500)"))
             conn.commit()
-        print("Migration v3.4 : url sur accounts ajouté")
+        logger.info("Migration v3.4 : url sur accounts ajouté")
 
     # Rafraîchir l'inspector après les ALTER
     inspector = inspect(engine)
@@ -110,14 +111,14 @@ def migrate_database():
     if not _table_exists(inspector, "savings_goals"):
         from models import SavingsGoal
         SavingsGoal.__table__.create(engine)
-        print("Migration v4.0 : table savings_goals créée")
+        logger.info("Migration v4.0 : table savings_goals créée")
         inspector = inspect(engine)
 
     # v4.1 : table transaction_history
     if not _table_exists(inspector, "transaction_history"):
         from models import TransactionHistory
         TransactionHistory.__table__.create(engine)
-        print("Migration v4.1 : table transaction_history créée")
+        logger.info("Migration v4.1 : table transaction_history créée")
         inspector = inspect(engine)
 
     # v4.2 : monthly_target sur savings_goals
@@ -128,7 +129,7 @@ def migrate_database():
                 "ALTER TABLE savings_goals "
                 "ADD COLUMN monthly_target FLOAT DEFAULT 0.0"))
             conn.commit()
-        print("Migration v4.2 : monthly_target ajouté")
+        logger.info("Migration v4.2 : monthly_target ajouté")
 
     # v4.3 : manual_amount sur savings_goals
     if _table_exists(inspector, "savings_goals") and \
@@ -138,7 +139,7 @@ def migrate_database():
                 "ALTER TABLE savings_goals "
                 "ADD COLUMN manual_amount FLOAT DEFAULT 0.0"))
             conn.commit()
-        print("Migration v4.3 : manual_amount ajouté")
+        logger.info("Migration v4.3 : manual_amount ajouté")
 
     # v4.4 : category_id sur savings_goals
     if _table_exists(inspector, "savings_goals") and \
@@ -148,7 +149,7 @@ def migrate_database():
                 "ALTER TABLE savings_goals "
                 "ADD COLUMN category_id INTEGER REFERENCES categories(id)"))
             conn.commit()
-        print("Migration v4.4 : category_id ajouté sur savings_goals")
+        logger.info("Migration v4.4 : category_id ajouté sur savings_goals")
 
     # v4.5 : table savings_allocations
     if not _table_exists(inspector, "savings_allocations"):
@@ -162,7 +163,7 @@ def migrate_database():
                     account_id INTEGER REFERENCES accounts(id)
                 )"""))
             conn.commit()
-        print("Migration v4.5 : table savings_allocations créée")
+        logger.info("Migration v4.5 : table savings_allocations créée")
 
     # v4.6 : table savings_movements
     if not _table_exists(inspector, "savings_movements"):
@@ -177,7 +178,7 @@ def migrate_database():
                     account_id INTEGER REFERENCES accounts(id)
                 )"""))
             conn.commit()
-        print("Migration v4.6 : table savings_movements créée")
+        logger.info("Migration v4.6 : table savings_movements créée")
 
     # v4.7 : transfer_account_id sur categories
     inspector = inspect(engine)
@@ -188,4 +189,18 @@ def migrate_database():
                 "ALTER TABLE categories "
                 "ADD COLUMN transfer_account_id INTEGER REFERENCES accounts(id)"))
             conn.commit()
-        print("Migration v4.7 : transfer_account_id ajouté sur categories")
+        logger.info("Migration v4.7 : transfer_account_id ajouté sur categories")
+
+    # v5.0 : index de performance sur transactions
+    if _table_exists(inspector, "transactions"):
+        _indexes = {
+            "ix_transactions_account_date": "CREATE INDEX IF NOT EXISTS ix_transactions_account_date ON transactions(account_id, date)",
+            "ix_transactions_category":     "CREATE INDEX IF NOT EXISTS ix_transactions_category ON transactions(category_id)",
+            "ix_transactions_recurring":    "CREATE INDEX IF NOT EXISTS ix_transactions_recurring ON transactions(recurring_id)",
+            "ix_transactions_date":         "CREATE INDEX IF NOT EXISTS ix_transactions_date ON transactions(date)",
+        }
+        with engine.connect() as conn:
+            for name, ddl in _indexes.items():
+                conn.execute(text(ddl))
+            conn.commit()
+        logger.info("Migration v5.0 : index de performance créés sur transactions")

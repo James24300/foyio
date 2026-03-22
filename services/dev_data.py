@@ -1,7 +1,10 @@
+import logging
 import random
 from datetime import datetime, timedelta
 from db import safe_session
 from models import Transaction, Category
+
+logger = logging.getLogger(__name__)
 
 DESCRIPTIONS = [
     "EDF facture",
@@ -16,7 +19,7 @@ DESCRIPTIONS = [
 
 def generate_transactions(n=200):
 
-    print("Génération des transactions...")
+    logger.info("Génération des transactions...")
 
     with safe_session() as session:
 

@@ -1,5 +1,9 @@
+import logging
+
 from db import Session
 from models import Category, Account
+
+logger = logging.getLogger(__name__)
 
 
 def init_categories():
@@ -57,7 +61,7 @@ def init_savings_categories():
                 )
                 session.add(cat)
                 changed = True
-                print(f"Catégorie épargne créée : {name}" +
+                logger.info(f"Catégorie épargne créée : {name}" +
                       (f" → compte {name}" if acc_id else ""))
             else:
                 # Catégorie existe — mettre à jour le lien si manquant
@@ -65,7 +69,7 @@ def init_savings_categories():
                 if acc_id and not cat.transfer_account_id:
                     cat.transfer_account_id = acc_id
                     changed = True
-                    print(f"Catégorie {name} liée au compte {name}")
+                    logger.info(f"Catégorie {name} liée au compte {name}")
 
         # Lier aussi "Épargne" existante au Livret A si pas encore liée
         if "Épargne" in existing_cats:
@@ -74,7 +78,7 @@ def init_savings_categories():
             if livret_id and not epargne.transfer_account_id:
                 epargne.transfer_account_id = livret_id
                 changed = True
-                print("Catégorie Épargne liée au Livret A")
+                logger.info("Catégorie Épargne liée au Livret A")
 
         if changed:
             session.commit()
@@ -119,4 +123,4 @@ def migrate_category_icons():
 
         if changed:
             session.commit()
-            print(f"Migration icônes : {changed} catégorie(s) corrigée(s).")
+            logger.info("Migration icônes : %d catégorie(s) corrigée(s).", changed)

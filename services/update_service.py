@@ -3,8 +3,11 @@ Service de vérification de mise à jour — Foyio
 Vérifie si une nouvelle version est disponible sur GitHub.
 """
 import json
+import logging
 import os
 import threading
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -66,12 +69,12 @@ def check_for_update():
         _check_done       = True
 
         if _update_available:
-            print(f"Mise à jour disponible : v{latest}")
+            logger.info("Mise à jour disponible : v%s", latest)
         else:
-            print(f"Foyio est à jour (v{current})")
+            logger.info("Foyio est à jour (v%s)", current)
 
     except Exception as e:
-        print(f"Vérification mise à jour impossible : {e}")
+        logger.warning("Vérification mise à jour impossible : %s", e)
         _check_done = True
 
 

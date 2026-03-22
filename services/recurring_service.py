@@ -1,8 +1,9 @@
 """
 Service de gestion des transactions récurrentes.
 Au démarrage, génère automatiquement les transactions manquantes
-pour le mois courant.
+pour tous les mois depuis start_date jusqu'au mois courant (backfill).
 """
+import logging
 from datetime import date
 
 from sqlalchemy import func
@@ -10,10 +11,24 @@ from sqlalchemy import func
 from db import Session, safe_session
 from models import RecurringTransaction, Transaction
 
+logger = logging.getLogger(__name__)
+
+
+def _iter_months(start: date, end: date):
+    """Génère (year, month) de start à end inclus."""
+    y, m = start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        yield y, m
+        m += 1
+        if m > 12:
+            m = 1
+            y += 1
+
 
 def apply_recurring():
     """
-    Génère les transactions récurrentes manquantes pour le mois courant.
+    Génère les transactions récurrentes manquantes pour tous les mois
+    depuis start_date de chaque règle jusqu'au mois courant.
     Appelé au démarrage depuis main.py.
     Retourne le nombre de transactions créées.
     """
@@ -21,43 +36,48 @@ def apply_recurring():
     created = 0
 
     with safe_session() as session:
-        # Traiter TOUTES les règles actives (tous comptes confondus)
         rules = session.query(RecurringTransaction).filter_by(active=True).all()
 
-        for rule in rules:
-            if today < rule.start_date:
-                continue
-
-            target_day = min(rule.day_of_month, 28)
-            try:
-                target_date = date(today.year, today.month, target_day)
-            except ValueError:
-                target_date = date(today.year, today.month, 28)
-
-            # Vérifier si déjà générée ce mois-ci
-            existing = (
-                session.query(Transaction)
-                .filter(Transaction.recurring_id == rule.id)
-                .filter(func.extract("year",  Transaction.date) == today.year)
-                .filter(func.extract("month", Transaction.date) == today.month)
-                .first()
+        # Pré-charger toutes les transactions récurrentes existantes
+        # pour éviter une requête par règle × par mois
+        existing_set = set(
+            session.query(
+                Transaction.recurring_id,
+                func.extract("year",  Transaction.date),
+                func.extract("month", Transaction.date),
             )
-            if existing:
+            .filter(Transaction.recurring_id.isnot(None))
+            .all()
+        )
+
+        for rule in rules:
+            rule_start = rule.start_date
+            if today < rule_start:
                 continue
 
-            session.add(Transaction(
-                date         = target_date,
-                amount       = rule.amount,
-                type         = rule.type,
-                note         = rule.label,
-                category_id  = rule.category_id,
-                recurring_id = rule.id,
-                account_id   = rule.account_id,
-            ))
-            created += 1
+            for year, month in _iter_months(rule_start, today):
+                if (rule.id, year, month) in existing_set:
+                    continue
+
+                target_day = min(rule.day_of_month, 28)
+                try:
+                    target_date = date(year, month, target_day)
+                except ValueError:
+                    target_date = date(year, month, 28)
+
+                session.add(Transaction(
+                    date         = target_date,
+                    amount       = rule.amount,
+                    type         = rule.type,
+                    note         = rule.label,
+                    category_id  = rule.category_id,
+                    recurring_id = rule.id,
+                    account_id   = rule.account_id,
+                ))
+                created += 1
 
     if created:
-        print(f"Transactions récurrentes : {created} créée(s).")
+        logger.info("Transactions récurrentes : %d créée(s).", created)
     return created
 
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, Date, Boolean, ForeignKey, DateTime, Index
 from db import Base
 
 
@@ -44,6 +44,12 @@ class RecurringTransaction(Base):
 class Transaction(Base):
     """Transaction liée à un compte spécifique."""
     __tablename__ = "transactions"
+    __table_args__ = (
+        Index("ix_transactions_account_date", "account_id", "date"),
+        Index("ix_transactions_category",     "category_id"),
+        Index("ix_transactions_recurring",    "recurring_id"),
+        Index("ix_transactions_date",         "date"),
+    )
 
     id           = Column(Integer, primary_key=True)
     date         = Column(Date,        nullable=False)

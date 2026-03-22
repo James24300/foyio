@@ -1,8 +1,12 @@
 """
 Service de gestion des comptes bancaires.
 """
+import logging
+
 from db import Session, safe_session
 from models import Account, Transaction
+
+logger = logging.getLogger(__name__)
 
 
 # Comptes créés au premier démarrage
@@ -51,7 +55,7 @@ def migrate_transactions_to_default_account():
             .update({"account_id": default.id})
         )
         if updated:
-            print(f"Migration : {updated} transaction(s) assignée(s) au compte '{default.name}'")
+            logger.info("Migration : %d transaction(s) assignée(s) au compte '%s'", updated, default.name)
 
 
 def get_accounts():

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy import func
@@ -8,6 +9,8 @@ from services.stats_service import monthly_totals
 from services.transaction_recognition import find_rule
 import period_state
 import account_state
+
+logger = logging.getLogger(__name__)
 
 
 def add_transaction(amount, type, category_id, note=None, date=None):
@@ -33,13 +36,13 @@ def add_transaction(amount, type, category_id, note=None, date=None):
         # Si note identique → doublon certain
         exact = q.filter(Transaction.note == note_clean).first()
         if exact:
-            print(f"Transaction doublon ignorée : {amount} {note_clean} {date.date()}")
+            logger.debug("Transaction doublon ignorée : {amount} {note_clean} {date.date()}")
             return
         # Si note vide des deux côtés → doublon probable
         if not note_clean:
             no_note = q.filter(Transaction.note == None).first()  # noqa
             if no_note:
-                print(f"Transaction doublon (sans note) ignorée : {amount} {date.date()}")
+                logger.debug("Transaction doublon (sans note) ignorée : {amount} {date.date()}")
                 return
 
         t = Transaction(
@@ -190,34 +193,40 @@ def find_monthly_duplicates(year: int = None, month: int = None,
         if account_id is not None:
             q = q.filter(Transaction.account_id == account_id)
 
-        transactions = q.order_by(Transaction.amount, Transaction.date).all()
+        transactions = q.all()
         session.expunge_all()
+
+    # Grouper par montant pour ne comparer que les transactions
+    # ayant le même montant (O(n) au lieu de O(n²))
+    from collections import defaultdict
+    by_amount = defaultdict(list)
+    for t in transactions:
+        by_amount[t.amount].append(t)
 
     duplicates = []
     seen = set()
 
-    for i, t1 in enumerate(transactions):
-        for t2 in transactions[i + 1:]:
-            if t2.amount != t1.amount:
-                break  # trié par montant, plus besoin de chercher
+    for group in by_amount.values():
+        if len(group) < 2:
+            continue
+        for i, t1 in enumerate(group):
+            for t2 in group[i + 1:]:
+                pair_key = (min(t1.id, t2.id), max(t1.id, t2.id))
+                if pair_key in seen:
+                    continue
+                seen.add(pair_key)
 
-            pair_key = (min(t1.id, t2.id), max(t1.id, t2.id))
-            if pair_key in seen:
-                continue
-            seen.add(pair_key)
+                same_category = (t1.category_id == t2.category_id
+                                 and t1.category_id is not None)
+                notes_similar = _notes_match(t1.note, t2.note)
 
-            # Même catégorie OU notes similaires
-            same_category = (t1.category_id == t2.category_id
-                             and t1.category_id is not None)
-            notes_similar = _notes_match(t1.note, t2.note)
-
-            if same_category or notes_similar:
-                raison = []
-                if same_category:
-                    raison.append("même catégorie")
-                if notes_similar:
-                    raison.append("libellé similaire")
-                duplicates.append((t1, t2, " + ".join(raison)))
+                if same_category or notes_similar:
+                    raison = []
+                    if same_category:
+                        raison.append("même catégorie")
+                    if notes_similar:
+                        raison.append("libellé similaire")
+                    duplicates.append((t1, t2, " + ".join(raison)))
 
     return duplicates
 
@@ -275,7 +284,7 @@ def search_all_periods(query: str, account_id=None) -> list:
     from sqlalchemy import or_
     import account_state
 
-    q = q_str = query.strip().lower()
+    q_str = query.strip().lower()
 
     with Session() as session:
         results = (
