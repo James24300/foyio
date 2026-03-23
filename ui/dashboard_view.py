@@ -16,7 +16,8 @@ from services.transaction_service import get_month_summary
 from services.stats_service import expenses_by_category
 from services.dashboard_service import (
     top_expenses, forecast_balance, biggest_category,
-    compare_with_previous, recent_transactions, budget_alerts
+    compare_with_previous, recent_transactions, budget_alerts,
+    forecast_income
 )
 import period_state
 
@@ -159,6 +160,10 @@ class DashboardView(QWidget):
         self._savings_widget = self._build_savings_widget()
         main_layout.addWidget(self._savings_widget)
 
+        # ── Projection des revenus ──
+        self._income_proj_widget = self._build_income_projection_widget()
+        main_layout.addWidget(self._income_proj_widget)
+
         # ── Graphique évolution du solde ──
         self._balance_chart_title = QLabel("Evolution du solde")
         self._balance_chart_title.setStyleSheet(
@@ -249,6 +254,22 @@ class DashboardView(QWidget):
         sep.setFrameShape(QFrame.HLine)
         sep.setStyleSheet("color:#3a3f47;")
         right_col.addWidget(sep)
+
+        # · Rappels de paiement
+        self._reminders_title = QLabel("  Rappels de paiement")
+        self._reminders_title.setStyleSheet("font-size:13px; font-weight:600; color:#f59e0b;")
+        right_col.addWidget(self._reminders_title)
+
+        self._reminders_widget = QWidget()
+        self._reminders_layout = QVBoxLayout(self._reminders_widget)
+        self._reminders_layout.setContentsMargins(0, 0, 0, 0)
+        self._reminders_layout.setSpacing(4)
+        right_col.addWidget(self._reminders_widget)
+
+        sep2_rem = QFrame()
+        sep2_rem.setFrameShape(QFrame.HLine)
+        sep2_rem.setStyleSheet("color:#3a3f47;")
+        right_col.addWidget(sep2_rem)
 
         # · Dernières transactions
         recent_title = QLabel("Dernières transactions")
@@ -463,6 +484,57 @@ class DashboardView(QWidget):
             rl.addWidget(amounts_lbl)
 
             self._alerts_layout.addWidget(row)
+
+    def _rebuild_reminders(self):
+        """Reconstruit le widget rappels de paiement."""
+        while self._reminders_layout.count():
+            child = self._reminders_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        from services.reminder_service import get_upcoming_reminders
+        reminders = get_upcoming_reminders()
+
+        if not reminders:
+            self._reminders_title.setVisible(False)
+            self._reminders_widget.setVisible(False)
+            return
+
+        self._reminders_title.setVisible(True)
+        self._reminders_widget.setVisible(True)
+        self._reminders_title.setText(
+            f"  Rappels de paiement ({len(reminders)})"
+        )
+
+        for r in reminders:
+            row = QWidget()
+            row.setStyleSheet(
+                "background:#2a2010; border-radius:8px; "
+                "border:1px solid #5a4010;"
+            )
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(10, 6, 10, 6)
+            rl.setSpacing(8)
+
+            day_text = "Aujourd'hui" if r['days_until'] == 0 else f"J-{r['days_until']}"
+            name_lbl = QLabel(f"  {r['label']}  —  {day_text}")
+            name_lbl.setStyleSheet(
+                "font-size:12px; font-weight:600; color:#f59e0b; "
+                "background:transparent; border:none;"
+            )
+
+            color = "#ef4444" if r['type'] == 'expense' else "#22c55e"
+            sign = "-" if r['type'] == 'expense' else "+"
+            amt_lbl = QLabel(f"{sign}{format_money(r['amount'])}")
+            amt_lbl.setStyleSheet(
+                f"font-size:12px; font-weight:600; color:{color}; "
+                "background:transparent; border:none;"
+            )
+            amt_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+            rl.addWidget(name_lbl, 1)
+            rl.addWidget(amt_lbl)
+            self._reminders_layout.addWidget(row)
 
     def _rebuild_recent(self):
         """Reconstruit le widget dernières transactions."""
@@ -811,6 +883,96 @@ class DashboardView(QWidget):
 
         return w
 
+    def _build_income_projection_widget(self) -> QWidget:
+        """Mini-widget projection des revenus pour le dashboard."""
+        w = QWidget()
+        w.setStyleSheet(
+            "QWidget { background:#292d32; border-radius:12px; border:1px solid #3d4248; }"
+        )
+        layout = QHBoxLayout(w)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(16)
+
+        # Icône
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(get_icon("income.png", 28).pixmap(28, 28))
+        icon_lbl.setStyleSheet("background:transparent; border:none;")
+
+        # Colonne gauche : titre + projection
+        left = QVBoxLayout()
+        left.setSpacing(2)
+
+        title_lbl = QLabel("PROJECTION REVENUS")
+        title_lbl.setStyleSheet(
+            "font-size:11px; font-weight:600; color:#848c94; "
+            "letter-spacing:1px; background:transparent; border:none;"
+        )
+
+        self._inc_proj_value = QLabel("—")
+        self._inc_proj_value.setStyleSheet(
+            "font-size:18px; font-weight:700; color:#22c55e; "
+            "background:transparent; border:none;"
+        )
+
+        left.addWidget(title_lbl)
+        left.addWidget(self._inc_proj_value)
+
+        # Colonne droite : moyenne + tendance
+        right = QVBoxLayout()
+        right.setSpacing(4)
+
+        self._inc_proj_avg = QLabel("")
+        self._inc_proj_avg.setStyleSheet(
+            "font-size:11px; color:#7a8494; background:transparent; border:none;"
+        )
+
+        self._inc_proj_trend = QLabel("")
+        self._inc_proj_trend.setStyleSheet(
+            "font-size:12px; font-weight:600; background:transparent; border:none;"
+        )
+
+        right.addWidget(self._inc_proj_avg)
+        right.addWidget(self._inc_proj_trend)
+
+        row = QHBoxLayout()
+        row.addWidget(icon_lbl)
+        row.addLayout(left)
+        row.addStretch()
+        row.addLayout(right)
+        layout.addLayout(row)
+
+        return w
+
+    def _refresh_income_projection(self):
+        """Met à jour le widget projection des revenus."""
+        try:
+            data = forecast_income()
+            projected = data["projected_current_month"]
+            avg       = data["average_monthly"]
+            trend     = data["trend"]
+            current   = data["current_income"]
+
+            self._inc_proj_value.setText(format_money(projected))
+
+            self._inc_proj_avg.setText(f"Moyenne : {format_money(avg)}")
+
+            if trend == "up":
+                arrow, color, text = "▲", "#22c55e", "Tendance haussière"
+            elif trend == "down":
+                arrow, color, text = "▼", "#ef4444", "Tendance baissière"
+            else:
+                arrow, color, text = "●", "#f59e0b", "Tendance stable"
+
+            self._inc_proj_trend.setText(f"{arrow} {text}")
+            self._inc_proj_trend.setStyleSheet(
+                f"font-size:12px; font-weight:600; color:{color}; "
+                "background:transparent; border:none;"
+            )
+        except Exception:
+            self._inc_proj_value.setText("—")
+            self._inc_proj_avg.setText("")
+            self._inc_proj_trend.setText("")
+
     def _apply_dashboard_order(self):
         """Réorganise les widgets selon l'ordre sauvegardé."""
         try:
@@ -999,9 +1161,11 @@ class DashboardView(QWidget):
 
         # ── Nouveaux widgets ──
         self._rebuild_alerts()
+        self._rebuild_reminders()
         self._rebuild_recent()
         self._refresh_rev_dep_chart()
         self._refresh_savings_widget()
+        self._refresh_income_projection()
 
         self._update_analysis(income, expense, balance)
 

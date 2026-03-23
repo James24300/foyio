@@ -204,3 +204,75 @@ def migrate_database():
                 conn.execute(text(ddl))
             conn.commit()
         logger.info("Migration v5.0 : index de performance créés sur transactions")
+
+    # v5.1 : table tags
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "tags"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tags (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR NOT NULL UNIQUE,
+                    color VARCHAR DEFAULT '#6366f1'
+                )"""))
+            conn.commit()
+        logger.info("Migration v5.1 : table tags créée")
+
+    # v5.2 : table transaction_tags
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "transaction_tags"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS transaction_tags (
+                    id INTEGER PRIMARY KEY,
+                    transaction_id INTEGER NOT NULL REFERENCES transactions(id),
+                    tag_id INTEGER NOT NULL REFERENCES tags(id)
+                )"""))
+            conn.commit()
+        logger.info("Migration v5.2 : table transaction_tags créée")
+
+    # v5.3 : reminder_days sur recurring_transactions
+    inspector = inspect(engine)
+    if _table_exists(inspector, "recurring_transactions") and \
+       not _col_exists(inspector, "recurring_transactions", "reminder_days"):
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE recurring_transactions "
+                "ADD COLUMN reminder_days INTEGER DEFAULT 3"))
+            conn.commit()
+        logger.info("Migration v5.3 : reminder_days ajouté sur recurring_transactions")
+
+    # v5.4 : table attachments (pièces jointes)
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "attachments"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id INTEGER PRIMARY KEY,
+                    transaction_id INTEGER NOT NULL REFERENCES transactions(id),
+                    filename VARCHAR(255) NOT NULL,
+                    filepath VARCHAR(500) NOT NULL,
+                    added_at DATETIME NOT NULL
+                )"""))
+            conn.commit()
+        logger.info("Migration v5.4 : table attachments créée")
+
+    # v5.5 : table loans (prêts / crédits)
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "loans"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS loans (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    total_amount FLOAT NOT NULL,
+                    remaining_amount FLOAT NOT NULL,
+                    monthly_payment FLOAT NOT NULL,
+                    interest_rate FLOAT NOT NULL,
+                    start_date DATE NOT NULL,
+                    end_date DATE NOT NULL,
+                    account_id INTEGER REFERENCES accounts(id),
+                    active BOOLEAN DEFAULT 1
+                )"""))
+            conn.commit()
+        logger.info("Migration v5.5 : table loans créée")

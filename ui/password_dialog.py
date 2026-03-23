@@ -62,8 +62,8 @@ class PasswordDialog(QDialog):
 
     def _setup_ui(self):
         self.setWindowTitle("Foyio")
-        self.setFixedSize(360, 300)
-        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint)
+        self.setFixedSize(360, 380)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -72,6 +72,7 @@ class PasswordDialog(QDialog):
         # Logo / Titre
         logo = QLabel("Foyio")
         logo.setAlignment(Qt.AlignCenter)
+        logo.setMinimumHeight(50)
         logo.setStyleSheet(
             "font-size:28px; font-weight:700; color:#c8cdd4; background:transparent;"
         )
@@ -108,9 +109,14 @@ class PasswordDialog(QDialog):
         layout.addWidget(self._confirm_input)
 
         # Checkbox afficher le mot de passe
+        layout.addSpacing(10)
         from PySide6.QtWidgets import QCheckBox
         self._show_pwd = QCheckBox("Afficher le mot de passe")
-        self._show_pwd.setStyleSheet("font-size:11px; color:#7a8494; background:transparent;")
+        self._show_pwd.setStyleSheet("""
+            QCheckBox { font-size:11px; color:#7a8494; background:transparent; spacing:6px; }
+            QCheckBox::indicator { width:16px; height:16px; border:2px solid #7a8494; border-radius:3px; background:#1e2330; }
+            QCheckBox::indicator:checked { background:#3b82f6; border-color:#3b82f6; }
+        """)
         self._show_pwd.toggled.connect(self._toggle_visibility)
         layout.addWidget(self._show_pwd)
 
@@ -130,6 +136,15 @@ class PasswordDialog(QDialog):
         self._btn.setMinimumHeight(40)
         self._btn.clicked.connect(self._submit)
         layout.addWidget(self._btn)
+
+        # Bouton Quitter
+        btn_quit = QPushButton("Quitter")
+        btn_quit.setMinimumHeight(36)
+        btn_quit.setStyleSheet(
+            "background:transparent; color:#848c94; border:1px solid #3d4248; font-size:12px;"
+        )
+        btn_quit.clicked.connect(self.reject)
+        layout.addWidget(btn_quit)
 
         layout.addStretch()
         self._pwd_input.setFocus()
@@ -179,7 +194,7 @@ class ChangePasswordDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Changer le mot de passe")
         self.setFixedSize(360, 320)
-        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -219,7 +234,11 @@ class ChangePasswordDialog(QDialog):
         # Checkbox afficher les mots de passe
         from PySide6.QtWidgets import QCheckBox
         self._show_pwd = QCheckBox("Afficher les mots de passe")
-        self._show_pwd.setStyleSheet("font-size:11px; color:#7a8494; background:transparent;")
+        self._show_pwd.setStyleSheet("""
+            QCheckBox { font-size:11px; color:#7a8494; background:transparent; spacing:6px; }
+            QCheckBox::indicator { width:16px; height:16px; border:2px solid #7a8494; border-radius:3px; background:#1e2330; }
+            QCheckBox::indicator:checked { background:#3b82f6; border-color:#3b82f6; }
+        """)
         self._show_pwd.toggled.connect(self._toggle_visibility)
         layout.addWidget(self._show_pwd)
 

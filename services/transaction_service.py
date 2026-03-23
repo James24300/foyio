@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import func
 
 from db import Session, safe_session
-from models import Transaction, Category, Budget, TransactionRule
+from models import Transaction, Category, Budget, TransactionRule, Tag, TransactionTag
 from services.stats_service import monthly_totals
 from services.transaction_recognition import find_rule
 import period_state
@@ -13,7 +13,56 @@ import account_state
 logger = logging.getLogger(__name__)
 
 
-def add_transaction(amount, type, category_id, note=None, date=None):
+def save_tags(transaction_id, tag_names):
+    """Sauvegarde les tags pour une transaction (crée les tags manquants)."""
+    if not tag_names:
+        return
+    with safe_session() as session:
+        # Supprimer les liens existants
+        session.query(TransactionTag).filter_by(transaction_id=transaction_id).delete()
+        for name in tag_names:
+            name = name.strip()
+            if not name:
+                continue
+            tag = session.query(Tag).filter_by(name=name).first()
+            if not tag:
+                tag = Tag(name=name)
+                session.add(tag)
+                session.flush()
+            session.add(TransactionTag(transaction_id=transaction_id, tag_id=tag.id))
+
+
+def get_tags_for_transaction(transaction_id):
+    """Retourne la liste des noms de tags pour une transaction."""
+    with Session() as session:
+        rows = (
+            session.query(Tag.name)
+            .join(TransactionTag, TransactionTag.tag_id == Tag.id)
+            .filter(TransactionTag.transaction_id == transaction_id)
+            .all()
+        )
+        return [r[0] for r in rows]
+
+
+def get_tags_for_transactions(transaction_ids):
+    """Retourne un dict {transaction_id: [tag_name, ...]} pour un lot de transactions."""
+    if not transaction_ids:
+        return {}
+    with Session() as session:
+        rows = (
+            session.query(TransactionTag.transaction_id, Tag.name)
+            .join(Tag, Tag.id == TransactionTag.tag_id)
+            .filter(TransactionTag.transaction_id.in_(transaction_ids))
+            .all()
+        )
+    from collections import defaultdict
+    result = defaultdict(list)
+    for tid, name in rows:
+        result[tid].append(name)
+    return dict(result)
+
+
+def add_transaction(amount, type, category_id, note=None, date=None, tags=None):
     if date is None:
         date = datetime.now()
 
@@ -51,6 +100,19 @@ def add_transaction(amount, type, category_id, note=None, date=None):
             account_id=account_state.get_id()
         )
         session.add(t)
+        session.flush()  # obtenir t.id pour les tags
+
+        if tags:
+            for name in tags:
+                name = name.strip()
+                if not name:
+                    continue
+                tag = session.query(Tag).filter_by(name=name).first()
+                if not tag:
+                    tag = Tag(name=name)
+                    session.add(tag)
+                    session.flush()
+                session.add(TransactionTag(transaction_id=t.id, tag_id=tag.id))
 
         if note_clean and category_id:
             keyword = note_clean.lower()

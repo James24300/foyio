@@ -260,6 +260,22 @@ class StatisticsView(QWidget):
         self._recap_table = self._build_recap_table()
         layout.addWidget(self._recap_table)
 
+        # ══════════════════════════════════════
+        # SECTION 4 : Projection des revenus — 6 mois
+        # ══════════════════════════════════════
+        self._sep3 = QFrame()
+        self._sep3.setFrameShape(QFrame.HLine)
+        self._sep3.setStyleSheet("color:#3a3f47;")
+        layout.addWidget(self._sep3)
+
+        self._title_proj = QLabel("Projection des revenus — 6 derniers mois")
+        self._title_proj.setStyleSheet("font-size:14px; font-weight:600; color:#c8cdd4;")
+        self._title_proj.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self._title_proj)
+
+        self._income_proj_view = self._build_income_projection_chart()
+        layout.addWidget(self._income_proj_view, 2)
+
     # ------------------------------------------------------------------
     # Graphique 2 : Revenus vs Dépenses — barres groupées 12 mois
     # ------------------------------------------------------------------
@@ -652,10 +668,113 @@ class StatisticsView(QWidget):
         layout.addWidget(view)
         layout.addStretch()
 
+    # ------------------------------------------------------------------
+    # Graphique 4 : Projection revenus — réel vs projeté sur 6 mois
+    # ------------------------------------------------------------------
+    def _build_income_projection_chart(self):
+        from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QBarCategoryAxis
+        from PySide6.QtGui import QPainter, QColor, QFont
+        from datetime import datetime
+        from sqlalchemy import func as sqlfunc
+        from db import Session
+        from models import Transaction
+        import account_state as acc_state
+
+        now = datetime.now()
+        MONTHS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin",
+                     "Juil","Août","Sep","Oct","Nov","Déc"]
+
+        # Collecter les revenus réels des 6 derniers mois
+        months_data = []
+        with Session() as session:
+            for i in range(5, -1, -1):
+                m, y = now.month - i, now.year
+                while m <= 0:
+                    m += 12; y -= 1
+                q = (
+                    session.query(sqlfunc.sum(Transaction.amount))
+                    .filter(Transaction.type == "income")
+                    .filter(sqlfunc.extract("year",  Transaction.date) == y)
+                    .filter(sqlfunc.extract("month", Transaction.date) == m)
+                )
+                aid = acc_state.get_id()
+                if aid is not None:
+                    q = q.filter(Transaction.account_id == aid)
+                actual = q.scalar() or 0
+                months_data.append((f"{MONTHS_FR[m]} {y}", actual))
+
+        # Calculer la moyenne glissante (projection) pour chaque mois
+        projected_data = []
+        all_actuals = [d[1] for d in months_data]
+        for idx in range(len(months_data)):
+            # Moyenne des mois précédents disponibles (3 mois max)
+            prev = [all_actuals[j] for j in range(max(0, idx - 3), idx) if all_actuals[j] > 0]
+            if prev:
+                projected_data.append(sum(prev) / len(prev))
+            elif idx == 0:
+                projected_data.append(all_actuals[0])
+            else:
+                projected_data.append(0)
+
+        categories = [d[0] for d in months_data]
+        actuals    = [d[1] for d in months_data]
+
+        set_actual = QBarSet("Revenu réel")
+        set_actual.setColor(QColor("#22c55e"))
+        set_actual.setBorderColor(QColor("#16a34a"))
+
+        set_proj = QBarSet("Projection (moyenne)")
+        set_proj.setColor(QColor("#3b82f6"))
+        set_proj.setBorderColor(QColor("#2563eb"))
+
+        for v in actuals:
+            set_actual.append(v)
+        for v in projected_data:
+            set_proj.append(v)
+
+        series = QBarSeries()
+        series.append(set_actual)
+        series.append(set_proj)
+        series.setBarWidth(0.7)
+
+        chart = QChart()
+        chart.addSeries(series)
+        chart.setTitle("")
+        chart.setBackgroundVisible(False)
+        chart.setAnimationOptions(QChart.SeriesAnimations)
+        chart.setAnimationDuration(600)
+        chart.setMargins(QMargins(16, 4, 4, 4))
+
+        legend = chart.legend()
+        legend.setVisible(True)
+        legend.setAlignment(Qt.AlignBottom)
+        legend.setLabelColor(QColor("#c8cdd4"))
+        legend.setFont(QFont("Segoe UI", 9))
+
+        axis_x = QBarCategoryAxis()
+        axis_x.append(categories)
+        axis_x.setLabelsColor(QColor("#7a8494"))
+        axis_x.setLabelsAngle(-45)
+        axis_x.setGridLineColor(QColor("#3a3f47"))
+        chart.addAxis(axis_x, Qt.AlignBottom)
+        series.attachAxis(axis_x)
+
+        max_val = max(max(actuals, default=0), max(projected_data, default=0)) or 1
+        axis_y = _make_y_axis(max_val, negative=False)
+        chart.addAxis(axis_y, Qt.AlignLeft)
+        series.attachAxis(axis_y)
+
+        view = QChartView(chart)
+        view.setRenderHint(QPainter.Antialiasing)
+        view.setMinimumHeight(240)
+        view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        return view
+
     def refresh(self):
         """Rafraîchit toutes les sections."""
         self._load_data()
         self._replace_chart("_rvd_view", self._build_income_expense_chart(), 2)
+        self._replace_chart("_income_proj_view", self._build_income_projection_chart(), 2)
         # Reconstruire le tableau récapitulatif
         old_table = self._recap_table
         self._recap_table = self._build_recap_table()

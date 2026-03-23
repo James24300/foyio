@@ -104,6 +104,19 @@ class RecurringView(QWidget):
             "color:#7a8494; font-size:13px; background:transparent; border:none;"
         )
 
+        # Rappel avant échéance
+        rappel_label = QLabel("Rappel")
+        rappel_label.setStyleSheet(
+            "color:#7a8494; font-size:13px; background:transparent; border:none;"
+        )
+        self.reminder_spin = QSpinBox()
+        self.reminder_spin.setRange(0, 30)
+        self.reminder_spin.setValue(3)
+        self.reminder_spin.setSuffix(" j avant")
+        self.reminder_spin.setToolTip("Nombre de jours avant l'échéance pour recevoir un rappel (0 = désactivé)")
+        self.reminder_spin.setMinimumHeight(34)
+        self.reminder_spin.setFixedWidth(110)
+
         self.add_btn = QPushButton("  Ajouter")
         self.add_btn.setIcon(get_icon("add.png"))
         self.add_btn.setMinimumHeight(34)
@@ -113,6 +126,9 @@ class RecurringView(QWidget):
         row2.addWidget(day_label)
         row2.addWidget(self.day_combo)
         row2.addWidget(du_mois)
+        row2.addSpacing(8)
+        row2.addWidget(rappel_label)
+        row2.addWidget(self.reminder_spin)
         row2.addStretch()
         row2.addWidget(self.add_btn)
         form_layout.addLayout(row2)
@@ -131,9 +147,9 @@ class RecurringView(QWidget):
         layout.addWidget(list_title)
 
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels([
-            "Statut", "Libellé", "Type", "Montant", "Jour", "Actions"
+            "Statut", "Libellé", "Type", "Montant", "Jour", "Rappel", "Actions"
         ])
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -151,11 +167,13 @@ class RecurringView(QWidget):
         hdr.setSectionResizeMode(3, QHeaderView.Fixed)
         hdr.setSectionResizeMode(4, QHeaderView.Fixed)
         hdr.setSectionResizeMode(5, QHeaderView.Fixed)
+        hdr.setSectionResizeMode(6, QHeaderView.Fixed)
         self.table.setColumnWidth(0, 60)
         self.table.setColumnWidth(2, 90)
         self.table.setColumnWidth(3, 130)
         self.table.setColumnWidth(4, 70)
-        self.table.setColumnWidth(5, 200)
+        self.table.setColumnWidth(5, 80)
+        self.table.setColumnWidth(6, 200)
 
         self.table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
@@ -222,12 +240,14 @@ class RecurringView(QWidget):
 
         ttype = "income" if self.type_combo.currentText() == "Revenu" else "expense"
         day   = self.day_combo.currentIndex() + 1
+        reminder = self.reminder_spin.value()
 
-        add_recurring(label, amount, ttype, category_id, day)
+        add_recurring(label, amount, ttype, category_id, day, reminder_days=reminder)
 
         self.label_input.clear()
         self.amount_input.clear()
         self.day_combo.setCurrentIndex(0)
+        self.reminder_spin.setValue(3)
         self._load_categories()  # remet à l'entrée neutre
         self.load()
         Toast.show(self, f"✓  {label} — généré chaque mois", kind="success")
@@ -289,6 +309,17 @@ class RecurringView(QWidget):
             day_item.setForeground(QColor("#7a8494"))
             self.table.setItem(i, 4, day_item)
 
+            # ── Rappel ──
+            r_days = rule.reminder_days if rule.reminder_days is not None else 3
+            rappel_text = f"J-{r_days}" if r_days > 0 else "—"
+            rappel_item = QTableWidgetItem(rappel_text)
+            rappel_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            rappel_item.setForeground(QColor("#f59e0b" if r_days > 0 else "#6b7280"))
+            rappel_item.setToolTip(
+                f"Rappel {r_days} jour(s) avant" if r_days > 0 else "Rappel désactivé"
+            )
+            self.table.setItem(i, 5, rappel_item)
+
             # ── Boutons actions ──
             btn_widget = QWidget()
             btn_widget.setStyleSheet("background:transparent;")
@@ -322,7 +353,7 @@ class RecurringView(QWidget):
 
             btn_layout.addWidget(toggle_btn)
             btn_layout.addWidget(del_btn)
-            self.table.setCellWidget(i, 5, btn_widget)
+            self.table.setCellWidget(i, 6, btn_widget)
 
     # ------------------------------------------------------------------
     def _toggle(self, rule_id):

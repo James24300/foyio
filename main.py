@@ -519,6 +519,7 @@ class MainWindow(QWidget):
             return
         from services.savings_service import check_monthly_targets
         from services.recurring_service import get_overdue_recurring, get_upcoming_recurring
+        from services.reminder_service import get_upcoming_reminders
         from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
             QPushButton, QScrollArea, QWidget, QHBoxLayout)
         from PySide6.QtCore import Qt
@@ -526,8 +527,9 @@ class MainWindow(QWidget):
         savings_alerts = check_monthly_targets()
         overdue        = get_overdue_recurring()
         upcoming       = get_upcoming_recurring(3)
+        reminders      = get_upcoming_reminders()
 
-        if not savings_alerts and not overdue and not upcoming:
+        if not savings_alerts and not overdue and not upcoming and not reminders:
             return  # Rien à signaler
 
         dlg = QDialog(self)
@@ -606,6 +608,30 @@ class MainWindow(QWidget):
                 name_lbl.setStyleSheet('color:#22c55e; font-weight:600; font-size:12px;')
                 amt_lbl  = QLabel(f'{r["amount"]:,.2f} €')
                 amt_lbl.setStyleSheet('color:#22c55e; font-size:12px;')
+                amt_lbl.setAlignment(Qt.AlignRight)
+                rl.addWidget(name_lbl, 1)
+                rl.addWidget(amt_lbl)
+                vl.addWidget(row)
+
+        # Rappels de paiement
+        if reminders:
+            sec4 = QLabel(f'  Rappels de paiement ({len(reminders)})')
+            sec4.setStyleSheet('font-size:12px; font-weight:700; color:#f59e0b;')
+            vl.addWidget(sec4)
+            for r in reminders:
+                row = QWidget()
+                row.setStyleSheet(
+                    'background:#2a2010; border-radius:8px; '
+                    'border:1px solid #5a4010;'
+                )
+                rl = QHBoxLayout(row)
+                rl.setContentsMargins(12, 8, 12, 8)
+                day_text = "Aujourd'hui" if r['days_until'] == 0 else f"J-{r['days_until']}"
+                prefix = "Dépense" if r['type'] == 'expense' else "Revenu"
+                name_lbl = QLabel(f'  {r["label"]}  —  {day_text}')
+                name_lbl.setStyleSheet('color:#f59e0b; font-weight:600; font-size:12px;')
+                amt_lbl  = QLabel(f'{r["amount"]:,.2f} €')
+                amt_lbl.setStyleSheet('color:#f59e0b; font-size:12px;')
                 amt_lbl.setAlignment(Qt.AlignRight)
                 rl.addWidget(name_lbl, 1)
                 rl.addWidget(amt_lbl)

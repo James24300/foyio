@@ -25,7 +25,9 @@ from services.transaction_service import (
     add_transaction,
     get_transactions,
     get_transactions_for_period,
-    delete_transaction
+    delete_transaction,
+    save_tags,
+    get_tags_for_transactions,
 )
 
 
@@ -95,10 +97,16 @@ class Transactions(QWidget):
         self.note.returnPressed.connect(self.add)
         self.note.textChanged.connect(self._auto_category)
 
+        self.tags_input = QLineEdit()
+        self.tags_input.setPlaceholderText("Tags (ex: vacances, remboursable)")
+        self.tags_input.setMinimumHeight(36)
+        self.tags_input.returnPressed.connect(self.add)
+
         row1.addWidget(self.type)
         row1.addWidget(self.amount)
         row1.addWidget(self.category, 1)
         row1.addWidget(self.note, 2)
+        row1.addWidget(self.tags_input, 1)
         form_card_layout.addLayout(row1)
 
         # Ligne 2 : Date + Ajouter + Supprimer + Exporter + Importer
@@ -152,7 +160,7 @@ class Transactions(QWidget):
 
         # ── Barre de recherche ──
         self.search = QLineEdit()
-        self.search.setPlaceholderText("🔎 Rechercher : courses, revenu, >100, <50, 03/2026, 2026...")
+        self.search.setPlaceholderText("🔎 Rechercher : courses, revenu, >100, <50, 50-200, 03/2026...")
         self.search.setMinimumHeight(34)
         self.search.textChanged.connect(self.filter_table)
         layout.addWidget(self.search)
@@ -169,9 +177,9 @@ class Transactions(QWidget):
 
         # ── Tableau ──
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
-            ["", "Date", "Type", "Montant", "Catégorie", "Description"]
+            ["", "Date", "Type", "Montant", "Catégorie", "Description", "Tags"]
         )
         self.table.setMinimumHeight(350)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -214,6 +222,10 @@ class Transactions(QWidget):
 
         # Col 5 : Description — prend tout l'espace restant
         header.setSectionResizeMode(5, QHeaderView.Stretch)
+
+        # Col 6 : Tags — taille fixe
+        header.setSectionResizeMode(6, QHeaderView.Fixed)
+        self.table.setColumnWidth(6, 180)
 
         self.table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
@@ -364,8 +376,11 @@ class Transactions(QWidget):
         from datetime import datetime as _dt
         qd = self._add_date.date()
         tx_date = _dt(qd.year(), qd.month(), qd.day())
+        # Parser les tags
+        raw_tags = self.tags_input.text().strip()
+        tag_list = [t.strip() for t in raw_tags.split(",") if t.strip()] if raw_tags else None
         try:
-            add_transaction(amount, ttype, category_id, self.note.text().strip(), date=tx_date)
+            add_transaction(amount, ttype, category_id, self.note.text().strip(), date=tx_date, tags=tag_list)
         except Exception as e:
             Toast.show(self, f"✕  Erreur : {e}", kind="error")
             return
@@ -381,6 +396,7 @@ class Transactions(QWidget):
 
         self.amount.clear()
         self.note.clear()
+        self.tags_input.clear()
         self._add_date.setDate(QDate.currentDate())  # remettre à aujourd'hui
         self.load_categories()   # recharge et remet à l'entrée neutre
         self.amount.setFocus()
@@ -877,6 +893,14 @@ class Transactions(QWidget):
             categories = {c.id: c for c in session.query(Category).all()}
             budgets    = {b.category_id: b.monthly_limit for b in session.query(Budget).all()}
 
+        # Charger tous les tags en un seul batch
+        all_tx_ids = [t.id for t in data]
+        tags_map = get_tags_for_transactions(all_tx_ids)
+
+        # Charger les IDs de transactions ayant des pièces jointes
+        from services.attachment_service import get_transaction_ids_with_attachments
+        ids_with_attachments = get_transaction_ids_with_attachments(all_tx_ids)
+
         category_spent = {}
 
         for i, t in enumerate(data):
@@ -947,14 +971,23 @@ class Transactions(QWidget):
 
             # ── Col 5 : Description ──
             note_text = (t.note or "").replace('\xa0', ' ').replace('\ufffd', '').strip()
+            if t.id in ids_with_attachments:
+                note_text = "\U0001F4CE " + note_text
             note_item = QTableWidgetItem(note_text)
             note_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             note_item.setForeground(QColor("#7a8494"))
             self.table.setItem(i, 5, note_item)
 
+            # ── Col 6 : Tags ──
+            tx_tags = tags_map.get(t.id, [])
+            tag_item = QTableWidgetItem(", ".join(tx_tags))
+            tag_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            tag_item.setForeground(QColor("#6366f1"))
+            self.table.setItem(i, 6, tag_item)
+
             # ── Alerte budget ──
             if warning_color:
-                for col in range(1, 6):
+                for col in range(1, 7):
                     cell = self.table.item(i, col)
                     if cell:
                         cell.setBackground(warning_color)
@@ -1070,6 +1103,8 @@ class Transactions(QWidget):
         from models import Transaction, Category
         from utils.category_icons import get_category_icon
 
+        from services.transaction_service import get_tags_for_transaction, save_tags as _save_tags
+
         with Session() as session:
             t = session.query(Transaction).filter_by(id=transaction_id).first()
             if not t:
@@ -1081,6 +1116,8 @@ class Transactions(QWidget):
             t_note     = t.note or ""
             t_cat_id   = t.category_id
             session.expunge_all()
+
+        t_tags = get_tags_for_transaction(transaction_id)
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Modifier la transaction")
@@ -1126,12 +1163,90 @@ class Transactions(QWidget):
         note_input.setMinimumHeight(34)
         form.addRow("Description :", note_input)
 
+        # Tags
+        tags_edit = QLineEdit()
+        tags_edit.setText(", ".join(t_tags))
+        tags_edit.setPlaceholderText("Tags (ex: vacances, remboursable)")
+        tags_edit.setMinimumHeight(34)
+        form.addRow("Tags :", tags_edit)
+
         # Date
         date_edit = QDateEdit()
         date_edit.setCalendarPopup(True)
         date_edit.setDate(QDate(t_date.year, t_date.month, t_date.day))
         date_edit.setMinimumHeight(34)
         form.addRow("Date :", date_edit)
+
+        # ── Pièces jointes ──
+        from services.attachment_service import (
+            get_attachments as _get_attachments,
+            save_attachment as _save_attachment,
+            delete_attachment as _delete_attachment,
+            open_attachment as _open_attachment,
+        )
+
+        att_container = QWidget()
+        att_layout = QVBoxLayout(att_container)
+        att_layout.setContentsMargins(0, 0, 0, 0)
+        att_layout.setSpacing(4)
+
+        def _refresh_attachments():
+            # Vider le layout sauf le bouton d'ajout
+            while att_layout.count() > 1:
+                child = att_layout.takeAt(1)
+                if child.widget():
+                    child.widget().deleteLater()
+            attachments = _get_attachments(transaction_id)
+            for att in attachments:
+                row_w = QWidget()
+                row_l = QHBoxLayout(row_w)
+                row_l.setContentsMargins(0, 0, 0, 0)
+                row_l.setSpacing(6)
+                lbl = QLabel(f"📄 {att.filename}")
+                lbl.setStyleSheet("color:#c8cdd4; font-size:12px; background:transparent; border:none;")
+                row_l.addWidget(lbl, 1)
+                btn_open = QPushButton("Ouvrir")
+                btn_open.setMinimumHeight(28)
+                btn_open.setFixedWidth(70)
+                btn_open.setStyleSheet(
+                    "background:#2a4a7f; color:#93c5fd; border:1px solid #3b6fb5;"
+                    "border-radius:4px; padding:2px 8px; font-size:11px;"
+                )
+                btn_open.clicked.connect(lambda checked, a=att: _open_attachment(a))
+                row_l.addWidget(btn_open)
+                btn_del = QPushButton("Supprimer")
+                btn_del.setMinimumHeight(28)
+                btn_del.setFixedWidth(80)
+                btn_del.setStyleSheet(
+                    "background:#4a1a1a; color:#f87171; border:1px solid #7f1d1d;"
+                    "border-radius:4px; padding:2px 8px; font-size:11px;"
+                )
+                btn_del.clicked.connect(lambda checked, a=att: (_delete_attachment(a.id), _refresh_attachments()))
+                row_l.addWidget(btn_del)
+                att_layout.addWidget(row_w)
+
+        add_att_btn = QPushButton("  Ajouter un justificatif")
+        add_att_btn.setMinimumHeight(32)
+        add_att_btn.setStyleSheet(
+            "background:#26292e; color:#c8cdd4; border:1px solid #3a3f47;"
+            "border-radius:6px; padding:4px 12px; font-size:12px;"
+        )
+
+        def _add_attachment():
+            files, _ = QFileDialog.getOpenFileNames(
+                dlg,
+                "Ajouter un justificatif",
+                "",
+                "Images et PDF (*.png *.jpg *.jpeg *.pdf *.bmp)",
+            )
+            for f in files:
+                _save_attachment(transaction_id, f)
+            _refresh_attachments()
+
+        add_att_btn.clicked.connect(_add_attachment)
+        att_layout.insertWidget(0, add_att_btn)
+        _refresh_attachments()
+        form.addRow("Justificatifs :", att_container)
 
         btns = QDialogButtonBox()
         btns.addButton("Enregistrer", QDialogButtonBox.AcceptRole)
@@ -1223,6 +1338,11 @@ class Transactions(QWidget):
                             new_value=new_v,
                             account_id=t.account_id,
                         ))
+
+            # Sauvegarder les tags
+            raw_tags = tags_edit.text().strip()
+            new_tags = [t.strip() for t in raw_tags.split(",") if t.strip()] if raw_tags else []
+            _save_tags(transaction_id, new_tags)
         except Exception as e:
             from ui.toast import Toast
             Toast.show(self, f"Erreur sauvegarde : {e}", kind="error")
@@ -1366,10 +1486,12 @@ class Transactions(QWidget):
             amount_item   = self.table.item(row, 3)
             category_item = self.table.item(row, 4)
             note_item     = self.table.item(row, 5)
+            tag_item      = self.table.item(row, 6)
 
             type_text     = type_item.text().lower()     if type_item     else ""
             category_text = category_item.text().lower() if category_item else ""
             note_text     = note_item.text().lower()     if note_item     else ""
+            tag_text_val  = tag_item.text().lower()      if tag_item      else ""
             amount        = amount_item.data(Qt.UserRole) if amount_item  else 0
 
             # Récupérer la date de la ligne pour le filtre par date
@@ -1384,7 +1506,7 @@ class Transactions(QWidget):
 
             show = match_transaction(
                 type_text, category_text, note_text, amount, tokens,
-                transaction_date=row_date
+                transaction_date=row_date, tag_text=tag_text_val
             )
             self.table.setRowHidden(row, not show)
 
@@ -1458,6 +1580,10 @@ class Transactions(QWidget):
         with Session() as session:
             categories = {c.id: c for c in session.query(Category).all()}
 
+        # Charger les tags pour les nouvelles transactions
+        more_ids = [t.id for t in new_data]
+        tags_map = get_tags_for_transactions(more_ids)
+
         start_row = self.table.rowCount()
         self.table.setRowCount(start_row + len(new_data))
 
@@ -1497,19 +1623,23 @@ class Transactions(QWidget):
             amount_item.setForeground(color)
             self.table.setItem(row, 3, amount_item)
 
-            self.table.setItem(row, 4, QTableWidgetItem("—"))
-
             cat_item = QTableWidgetItem(
                 get_icon(category.icon or "other.png", 18) if category else get_icon("other.png", 18),
                 f"  {category.name}" if category else "  Inconnu"
             )
             cat_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.table.setItem(row, 5, cat_item)
+            self.table.setItem(row, 4, cat_item)
 
             note_item = QTableWidgetItem(t.note or "")
             note_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             note_item.setForeground(QColor("#7a8494"))
-            self.table.setItem(row, 6, note_item)
+            self.table.setItem(row, 5, note_item)
+
+            tx_tags = tags_map.get(t.id, [])
+            tag_item = QTableWidgetItem(", ".join(tx_tags))
+            tag_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            tag_item.setForeground(QColor("#6366f1"))
+            self.table.setItem(row, 6, tag_item)
 
         self.table.setSortingEnabled(True)
         self.table.setUpdatesEnabled(True)

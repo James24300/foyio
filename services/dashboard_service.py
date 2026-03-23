@@ -76,6 +76,89 @@ def forecast_balance():
                   - _sum("expense", p.year, p.month))
 
 
+def forecast_income(account_id=None):
+    """Projection des revenus : moyenne, tendance, projection mois courant."""
+    now = datetime.now()
+    import calendar
+
+    with Session() as session:
+        def _income(year, month):
+            q = (
+                session.query(func.sum(Transaction.amount))
+                .filter(Transaction.type == "income")
+                .filter(func.extract("year",  Transaction.date) == year)
+                .filter(func.extract("month", Transaction.date) == month)
+            )
+            if account_id is not None:
+                q = q.filter(Transaction.account_id == account_id)
+            else:
+                q = _af(q)
+            return q.scalar() or 0
+
+        # Collecter les revenus des 6 derniers mois (hors mois courant)
+        monthly = []
+        for i in range(1, 7):
+            m, y = now.month - i, now.year
+            while m <= 0:
+                m += 12; y -= 1
+            val = _income(y, m)
+            monthly.append(val)
+
+        # Ne garder que les mois avec des revenus (min 1 mois)
+        active = [v for v in monthly if v > 0]
+        if not active:
+            active = monthly[:3] if monthly else [0]
+
+        avg_monthly = sum(active) / len(active) if active else 0
+
+        # Revenu actuel du mois courant
+        current_income = _income(now.year, now.month)
+
+        # Projection : proportionnelle au jour du mois
+        days_in_month = calendar.monthrange(now.year, now.month)[1]
+        day_of_month  = now.day
+
+        if day_of_month > 0 and current_income > 0:
+            # Extrapoler le revenu actuel sur le mois complet
+            projected = (current_income / day_of_month) * days_in_month
+        else:
+            projected = avg_monthly
+
+        # Pondérer entre extrapolation et moyenne historique
+        if day_of_month >= 20:
+            weight = 0.8  # fin de mois, plus de poids sur l'actuel
+        elif day_of_month >= 10:
+            weight = 0.5
+        else:
+            weight = 0.3  # début de mois, plus de poids sur la moyenne
+
+        if current_income > 0:
+            projected = projected * weight + avg_monthly * (1 - weight)
+        else:
+            projected = avg_monthly
+
+        # Tendance : comparer les 3 derniers mois aux 3 précédents
+        recent = sum(monthly[:3])
+        older  = sum(monthly[3:6])
+        if older > 0:
+            change = ((recent - older) / older) * 100
+            if change > 5:
+                trend = "up"
+            elif change < -5:
+                trend = "down"
+            else:
+                trend = "stable"
+        else:
+            trend = "stable"
+
+    return {
+        "average_monthly": avg_monthly,
+        "projected_current_month": projected,
+        "current_income": current_income,
+        "trend": trend,
+    }
+
+
 def biggest_category():
     """Catégorie la plus dépensière pour la période et le compte actifs."""
     with Session() as session:

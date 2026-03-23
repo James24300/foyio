@@ -2,6 +2,17 @@ from sqlalchemy import Column, Integer, String, Float, Date, Boolean, ForeignKey
 from db import Base
 
 
+class Attachment(Base):
+    """Pièce jointe (reçu, facture) liée à une transaction."""
+    __tablename__ = "attachments"
+
+    id             = Column(Integer, primary_key=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
+    filename       = Column(String(255), nullable=False)
+    filepath       = Column(String(500), nullable=False)
+    added_at       = Column(DateTime, nullable=False)
+
+
 class Account(Base):
     """Compte bancaire (courant, joint, livret...)."""
     __tablename__ = "accounts"
@@ -36,9 +47,10 @@ class RecurringTransaction(Base):
     type         = Column(String(10),  nullable=False)
     category_id  = Column(Integer, ForeignKey("categories.id"), nullable=False)
     account_id   = Column(Integer, ForeignKey("accounts.id"),   nullable=True)
-    day_of_month = Column(Integer, default=1)
-    active       = Column(Boolean, default=True)
-    start_date   = Column(Date,    nullable=False)
+    day_of_month   = Column(Integer, default=1)
+    active         = Column(Boolean, default=True)
+    start_date     = Column(Date,    nullable=False)
+    reminder_days  = Column(Integer, default=3)
 
 
 class Transaction(Base):
@@ -136,6 +148,24 @@ class SavingsAllocation(Base):
     account_id     = Column(Integer, ForeignKey("accounts.id"), nullable=True)
 
 
+class Tag(Base):
+    """Étiquette libre pour les transactions."""
+    __tablename__ = "tags"
+
+    id    = Column(Integer, primary_key=True)
+    name  = Column(String, nullable=False, unique=True)
+    color = Column(String, default="#6366f1")
+
+
+class TransactionTag(Base):
+    """Lien many-to-many entre transactions et tags."""
+    __tablename__ = "transaction_tags"
+
+    id             = Column(Integer, primary_key=True)
+    transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=False)
+    tag_id         = Column(Integer, ForeignKey("tags.id"), nullable=False)
+
+
 class SavingsMovement(Base):
     """Historique des versements et retraits sur un objectif."""
     __tablename__ = "savings_movements"
@@ -146,3 +176,19 @@ class SavingsMovement(Base):
     label      = Column(String(100), nullable=True)
     moved_at   = Column(DateTime, nullable=False)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
+
+class Loan(Base):
+    """Prêt / crédit suivi par l'utilisateur."""
+    __tablename__ = "loans"
+
+    id              = Column(Integer, primary_key=True)
+    name            = Column(String(100), nullable=False)
+    total_amount    = Column(Float, nullable=False)
+    remaining_amount= Column(Float, nullable=False)
+    monthly_payment = Column(Float, nullable=False)
+    interest_rate   = Column(Float, nullable=False)
+    start_date      = Column(Date, nullable=False)
+    end_date        = Column(Date, nullable=False)
+    account_id      = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    active          = Column(Boolean, default=True)

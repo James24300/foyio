@@ -11,6 +11,7 @@ _RE_FULL   = re.compile(r"^(\d{1,2})[/\-\.](\d{1,2})[/\-\.](\d{4})$")  # jj/mm/a
 _RE_MONTH  = re.compile(r"^(\d{1,2})[/\-\.](\d{4})$")                   # mm/aaaa
 _RE_YEAR   = re.compile(r"^(\d{4})$")                                    # aaaa
 _RE_DAYMON = re.compile(r"^(\d{1,2})[/\-\.](\d{1,2})$")                 # jj/mm
+_RE_RANGE  = re.compile(r"^(\d+(?:[.,]\d+)?)-(\d+(?:[.,]\d+)?)$")      # 50-200
 
 
 def _parse_date_token(token: str):
@@ -45,7 +46,7 @@ def _parse_date_token(token: str):
 
 
 def match_transaction(type_text, category_text, note_text, amount, tokens,
-                      transaction_date: date = None):
+                      transaction_date: date = None, tag_text: str = ""):
     """
     Filtre une transaction selon une liste de tokens de recherche.
 
@@ -61,6 +62,7 @@ def match_transaction(type_text, category_text, note_text, amount, tokens,
     type_text     = type_text.lower()
     category_text = category_text.lower()
     note_text     = note_text.lower()
+    tag_text      = tag_text.lower() if tag_text else ""
 
     for token in tokens:
 
@@ -88,6 +90,14 @@ def match_transaction(type_text, category_text, note_text, amount, tokens,
             except ValueError:
                 pass
 
+        # ── Plage de montants (50-200) ──
+        elif _RE_RANGE.match(token):
+            m = _RE_RANGE.match(token)
+            lo = float(m.group(1).replace(",", "."))
+            hi = float(m.group(2).replace(",", "."))
+            if not (lo <= amount <= hi):
+                return False
+
         # ── Date ──
         else:
             date_filter = _parse_date_token(token)
@@ -99,6 +109,7 @@ def match_transaction(type_text, category_text, note_text, amount, tokens,
                 token not in type_text
                 and token not in category_text
                 and token not in note_text
+                and token not in tag_text
             ):
                 return False
 

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTabWidget, QFormLayout, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLineEdit, QSizePolicy, QGridLayout
+    QLineEdit, QSizePolicy, QGridLayout, QSpinBox
 )
 from PySide6.QtGui import QDoubleValidator, QIntValidator
 from PySide6.QtCore import Qt
@@ -128,6 +128,7 @@ class ToolsView(QWidget):
         self._tabs.addTab(self._build_budget_tab(),     "  Budget 50/30/20")
         self._tabs.addTab(self._build_compound_tab(),   "  Intérêts")
         self._tabs.addTab(self._build_software_tab(),   "  Logiciels")
+        self._tabs.addTab(self._build_fiscal_tab(),    "  Rapport fiscal")
 
         layout.addWidget(self._tabs)
 
@@ -964,3 +965,90 @@ class ToolsView(QWidget):
         scroll.setWidget(container)
         outer.addWidget(scroll, 1)
         return tab
+
+    # ─────────────────────────────────────────────
+    # ONGLET 8 : Rapport fiscal annuel
+    # ─────────────────────────────────────────────
+    def _build_fiscal_tab(self):
+        from datetime import datetime as _dt
+
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(14)
+
+        layout.addWidget(_lbl("Rapport fiscal annuel", bold=True, color="#c8cdd4"))
+        layout.addWidget(_lbl(
+            "Générez un rapport PDF complet avec revenus, dépenses, "
+            "ventilation mensuelle et catégorielle.",
+            color="#5a6472"
+        ))
+        layout.addWidget(_sep())
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self._fiscal_year = QSpinBox()
+        self._fiscal_year.setRange(2020, 2030)
+        self._fiscal_year.setValue(_dt.now().year)
+        self._fiscal_year.setMinimumHeight(36)
+        self._fiscal_year.setStyleSheet(
+            "QSpinBox { background:#292d32; color:#c8cdd4; border:1px solid #3d4248; "
+            "border-radius:8px; padding:6px 12px; font-size:13px; }"
+            "QSpinBox::up-button, QSpinBox::down-button { "
+            "background:#3e4550; border:none; width:20px; }"
+        )
+        form.addRow(_lbl("Année :"), self._fiscal_year)
+        layout.addLayout(form)
+
+        btn = QPushButton("  Générer le rapport PDF")
+        btn.setMinimumHeight(42)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            "QPushButton { background:#22c55e; color:#ffffff; "
+            "border:none; border-radius:8px; font-size:13px; font-weight:700; "
+            "padding:8px 20px; }"
+            "QPushButton:hover { background:#16a34a; }"
+        )
+        btn.clicked.connect(self._generate_fiscal_report)
+        layout.addWidget(btn)
+
+        self._fiscal_result = _result_box("—")
+        layout.addWidget(self._fiscal_result)
+
+        layout.addStretch()
+        return tab
+
+    def _generate_fiscal_report(self):
+        from ui.toast import Toast
+        import os
+
+        year = self._fiscal_year.value()
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        filepath = os.path.join(desktop, f"rapport_fiscal_{year}.pdf")
+
+        try:
+            from services.fiscal_report_service import export_fiscal_pdf
+            result_path = export_fiscal_pdf(year, filepath=filepath)
+            self._fiscal_result.setText(f"Rapport {year} exporté !")
+            self._fiscal_result.setStyleSheet(
+                "font-size:16px; font-weight:700; color:#22c55e; "
+                "background:#1a2a1a; border-radius:10px; padding:14px; border:none;"
+            )
+            Toast.show(self, f"Rapport fiscal {year} enregistré sur le Bureau", kind="success")
+        except ImportError:
+            self._fiscal_result.setText("reportlab non installé")
+            self._fiscal_result.setStyleSheet(
+                "font-size:14px; font-weight:700; color:#ef4444; "
+                "background:#2a1a1a; border-radius:10px; padding:14px; border:none;"
+            )
+            Toast.show(self,
+                "reportlab non installé. Lancez : python -m pip install reportlab",
+                kind="error")
+        except Exception as e:
+            self._fiscal_result.setText("Erreur")
+            self._fiscal_result.setStyleSheet(
+                "font-size:14px; font-weight:700; color:#ef4444; "
+                "background:#2a1a1a; border-radius:10px; padding:14px; border:none;"
+            )
+            Toast.show(self, f"Erreur rapport fiscal : {e}", kind="error")

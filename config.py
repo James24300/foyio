@@ -15,6 +15,7 @@ os.makedirs(APP_DIR, exist_ok=True)
 
 DB_PATH = os.path.join(APP_DIR, "finance.db")
 BACKUP_DIR = os.path.join(APP_DIR, "backups")
+ATTACHMENTS_DIR = os.path.join(APP_DIR, "attachments")
 
 # ── Migration ancien répertoire "FinanceFoyer" → "Foyio" ──
 # Si l'ancien dossier existe et le nouveau est vide, on migre

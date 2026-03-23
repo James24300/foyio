@@ -97,19 +97,20 @@ def get_recurring():
         return rules
 
 
-def add_recurring(label, amount, ttype, category_id, day_of_month=1):
+def add_recurring(label, amount, ttype, category_id, day_of_month=1, reminder_days=3):
     """Crée une nouvelle règle récurrente pour le compte actif."""
     import account_state
     with safe_session() as session:
         session.add(RecurringTransaction(
-            label        = label.strip(),
-            amount       = float(amount),
-            type         = ttype,
-            category_id  = category_id,
-            account_id   = account_state.get_id(),
-            day_of_month = max(1, min(28, int(day_of_month))),
-            active       = True,
-            start_date   = date.today().replace(day=1),
+            label         = label.strip(),
+            amount        = float(amount),
+            type          = ttype,
+            category_id   = category_id,
+            account_id    = account_state.get_id(),
+            day_of_month  = max(1, min(28, int(day_of_month))),
+            active        = True,
+            start_date    = date.today().replace(day=1),
+            reminder_days = max(0, int(reminder_days)),
         ))
 
 
@@ -173,7 +174,9 @@ def get_overdue_recurring() -> list:
 
 def get_upcoming_recurring(days_ahead: int = 3) -> list:
     """
-    Retourne les récurrentes à venir dans les N prochains jours (J-3 par défaut).
+    Retourne les récurrentes à venir dans les N prochains jours.
+    Utilise le reminder_days de chaque règle si disponible,
+    sinon utilise days_ahead comme valeur par défaut.
     """
     today = date.today()
     upcoming = []
@@ -190,9 +193,11 @@ def get_upcoming_recurring(days_ahead: int = 3) -> list:
             if today < rule.start_date:
                 continue
             target_day = min(rule.day_of_month, 28)
+            # Utiliser reminder_days de la règle si défini, sinon days_ahead
+            rule_days = rule.reminder_days if rule.reminder_days is not None else days_ahead
             # Vérifier si l'échéance tombe dans les N prochains jours
             days_until = target_day - today.day
-            if 0 < days_until <= days_ahead:
+            if 0 < days_until <= rule_days:
                 # Vérifier si pas déjà générée ce mois
                 existing = (
                     session.query(Transaction)
