@@ -977,7 +977,31 @@ class ToolsView(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
 
-        layout.addWidget(_lbl("Rapport fiscal annuel", bold=True, color="#c8cdd4"))
+        title_row = QHBoxLayout()
+        title_row.addWidget(_lbl("Rapport fiscal annuel", bold=True, color="#c8cdd4"))
+        title_row.addStretch()
+        _help = QPushButton("?")
+        _help.setFixedSize(24, 24)
+        _help.setToolTip("Comment fonctionne le rapport fiscal ?")
+        _help.setStyleSheet(
+            "QPushButton { background:#2e3238; color:#7a8494; border:1px solid #3d4248; "
+            "border-radius:12px; font-size:11px; font-weight:700; }"
+            "QPushButton:hover { background:#3e4550; color:#c8cdd4; }"
+        )
+        from PySide6.QtWidgets import QMessageBox as _QMB
+        _help.clicked.connect(lambda: _QMB.information(
+            tab, "Rapport fiscal annuel",
+            "Ce rapport exporte un fichier PDF sur votre Bureau.\n\n"
+            "Il contient :\n"
+            "• Résumé annuel — revenus, dépenses, solde net\n"
+            "• Ventilation mensuelle — tableau mois par mois\n"
+            "• Répartition par catégorie — classée du plus grand au plus petit\n\n"
+            "Nécessite la bibliothèque reportlab.\n"
+            "Si elle n'est pas installée, lancez dans un terminal :\n"
+            "    python -m pip install reportlab"
+        ))
+        title_row.addWidget(_help)
+        layout.addLayout(title_row)
         layout.addWidget(_lbl(
             "Générez un rapport PDF complet avec revenus, dépenses, "
             "ventilation mensuelle et catégorielle.",

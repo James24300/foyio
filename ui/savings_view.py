@@ -63,6 +63,45 @@ class SavingsView(QWidget):
         self._tabs.addTab(self._tab_rate,  "  Taux d'épargne")
         self._tabs.addTab(self._tab_sim,   "  Simulateur")
 
+        # ── Bouton aide contextuelle ──
+        _HELP = {
+            0: ("Objectifs d'épargne",
+                "Créez des objectifs (voyage, voiture, urgences…) avec un montant cible.\n\n"
+                "• La barre de progression indique l'avancement.\n"
+                "• Cliquez sur «  Transactions » puis sur une ligne pour y ventiler de l'argent.\n"
+                "• Le bouton « Synchroniser » met à jour le total depuis vos transactions catégorisées Épargne."),
+            1: ("Transactions épargne",
+                "Liste de toutes vos transactions dont la catégorie est « Épargne ».\n\n"
+                "• Cliquez sur une ligne pour ouvrir la fenêtre de ventilation.\n"
+                "• La ventilation permet de répartir une transaction sur un ou plusieurs objectifs.\n"
+                "• La colonne « Reste » indique la part non encore affectée à un objectif."),
+            2: ("Taux d'épargne mensuel",
+                "Visualisez votre effort d'épargne mois par mois sur les 12 derniers mois.\n\n"
+                "• Le taux = dépenses épargne ÷ revenus totaux × 100.\n"
+                "• La ligne verte indique un objectif de 10 % (recommandation courante).\n"
+                "• Un taux négatif signifie qu'aucun revenu n'a été enregistré ce mois-là."),
+            3: ("Simulateur d'épargne",
+                "Estimez combien vous accumulerez selon votre versement mensuel et un taux d'intérêt annuel.\n\n"
+                "• Entrez un capital de départ, un versement mensuel et une durée.\n"
+                "• Le taux annuel tient compte des intérêts composés (ex. livret, assurance-vie).\n"
+                "• Les résultats sont indicatifs et ne constituent pas un conseil financier."),
+        }
+        from PySide6.QtWidgets import QMessageBox as _QMB
+        _help_btn = QPushButton("?")
+        _help_btn.setFixedSize(26, 26)
+        _help_btn.setToolTip("Aide sur cet onglet")
+        _help_btn.setStyleSheet(
+            "QPushButton { background:#2e3238; color:#7a8494; border:1px solid #3d4248; "
+            "border-radius:13px; font-size:12px; font-weight:700; }"
+            "QPushButton:hover { background:#3e4550; color:#c8cdd4; }"
+        )
+        def _show_help():
+            idx = self._tabs.currentIndex()
+            title, text = _HELP.get(idx, ("Aide", ""))
+            _QMB.information(self, title, text)
+        _help_btn.clicked.connect(_show_help)
+        self._tabs.setCornerWidget(_help_btn)
+
         layout.addWidget(self._tabs)
         self.refresh()
 

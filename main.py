@@ -1213,10 +1213,22 @@ def main():
     except Exception:
         pass
 
+    # ── AppUserModelID Windows (icône correcte dans la barre des tâches) ──
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Foyio.App.1")
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     QLocale.setDefault(QLocale(QLocale.French, QLocale.France))
     app.setStyleSheet(BANK_THEME)
+
+    # Icône .ico pour une meilleure résolution dans la barre des tâches / Alt+Tab
+    _ico_path = os.path.join(BASE_DIR, "icons", "foyio.ico")
+    if os.path.exists(_ico_path):
+        app.setWindowIcon(QIcon(_ico_path))
 
     # ── Splash screen ──
     from PySide6.QtWidgets import QSplashScreen
