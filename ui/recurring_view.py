@@ -112,10 +112,10 @@ class RecurringView(QWidget):
         self.reminder_spin = QSpinBox()
         self.reminder_spin.setRange(0, 30)
         self.reminder_spin.setValue(3)
-        self.reminder_spin.setSuffix(" j avant")
+        self.reminder_spin.setSuffix(" jours avant")
         self.reminder_spin.setToolTip("Nombre de jours avant l'échéance pour recevoir un rappel (0 = désactivé)")
         self.reminder_spin.setMinimumHeight(34)
-        self.reminder_spin.setFixedWidth(135)
+        self.reminder_spin.setFixedWidth(165)
 
         self.add_btn = QPushButton("  Ajouter")
         self.add_btn.setIcon(get_icon("add.png"))
