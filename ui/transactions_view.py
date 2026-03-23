@@ -957,6 +957,17 @@ class Transactions(QWidget):
         self.table.clearContents()
         self.table.setRowCount(len(data))
 
+        if not data:
+            self.table.setRowCount(1)
+            _ei = QTableWidgetItem("Aucune transaction trouvée pour cette période.")
+            _ei.setTextAlignment(Qt.AlignCenter)
+            _ei.setForeground(QColor("#5a6472"))
+            _ei.setFlags(Qt.ItemIsEnabled)
+            self.table.setItem(0, 0, _ei)
+            self.table.setSpan(0, 0, 1, self.table.columnCount())
+            self.update_totals(0.0, 0.0)
+            return
+
         with Session() as session:
             categories = {c.id: c for c in session.query(Category).all()}
             budgets    = {b.category_id: b.monthly_limit for b in session.query(Budget).all()}
@@ -1560,6 +1571,17 @@ class Transactions(QWidget):
         data = get_transactions(limit=10000, offset=0)
         self.table.clearContents()
         self.table.setRowCount(len(data))
+
+        if not data:
+            self.table.setRowCount(1)
+            _ei = QTableWidgetItem("Aucune transaction enregistrée.")
+            _ei.setTextAlignment(Qt.AlignCenter)
+            _ei.setForeground(QColor("#5a6472"))
+            _ei.setFlags(Qt.ItemIsEnabled)
+            self.table.setItem(0, 0, _ei)
+            self.table.setSpan(0, 0, 1, self.table.columnCount())
+            self.table.setUpdatesEnabled(True)
+            return
 
         with Session() as session:
             categories = {c.id: c for c in session.query(Category).all()}

@@ -265,6 +265,16 @@ class CategoryView(QWidget):
 
         self.list.setRowCount(len(categories))
 
+        if not categories:
+            self.list.setRowCount(1)
+            _ei = QTableWidgetItem("Aucune catégorie — créez-en une ci-dessus.")
+            _ei.setTextAlignment(Qt.AlignCenter)
+            _ei.setForeground(QColor("#5a6472"))
+            _ei.setFlags(Qt.ItemIsEnabled)
+            self.list.setItem(0, 0, _ei)
+            self.list.setSpan(0, 0, 1, self.list.columnCount())
+            return
+
         for i, c in enumerate(categories):
             count  = counts.get(c.id, 0)
             amount = amounts.get(c.id, 0)

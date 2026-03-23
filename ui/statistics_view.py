@@ -499,6 +499,16 @@ class StatisticsView(QWidget):
         self._legend_table.setSortingEnabled(False)
         self._legend_table.setRowCount(len(data))
 
+        if not data:
+            self._legend_table.setRowCount(1)
+            _ei = QTableWidgetItem("Aucune dépense pour cette période.")
+            _ei.setTextAlignment(Qt.AlignCenter)
+            _ei.setForeground(QColor("#5a6472"))
+            _ei.setFlags(Qt.ItemIsEnabled)
+            self._legend_table.setItem(0, 0, _ei)
+            self._legend_table.setSpan(0, 0, 1, self._legend_table.columnCount())
+            return
+
         for i, (name, value) in enumerate(data):
             color = DONUT_COLORS[i % len(DONUT_COLORS)]
             pct   = (value / self._total * 100) if self._total else 0

@@ -172,6 +172,16 @@ class SavingsView(QWidget):
         self._txn_table.setSortingEnabled(False)
         self._txn_table.setRowCount(len(rows))
 
+        if not rows:
+            self._txn_table.setRowCount(1)
+            _ei = QTableWidgetItem("Aucune transaction épargne — ajoutez des transactions avec la catégorie Épargne.")
+            _ei.setTextAlignment(Qt.AlignCenter)
+            _ei.setForeground(QColor("#5a6472"))
+            _ei.setFlags(Qt.ItemIsEnabled)
+            self._txn_table.setItem(0, 0, _ei)
+            self._txn_table.setSpan(0, 0, 1, self._txn_table.columnCount())
+            return
+
         for i, r in enumerate(rows):
             date_item = QTableWidgetItem(r["date"].strftime("%d/%m/%Y"))
             date_item.setData(Qt.UserRole, r["id"])
