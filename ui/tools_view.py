@@ -1021,6 +1021,8 @@ class ToolsView(QWidget):
             "border-radius:8px; padding:6px 12px; font-size:13px; }"
             "QSpinBox::up-button, QSpinBox::down-button { "
             "background:#3e4550; border:none; width:20px; }"
+            "QSpinBox::up-arrow { image: url(icons/arrow_up.svg); width:10px; height:10px; }"
+            "QSpinBox::down-arrow { image: url(icons/arrow_down.svg); width:10px; height:10px; }"
         )
         form.addRow(_lbl("Année :"), self._fiscal_year)
         layout.addLayout(form)
