@@ -1255,7 +1255,7 @@ def main():
         sys.exit(0)  # Fenêtre fermée sans authentification
 
     window = MainWindow()
-    window.show()
+    window.showMaximized()
 
     # ── Raccourci global Ctrl+Shift+F ──
     _hotkey = None
