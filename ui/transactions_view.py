@@ -31,6 +31,22 @@ from services.transaction_service import (
 )
 
 
+_SORT_ROLE = Qt.UserRole + 1
+
+
+class _SortItem(QTableWidgetItem):
+    """QTableWidgetItem dont le tri utilise une clé numérique dédiée."""
+    def __lt__(self, other):
+        a = self.data(_SORT_ROLE)
+        b = other.data(_SORT_ROLE)
+        if a is not None and b is not None:
+            try:
+                return a < b
+            except TypeError:
+                pass
+        return super().__lt__(other)
+
+
 class Transactions(QWidget):
 
     def __init__(self, accueil):
@@ -159,11 +175,28 @@ class Transactions(QWidget):
         layout.addWidget(form_card)
 
         # ── Barre de recherche ──
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+
         self.search = QLineEdit()
         self.search.setPlaceholderText("🔎 Rechercher : courses, revenu, >100, <50, 50-200, 03/2026...")
         self.search.setMinimumHeight(34)
         self.search.textChanged.connect(self.filter_table)
-        layout.addWidget(self.search)
+        search_row.addWidget(self.search, 1)
+
+        from PySide6.QtWidgets import QCheckBox
+        self._all_periods_check = QCheckBox("Toutes périodes")
+        self._all_periods_check.setToolTip("Rechercher dans toutes les transactions, pas seulement le mois affiché")
+        self._all_periods_check.setStyleSheet("""
+            QCheckBox { color:#f59e0b; font-size:12px; font-weight:600; }
+            QCheckBox::indicator { width:16px; height:16px; border:2px solid #f59e0b;
+                border-radius:4px; background:#1e2124; }
+            QCheckBox::indicator:checked { background:#f59e0b; }
+        """)
+        self._all_periods_check.toggled.connect(self._on_global_search_toggled)
+        search_row.addWidget(self._all_periods_check)
+
+        layout.addLayout(search_row)
 
         # Indicateur de doublons (invisible par défaut)
         self._dup_btn = QPushButton("")
@@ -414,6 +447,10 @@ class Transactions(QWidget):
         if ttype == "expense":
             self._check_auto_transfer(category_id, added_amount, tx_date, added_note)
 
+        # Alerte dépassement de budget
+        if ttype == "expense" and category_id:
+            self._check_budget_alert(category_id, added_amount)
+
     # ------------------------------------------------------------------
     def _check_auto_transfer(self, category_id, amount, tx_date, note):
         """Propose un transfert automatique si la catégorie est liée à un compte épargne."""
@@ -498,6 +535,37 @@ class Transactions(QWidget):
             main = self.window()
             if hasattr(main, "refresh_all"):
                 main.refresh_all()
+
+    # ------------------------------------------------------------------
+    def _check_budget_alert(self, category_id: int, added_amount: float):
+        """Affiche un avertissement si le budget de la catégorie est dépassé ce mois-ci."""
+        from services.transaction_service import get_budget_status
+        from db import Session
+        from models import Category
+
+        status = get_budget_status()
+        for cat_id, limit, spent in status:
+            if cat_id != category_id:
+                continue
+            if spent >= limit:
+                with Session() as session:
+                    cat = session.query(Category).filter_by(id=cat_id).first()
+                    cat_name = cat.name if cat else "cette catégorie"
+                Toast.show(
+                    self,
+                    f"⚠  Budget « {cat_name} » dépassé ({spent:.0f} € / {limit:.0f} €)",
+                    kind="warning"
+                )
+            elif spent >= limit * 0.9:
+                with Session() as session:
+                    cat = session.query(Category).filter_by(id=cat_id).first()
+                    cat_name = cat.name if cat else "cette catégorie"
+                Toast.show(
+                    self,
+                    f"⚠  Budget « {cat_name} » bientôt atteint ({spent:.0f} € / {limit:.0f} €)",
+                    kind="warning"
+                )
+            break
 
     # ------------------------------------------------------------------
     def delete_selected(self):
@@ -934,8 +1002,9 @@ class Transactions(QWidget):
             self.table.setCellWidget(i, 0, container)
 
             # ── Col 1 : Date ──
-            date_item = QTableWidgetItem(t.date.strftime("%d/%m/%Y"))
+            date_item = _SortItem(t.date.strftime("%d/%m/%Y"))
             date_item.setData(Qt.UserRole, t.id)
+            date_item.setData(_SORT_ROLE, t.date.toordinal())
             date_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             self.table.setItem(i, 1, date_item)
 
@@ -952,8 +1021,9 @@ class Transactions(QWidget):
 
             # ── Col 3 : Montant ──
             prefix = "▲ " if t.type == "income" else "▼ "
-            amount_item = QTableWidgetItem(prefix + format_money(t.amount))
+            amount_item = _SortItem(prefix + format_money(t.amount))
             amount_item.setData(Qt.UserRole, t.amount)
+            amount_item.setData(_SORT_ROLE, t.amount)
             amount_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             amount_item.setForeground(color)
             fnt = amount_item.font(); fnt.setBold(True); amount_item.setFont(fnt)
@@ -1041,6 +1111,7 @@ class Transactions(QWidget):
         """)
         act_edit = menu.addAction("  Modifier")
         act_dup  = menu.addAction("  Dupliquer")
+        act_attach = menu.addAction("  Pièces jointes")
         menu.addSeparator()
         act_del  = menu.addAction("  Supprimer")
         act_del.setProperty("danger", True)
@@ -1050,6 +1121,8 @@ class Transactions(QWidget):
             self._edit_transaction(self.table.item(row, 1))
         elif action == act_dup:
             self._duplicate_transaction(tid)
+        elif action == act_attach:
+            self._show_attachments(tid)
         elif action == act_del:
             self.table.selectRow(row)
             self.delete_selected()
@@ -1470,6 +1543,99 @@ class Transactions(QWidget):
             self._table_stack.setCurrentIndex(0)
 
     # ------------------------------------------------------------------
+    def _on_global_search_toggled(self, checked: bool):
+        """Recharge toutes les transactions ou revient à la période."""
+        if checked:
+            self._load_all_transactions()
+        else:
+            self.load()
+
+    def _load_all_transactions(self):
+        """Charge toutes les transactions (toutes périodes, tous comptes) dans le tableau."""
+        from services.transaction_service import get_transactions
+        from services.attachment_service import get_transaction_ids_with_attachments
+
+        self.table.setSortingEnabled(False)
+        self.table.setUpdatesEnabled(False)
+        data = get_transactions(limit=10000, offset=0)
+        self.table.clearContents()
+        self.table.setRowCount(len(data))
+
+        with Session() as session:
+            categories = {c.id: c for c in session.query(Category).all()}
+
+        all_tx_ids = [t.id for t in data]
+        tags_map = get_tags_for_transactions(all_tx_ids)
+        ids_with_attachments = get_transaction_ids_with_attachments(all_tx_ids)
+
+        for i, t in enumerate(data):
+            category  = categories.get(t.category_id)
+            cat_color = category.color if category and category.color else "#888888"
+
+            bar = QWidget()
+            bar.setStyleSheet(f"background-color:{cat_color};")
+            bar.setFixedWidth(4)
+            container = QWidget()
+            hl = QHBoxLayout(container)
+            hl.setContentsMargins(0, 0, 0, 0)
+            hl.setSpacing(0)
+            hl.addWidget(bar)
+            hl.addStretch()
+            self.table.setCellWidget(i, 0, container)
+
+            date_item = _SortItem(t.date.strftime("%d/%m/%Y"))
+            date_item.setData(Qt.UserRole, t.id)
+            date_item.setData(_SORT_ROLE, t.date.toordinal())
+            date_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            self.table.setItem(i, 1, date_item)
+
+            if t.type == "income":
+                type_label, icon_name, color = "Revenu",  "revenus.png",  QColor("#22c55e")
+            else:
+                type_label, icon_name, color = "Dépense", "depenses.png", QColor("#ef4444")
+
+            type_item = QTableWidgetItem(get_icon(icon_name), f"  {type_label}")
+            type_item.setForeground(color)
+            type_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.table.setItem(i, 2, type_item)
+
+            prefix = "▲ " if t.type == "income" else "▼ "
+            amount_item = _SortItem(prefix + format_money(t.amount))
+            amount_item.setData(Qt.UserRole, t.amount)
+            amount_item.setData(_SORT_ROLE, t.amount)
+            amount_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            amount_item.setForeground(color)
+            fnt = amount_item.font(); fnt.setBold(True); amount_item.setFont(fnt)
+            self.table.setItem(i, 3, amount_item)
+
+            if category:
+                raw_icon = category.icon or ""
+                icon_file = raw_icon if raw_icon.endswith(".png") else get_category_icon(category.name)
+                cat_item = QTableWidgetItem(get_icon(icon_file, 18), f"  {category.name}")
+            else:
+                cat_item = QTableWidgetItem(get_icon("other.png", 18), "  Inconnu")
+            cat_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.table.setItem(i, 4, cat_item)
+
+            note_text = (t.note or "").replace('\xa0', ' ').replace('\ufffd', '').strip()
+            if t.id in ids_with_attachments:
+                note_text = "\U0001F4CE " + note_text
+            note_item = QTableWidgetItem(note_text)
+            note_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            note_item.setForeground(QColor("#7a8494"))
+            self.table.setItem(i, 5, note_item)
+
+            tx_tags = tags_map.get(t.id, [])
+            tag_item = QTableWidgetItem(", ".join(tx_tags))
+            tag_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            tag_item.setForeground(QColor("#6366f1"))
+            self.table.setItem(i, 6, tag_item)
+
+        self.table.setSortingEnabled(True)
+        self.table.setUpdatesEnabled(True)
+        self.filter_table()
+
+    # ------------------------------------------------------------------
     def filter_table(self):
         text = self.search.text().strip().lower()
 
@@ -1544,25 +1710,58 @@ class Transactions(QWidget):
             else:
                 expense += amount
 
-        balance = income - expense
-        sign    = "+" if balance >= 0 else ""
-
         BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         income_icon  = os.path.join(BASE_DIR, "icons", "income.png")
         expense_icon = os.path.join(BASE_DIR, "icons", "expense.png")
         balance_icon = os.path.join(BASE_DIR, "icons", "balance.png")
 
-        self.total_label.setText(
-            f'<img src="{income_icon}" width="20"> '
-            f'<span style="color:#22c55e">+{format_money(income)}</span>'
-            f'&nbsp;&nbsp;&nbsp;'
-            f'<img src="{expense_icon}" width="20"> '
-            f'<span style="color:#ef4444">-{format_money(expense)}</span>'
-            f'&nbsp;&nbsp;&nbsp;'
-            f'<img src="{balance_icon}" width="20"> '
-            f'<span style="color:#{"22c55e" if balance >= 0 else "ef4444"}">'
-            f'{sign}{format_money(balance)}</span>'
-        )
+        # Animation compteur : interpolation depuis les valeurs précédentes
+        from PySide6.QtCore import QTimer as _QTimer
+        prev_income  = getattr(self, '_prev_income',  0.0)
+        prev_expense = getattr(self, '_prev_expense', 0.0)
+        self._prev_income  = income
+        self._prev_expense = expense
+
+        STEPS    = 24
+        INTERVAL = 16  # ~60 fps
+
+        step_ref = [0]
+        if hasattr(self, '_totals_timer') and self._totals_timer.isActive():
+            self._totals_timer.stop()
+
+        def _render(cur_i, cur_e):
+            bal  = cur_i - cur_e
+            sign = "+" if bal >= 0 else ""
+            self.total_label.setText(
+                f'<img src="{income_icon}" width="20"> '
+                f'<span style="color:#22c55e">+{format_money(cur_i)}</span>'
+                f'&nbsp;&nbsp;&nbsp;'
+                f'<img src="{expense_icon}" width="20"> '
+                f'<span style="color:#ef4444">-{format_money(cur_e)}</span>'
+                f'&nbsp;&nbsp;&nbsp;'
+                f'<img src="{balance_icon}" width="20"> '
+                f'<span style="color:#{"22c55e" if bal >= 0 else "ef4444"}">'
+                f'{sign}{format_money(bal)}</span>'
+            )
+
+        def _tick():
+            s = step_ref[0]
+            if s >= STEPS:
+                self._totals_timer.stop()
+                _render(income, expense)
+                return
+            t = s / STEPS
+            t = 1 - (1 - t) ** 3          # ease-out cubic
+            _render(
+                prev_income  + (income  - prev_income)  * t,
+                prev_expense + (expense - prev_expense) * t,
+            )
+            step_ref[0] += 1
+
+        self._totals_timer = _QTimer(self)
+        self._totals_timer.setInterval(INTERVAL)
+        self._totals_timer.timeout.connect(_tick)
+        self._totals_timer.start()
 
     # ------------------------------------------------------------------
     def load_more(self):
@@ -1602,8 +1801,9 @@ class Transactions(QWidget):
             hl.addStretch()
             self.table.setCellWidget(row, 0, container)
 
-            date_item = QTableWidgetItem(t.date.strftime("%d/%m/%Y"))
+            date_item = _SortItem(t.date.strftime("%d/%m/%Y"))
             date_item.setData(Qt.UserRole, t.id)
+            date_item.setData(_SORT_ROLE, t.date.toordinal())
             date_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             self.table.setItem(row, 1, date_item)
 
@@ -1617,8 +1817,9 @@ class Transactions(QWidget):
             self.table.setItem(row, 2, type_item)
 
             prefix = "▲ " if t.type == "income" else "▼ "
-            amount_item = QTableWidgetItem(prefix + format_money(t.amount))
+            amount_item = _SortItem(prefix + format_money(t.amount))
             amount_item.setData(Qt.UserRole, t.amount)
+            amount_item.setData(_SORT_ROLE, t.amount)
             amount_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             amount_item.setForeground(color)
             self.table.setItem(row, 3, amount_item)
@@ -1643,3 +1844,118 @@ class Transactions(QWidget):
 
         self.table.setSortingEnabled(True)
         self.table.setUpdatesEnabled(True)
+
+    # ------------------------------------------------------------------
+    def _show_attachments(self, txn_id: int):
+        """Fenêtre de gestion des pièces jointes d'une transaction."""
+        from services.attachment_service import (
+            get_attachments, save_attachment, delete_attachment, open_attachment,
+        )
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Pièces jointes")
+        dlg.setMinimumSize(480, 340)
+        dlg.setStyleSheet("background:#1e2124; color:#c8cdd4;")
+
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(12)
+
+        title = QLabel("Pièces jointes (tickets, factures...)")
+        title.setStyleSheet(
+            "font-size:14px; font-weight:700; color:#c8cdd4; "
+            "background:#292d32; border-radius:8px; padding:10px;"
+        )
+        vl.addWidget(title)
+
+        # Liste des fichiers
+        att_list = QVBoxLayout()
+        att_list.setSpacing(6)
+        att_container = QWidget()
+        att_container.setLayout(att_list)
+
+        def refresh_list():
+            while att_list.count():
+                child = att_list.takeAt(0)
+                if child.widget():
+                    child.widget().deleteLater()
+
+            attachments = get_attachments(txn_id)
+            if not attachments:
+                empty = QLabel("Aucune pièce jointe.")
+                empty.setStyleSheet("color:#6b7280; font-size:12px; padding:8px;")
+                att_list.addWidget(empty)
+            else:
+                for att in attachments:
+                    row_w = QWidget()
+                    row_w.setStyleSheet(
+                        "background:#26292e; border-radius:8px; border:1px solid #3a3f47;"
+                    )
+                    row_l = QHBoxLayout(row_w)
+                    row_l.setContentsMargins(12, 8, 12, 8)
+                    row_l.setSpacing(10)
+
+                    name_lbl = QLabel(att.filename)
+                    name_lbl.setStyleSheet(
+                        "color:#c8cdd4; font-size:12px; background:transparent; border:none;"
+                    )
+                    row_l.addWidget(name_lbl, 1)
+
+                    btn_open = QPushButton("Ouvrir")
+                    btn_open.setFixedHeight(26)
+                    btn_open.setStyleSheet(
+                        "background:#2e3238; color:#3b82f6; border:1px solid #3a3f47;"
+                        "border-radius:6px; font-size:11px; padding:0 10px;"
+                    )
+                    btn_open.clicked.connect(
+                        lambda checked, a=att: open_attachment(a)
+                    )
+                    row_l.addWidget(btn_open)
+
+                    btn_del = QPushButton("Supprimer")
+                    btn_del.setFixedHeight(26)
+                    btn_del.setStyleSheet(
+                        "background:#2e2020; color:#e89090; border:1px solid #503030;"
+                        "border-radius:6px; font-size:11px; padding:0 10px;"
+                    )
+                    btn_del.clicked.connect(
+                        lambda checked, a_id=att.id: (delete_attachment(a_id), refresh_list())
+                    )
+                    row_l.addWidget(btn_del)
+
+                    att_list.addWidget(row_w)
+
+        refresh_list()
+        vl.addWidget(att_container, 1)
+
+        # Boutons bas
+        btn_row = QHBoxLayout()
+        btn_add = QPushButton("  Ajouter un fichier")
+        btn_add.setMinimumHeight(34)
+        btn_add.setStyleSheet(
+            "background:#2e3238; color:#22c55e; border:1px solid #3a3f47;"
+            "border-radius:8px; font-size:12px; padding:0 16px;"
+        )
+
+        def add_file():
+            path, _ = QFileDialog.getOpenFileName(
+                dlg, "Choisir un fichier",
+                "", "Tous les fichiers (*.*)"
+            )
+            if path:
+                save_attachment(txn_id, path)
+                refresh_list()
+                Toast.show(self, "Pièce jointe ajoutée", kind="success")
+
+        btn_add.clicked.connect(add_file)
+
+        btn_close = QPushButton("Fermer")
+        btn_close.setMinimumHeight(34)
+        btn_close.clicked.connect(dlg.accept)
+
+        btn_row.addWidget(btn_add)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_close)
+        vl.addLayout(btn_row)
+
+        dlg.exec()

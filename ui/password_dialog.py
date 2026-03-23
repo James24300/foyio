@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLineEdit, QFrame
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPixmap
 
 from config import APP_DIR
 
@@ -69,13 +69,16 @@ class PasswordDialog(QDialog):
         layout.setSpacing(16)
         layout.setContentsMargins(32, 32, 32, 32)
 
-        # Logo / Titre
-        logo = QLabel("Foyio")
-        logo.setAlignment(Qt.AlignCenter)
-        logo.setMinimumHeight(50)
-        logo.setStyleSheet(
-            "font-size:28px; font-weight:700; color:#c8cdd4; background:transparent;"
+        # Logo image
+        import os as _os
+        _logo_path = _os.path.join(
+            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+            "icons", "foyio_logo.png"
         )
+        logo = QLabel()
+        logo.setAlignment(Qt.AlignCenter)
+        logo.setPixmap(QIcon(_logo_path).pixmap(80, 80))
+        logo.setStyleSheet("background:transparent;")
         layout.addWidget(logo)
 
         subtitle = QLabel(

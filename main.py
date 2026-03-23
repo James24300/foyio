@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QScrollArea, QTabWidget, QComboBox
 )
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve
 from PySide6.QtGui import QIcon
 
 from db import Base, engine, Session
@@ -56,8 +56,36 @@ from ui.calculator import Calculator
 from ui.tools_view import ToolsView
 from ui.about_view import AboutView
 from ui.settings_view import SettingsView
+from ui.loans_view import LoansView
 from services.update_service import check_async, get_current_version
 from ui.password_dialog import PasswordDialog
+
+
+class AnimatedNavBtn(QPushButton):
+    """Bouton sidebar avec animation d'icône au survol."""
+
+    _ICON_NORMAL = QSize(26, 26)
+    _ICON_HOVER  = QSize(30, 30)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._hover_anim = QPropertyAnimation(self, b"iconSize")
+        self._hover_anim.setDuration(150)
+        self._hover_anim.setEasingCurve(QEasingCurve.OutQuad)
+
+    def enterEvent(self, event):
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self.iconSize())
+        self._hover_anim.setEndValue(self._ICON_HOVER)
+        self._hover_anim.start()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(self.iconSize())
+        self._hover_anim.setEndValue(self._ICON_NORMAL)
+        self._hover_anim.start()
+        super().leaveEvent(event)
 
 
 class MainWindow(QWidget):
@@ -68,6 +96,7 @@ class MainWindow(QWidget):
         _uname = _get_s("user_name") or ""
         _title = f"Foyio — {_uname}" if _uname else "Foyio"
         self.setWindowTitle(_title)
+        self.setWindowIcon(QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")))
         self.resize(1280, 760)
 
         main_layout = QHBoxLayout()
@@ -91,7 +120,7 @@ class MainWindow(QWidget):
 
         logo_icon = QLabel()
         logo_icon.setPixmap(
-            QIcon(os.path.join(BASE_DIR, "icons", "wallet.png")).pixmap(28, 28)
+            QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")).pixmap(32, 32)
         )
         logo_icon.setStyleSheet("background:transparent; border:none;")
 
@@ -139,6 +168,7 @@ class MainWindow(QWidget):
             ("btn_recurring",    " Récurrentes",  "transactions.png"),
             ("btn_savings",      " Épargne",      "epargne.png"),
             ("btn_accounts",     " Comptes",      "bank.png"),
+            ("btn_loans",        " Prêts",        "money.png"),
             ("btn_tools",        " Outils",       "stats.png"),
             ("btn_settings",     " Paramètres",   "other.png"),
             ("btn_about",        " À propos",     "other.png"),
@@ -146,7 +176,7 @@ class MainWindow(QWidget):
 
         self._nav_buttons = []
         for attr, label, icon_name in nav_items:
-            btn = QPushButton(label)
+            btn = AnimatedNavBtn(label)
             btn.setIcon(QIcon(os.path.join(BASE_DIR, "icons", icon_name)))
             btn.setCheckable(True)
             btn.setMinimumHeight(54)
@@ -376,6 +406,7 @@ class MainWindow(QWidget):
         self.recurring    = RecurringView()
         self.accounts     = AccountsView(self)
         self.savings      = SavingsView()
+        self.loans        = LoansView()
         self.tools        = ToolsView()
         self.about        = AboutView()
         self.settings_v   = SettingsView()
@@ -383,8 +414,8 @@ class MainWindow(QWidget):
         for view in [
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
-            self.savings, self.accounts, self.tools,
-            self.settings_v, self.about
+            self.savings, self.accounts, self.loans,
+            self.tools, self.settings_v, self.about
         ]:
             self.stack.addTab(view, "")
 
@@ -396,9 +427,10 @@ class MainWindow(QWidget):
         self.btn_recurring.clicked.connect(lambda: self.set_active(5))
         self.btn_savings.clicked.connect(lambda: self.set_active(6))
         self.btn_accounts.clicked.connect(lambda: self.set_active(7))
-        self.btn_tools.clicked.connect(lambda: self.set_active(8))
-        self.btn_settings.clicked.connect(lambda: self.set_active(9))
-        self.btn_about.clicked.connect(lambda: self.set_active(10))
+        self.btn_loans.clicked.connect(lambda: self.set_active(8))
+        self.btn_tools.clicked.connect(lambda: self.set_active(9))
+        self.btn_settings.clicked.connect(lambda: self.set_active(10))
+        self.btn_about.clicked.connect(lambda: self.set_active(11))
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -931,6 +963,7 @@ class MainWindow(QWidget):
             ("transactions.png", "Récurrentes"),
             ("epargne.png",      "Épargne"),
             ("bank.png",         "Comptes"),
+            ("money.png",        "Prêts"),
             ("stats.png",        "Outils"),
             ("other.png",        "Paramètres"),
             ("other.png",        "À propos"),

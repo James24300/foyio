@@ -435,15 +435,16 @@ class LoansView(QWidget):
 
     # ------------------------------------------------------------------
     def _delete(self, loan_id, loan_name):
-        reply = QMessageBox.question(
-            self, "Supprimer",
-            f"Supprimer le pr\u00eat \u00ab {loan_name} \u00bb ?",
-            QMessageBox.Yes | QMessageBox.No,
-        )
-        if reply == QMessageBox.Yes:
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Supprimer")
+        msg.setText(f"Supprimer le prêt « {loan_name} » ?")
+        btn_yes = msg.addButton("Oui", QMessageBox.DestructiveRole)
+        msg.addButton("Non", QMessageBox.RejectRole)
+        msg.exec()
+        if msg.clickedButton() == btn_yes:
             delete_loan(loan_id)
             self.load()
-            Toast.show(self, f"\u2713  Pr\u00eat supprim\u00e9", kind="success")
+            Toast.show(self, "✓  Prêt supprimé", kind="success")
 
     # ------------------------------------------------------------------
     def _show_schedule(self, loan_id, loan_name):

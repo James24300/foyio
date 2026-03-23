@@ -127,8 +127,8 @@ class ToolsView(QWidget):
         self._tabs.addTab(self._build_loan_tab(),       "  Prêt")
         self._tabs.addTab(self._build_budget_tab(),     "  Budget 50/30/20")
         self._tabs.addTab(self._build_compound_tab(),   "  Intérêts")
-        self._tabs.addTab(self._build_software_tab(),   "  Logiciels")
         self._tabs.addTab(self._build_fiscal_tab(),    "  Rapport fiscal")
+        self._tabs.addTab(self._build_software_tab(),   "  Logiciels")
 
         layout.addWidget(self._tabs)
 

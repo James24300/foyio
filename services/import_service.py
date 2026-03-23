@@ -663,17 +663,208 @@ def parse_pdf_sg(filepath: str) -> List[ImportRow]:
     return unique
 
 
+# ──────────────────────────────────────────────────────────────
+# Import PDF — Générique banques françaises
+# ──────────────────────────────────────────────────────────────
+
+def _parse_amount_pdf(s: str) -> float:
+    """
+    Parse un montant au format français depuis un texte PDF.
+    Gère : '1 234,56', '1.234,56', '-234,56', '234,56-' (signe en fin).
+    Retourne 0.0 si non parsable.
+    """
+    if not s:
+        return 0.0
+    s = s.strip()
+    # Signe négatif en fin de chaîne (convention de certaines banques)
+    trailing_minus = s.endswith("-") or s.endswith("–")
+    s = s.rstrip("-–").strip()
+    # Supprimer espaces et espaces insécables (séparateur de milliers)
+    s = s.replace("\xa0", "").replace("\u202f", "").replace(" ", "")
+    # Supprimer le point séparateur de milliers : 1.234,56 → 1234,56
+    s = re.sub(r"\.(?=\d{3}(,|$))", "", s)
+    # Virgule décimale → point
+    s = s.replace(",", ".")
+    try:
+        val = float(s)
+        return -val if trailing_minus else val
+    except ValueError:
+        return 0.0
+
+
+def parse_pdf_generic(filepath: str) -> List[ImportRow]:
+    """
+    Parse un relevé PDF de banque française de façon générique.
+    Fonctionne avec les formats textuels courants (BNP, Crédit Agricole, LCL,
+    Banque Populaire, Caisse d'Épargne, etc.).
+    """
+    try:
+        import pdfplumber
+    except ImportError:
+        raise ValueError(
+            "La librairie pdfplumber est requise.\n"
+            "Installez-la avec : pip install pdfplumber"
+        )
+
+    RE_DATE_FULL  = re.compile(r"(\d{2}[/.\-]\d{2}[/.\-]\d{4})")
+    RE_DATE_SHORT = re.compile(r"(\d{2}[/.\-]\d{2})(?!\d)")
+    RE_AMOUNT     = re.compile(r"(-?\s*\d[\d\s.]*,\d{2})\s*-?")
+    RE_YEAR_HEADER = re.compile(
+        r"(?:relev[eé]|p[eé]riode|arr[eê]t[eé]|du|mois)\s+.*?"
+        r"(\d{2}[/.\-]\d{2}[/.\-](\d{4}))",
+        re.IGNORECASE
+    )
+    RE_SKIP = re.compile(
+        r"(SOLDE\s*(PR[EÉ]C[EÉ]DENT|NOUVEAU|CREDITEUR|DEBITEUR|AU|EN)|"
+        r"TOTAL\s*DES|TOTAUX|REPORT|NOUVEAU\s*SOLDE|"
+        r"DATE\s+OP[EÉ]RATION|DATE\s+VALEUR|LIBELL[EÉ]|"
+        r"R[EÉ]F[EÉ]RENCE|NUM[EÉ]RO\s*DE\s*COMPTE|IBAN|BIC|"
+        r"PAGE\s+\d|SUITE\s*>>>|RELEV[EÉ]\s*DE\s*COMPTE|"
+        r"^\s*$)",
+        re.IGNORECASE
+    )
+
+    rows = []
+    default_year = None
+
+    with pdfplumber.open(filepath) as pdf:
+        for page in pdf.pages[:3]:
+            text = page.extract_text() or ""
+            m = RE_YEAR_HEADER.search(text)
+            if m:
+                default_year = int(m.group(2))
+                break
+
+        if not default_year:
+            for page in pdf.pages[:3]:
+                text = page.extract_text() or ""
+                m = RE_DATE_FULL.search(text)
+                if m:
+                    date_str = m.group(1).replace(".", "/").replace("-", "/")
+                    try:
+                        default_year = int(date_str.split("/")[2])
+                    except (ValueError, IndexError):
+                        pass
+                    break
+
+        if not default_year:
+            default_year = datetime.now().year
+
+        for page in pdf.pages:
+            text = page.extract_text()
+            if not text:
+                continue
+
+            for line in text.split("\n"):
+                line = line.strip()
+                if not line or RE_SKIP.search(line):
+                    continue
+
+                date_val = None
+                date_end = 0
+
+                m_full = RE_DATE_FULL.search(line)
+                if m_full and m_full.start() < 20:
+                    date_str = m_full.group(1).replace(".", "/").replace("-", "/")
+                    date_val = _parse_date_fr(date_str)
+                    date_end = m_full.end()
+
+                if not date_val:
+                    m_short = RE_DATE_SHORT.search(line)
+                    if m_short and m_short.start() < 20:
+                        date_str = m_short.group(1).replace(".", "/").replace("-", "/")
+                        try:
+                            day, month = date_str.split("/")
+                            date_val = datetime(default_year, int(month), int(day))
+                            date_end = m_short.end()
+                        except (ValueError, IndexError):
+                            pass
+
+                if not date_val:
+                    continue
+
+                rest = line[date_end:].strip()
+                m_date2 = re.match(r"\d{2}[/.\-]\d{2}([/.\-]\d{4})?\s+", rest)
+                if m_date2:
+                    rest = rest[m_date2.end():]
+
+                amounts = list(RE_AMOUNT.finditer(rest))
+                if not amounts:
+                    continue
+
+                last_amount_match = amounts[-1]
+                amount_raw = last_amount_match.group(0).strip()
+                amount = _parse_amount_pdf(amount_raw)
+                if amount == 0.0:
+                    continue
+
+                desc_end = last_amount_match.start()
+                description = rest[:desc_end].strip()
+
+                if len(amounts) >= 2:
+                    amt1 = _parse_amount_pdf(amounts[-2].group(0).strip())
+                    amt2 = _parse_amount_pdf(amounts[-1].group(0).strip())
+                    if amt1 != 0.0 and amt2 == 0.0:
+                        amount = amt1
+                        desc_end = amounts[-2].start()
+                    elif amt1 == 0.0 and amt2 != 0.0:
+                        amount = amt2
+                        desc_end = amounts[-1].start()
+                    elif amt1 != 0.0 and amt2 != 0.0:
+                        amount = amt2 if amt2 > 0 else -abs(amt1)
+                        desc_end = amounts[-2].start()
+                    description = rest[:desc_end].strip()
+
+                description = re.sub(r"\s{2,}", " ", description).strip()
+                description = description.strip(" -/.,:")
+
+                if not description or len(description) < 2:
+                    continue
+
+                ttype = "income" if amount > 0 else "expense"
+                rows.append(ImportRow(
+                    date=date_val,
+                    label=_clean_label(description),
+                    amount=abs(amount),
+                    type=ttype,
+                    category_id=None,
+                ))
+
+    logger.info("Parser PDF générique : %d transactions trouvées", len(rows))
+    return rows
+
+
 def load_pdf(filepath: str):
     """
-    Charge et analyse un relevé PDF bancaire (Société Générale).
-    Retourne ("pdf_sg", list[ImportRow]).
+    Charge et analyse un relevé PDF bancaire.
+    Essaie d'abord le parseur SG spécifique, puis le parseur générique en fallback.
+    Retourne (format_str, list[ImportRow]).
     """
-    rows = parse_pdf_sg(filepath)
-    if not rows:
+    sg_rows = []
+    try:
+        sg_rows = parse_pdf_sg(filepath)
+    except Exception as e:
+        logger.debug("Parseur PDF SG a échoué : %s", e)
+
+    generic_rows = []
+    try:
+        generic_rows = parse_pdf_generic(filepath)
+    except Exception as e:
+        logger.debug("Parseur PDF générique a échoué : %s", e)
+
+    if sg_rows and len(sg_rows) >= len(generic_rows):
+        rows, fmt = sg_rows, "pdf_sg"
+    elif generic_rows:
+        rows, fmt = generic_rows, "pdf_generic"
+    elif sg_rows:
+        rows, fmt = sg_rows, "pdf_sg"
+    else:
         raise ValueError(
             "Aucune transaction trouvée dans ce PDF.\n"
-            "Vérifiez qu'il s'agit d'un relevé Société Générale.\n"
+            "Formats supportés : Société Générale, BNP, Crédit Agricole, LCL, "
+            "Banque Populaire, Caisse d'Épargne et autres banques françaises.\n"
             "Si le PDF est scanné (image), l'extraction est impossible."
         )
+
     rows = enrich_rows(rows)
-    return "pdf_sg", rows
+    return fmt, rows

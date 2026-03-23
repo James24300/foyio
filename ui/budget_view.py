@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
     QSizePolicy, QScrollArea
 )
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QColor
 
 from db import Session
@@ -164,10 +164,43 @@ class BudgetView(QWidget):
         layout.addWidget(self._tabs, 1)
         self.setLayout(layout)
 
+        self._bar_anims = []
         self.load_categories()
         self.refresh()
 
     # ------------------------------------------------------------------
+    def showEvent(self, event):
+        """Rejoue l'animation dès que la page Budget devient visible."""
+        super().showEvent(event)
+        self.refresh()
+
+    def _animate_bar(self, bar: QProgressBar, target: int):
+        """Anime une QProgressBar de 0 à target avec un effet ease-out.
+        Si la vue n'est pas encore visible, applique directement la valeur finale."""
+        if not self.isVisible():
+            bar.setValue(target)
+            return
+
+        from PySide6.QtCore import QTimer
+        STEPS = 50
+        step  = [0]
+        timer = QTimer(self)
+        timer.setInterval(22)
+
+        def _tick():
+            s = step[0]
+            if s >= STEPS:
+                bar.setValue(target)
+                timer.stop()
+                return
+            ease = 1 - (1 - s / STEPS) ** 3
+            bar.setValue(int(target * ease))
+            step[0] += 1
+
+        timer.timeout.connect(_tick)
+        timer.start()
+        self._bar_anims.append(timer)
+
     def load_categories(self):
         from utils.category_icons import get_category_icon
         with Session() as session:
@@ -230,6 +263,8 @@ class BudgetView(QWidget):
     def refresh(self):
         acc = account_state.get_name()
         self._form_label.setText(f"Budgets — {acc}" if acc else "Budgets")
+
+        self._bar_anims.clear()
 
         # Vider
         while self.results_layout.count() > 1:
@@ -346,7 +381,7 @@ class BudgetView(QWidget):
             # Barre de progression
             bar = QProgressBar()
             bar.setMaximum(100)
-            bar.setValue(int(percent))
+            bar.setValue(0)
             bar.setTextVisible(False)
             bar.setFixedHeight(8)
 
@@ -368,6 +403,9 @@ class BudgetView(QWidget):
                 QProgressBar::chunk {{ background:{bar_color}; border-radius:4px; }}
             """)
             row_layout.addWidget(bar)
+
+            # Animer la barre de 0 → valeur cible via QTimer
+            self._animate_bar(bar, int(percent))
 
             # Ligne statut
             status_row = QHBoxLayout()

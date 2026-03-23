@@ -56,7 +56,8 @@ class ImportDialog(QDialog):
         header = QHBoxLayout()
 
         info = QLabel(
-            "Importez un relevé bancaire Société Générale (.csv ou .pdf).\n"
+            "Importez un relevé bancaire (.csv ou .pdf).\n"
+            "Banques supportées : Société Générale, BNP, Crédit Agricole, LCL, etc.\n"
             "Vérifiez les catégories détectées avant de valider."
         )
         info.setStyleSheet("color:#7a8494; font-size:12px;")
@@ -178,12 +179,13 @@ class ImportDialog(QDialog):
         self._rows = rows
 
         fmt_labels = {
-            "sg_web":   "Société Générale (Web)",
-            "sg_gdb":   "Société Générale (GDB)",
-            "sg":       "Société Générale (CSV)",
-            "sg_auto":  "Société Générale (CSV détecté)",
-            "internal": "Export Foyio",
-            "pdf_sg":   "Société Générale (PDF)",
+            "sg_web":      "Société Générale (Web)",
+            "sg_gdb":      "Société Générale (GDB)",
+            "sg":          "Société Générale (CSV)",
+            "sg_auto":     "Société Générale (CSV détecté)",
+            "internal":    "Export Foyio",
+            "pdf_sg":      "Société Générale (PDF)",
+            "pdf_generic": "Relevé bancaire (PDF)",
         }
         n_dup = sum(1 for r in rows if r.is_duplicate)
         n_ok  = len(rows) - n_dup

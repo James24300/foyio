@@ -276,7 +276,7 @@ class RecurringView(QWidget):
                 f"color:{'#22c55e' if rule.active else '#6b7280'};"
                 "font-size:18px; background:transparent;"
             )
-            dot.setToolTip("Active" if rule.active else "Désactivée")
+            dot.setToolTip("Activée" if rule.active else "Désactivée")
             self.table.setCellWidget(i, 0, dot)
 
             # ── Libellé ──
