@@ -258,6 +258,8 @@ class BudgetView(QWidget):
     def _on_tab_changed(self, index):
         if index == 1:
             self._build_history()
+        elif index == 2:
+            self._build_budget_chart()
 
     # ------------------------------------------------------------------
     def refresh(self):
@@ -461,11 +463,6 @@ class BudgetView(QWidget):
             set_budget(category_id, spin.value())
             self.refresh()
             Toast.show(self, "Budget modifié", kind="success")
-
-    # ------------------------------------------------------------------
-    def _on_tab_changed(self, index):
-        if index == 2:
-            self._build_budget_chart()
 
     def _build_budget_chart(self):
         """Graphique en barres des budgets : dépensé vs limite."""

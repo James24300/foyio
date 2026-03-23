@@ -56,7 +56,7 @@ class ImportDialog(QDialog):
         header = QHBoxLayout()
 
         info = QLabel(
-            "Importez un relevé bancaire (.csv ou .pdf).\n"
+            "Importez un relevé bancaire (.csv, .pdf, .ofx/.qfx, .qif).\n"
             "Banques supportées : Société Générale, BNP, Crédit Agricole, LCL, etc.\n"
             "Vérifiez les catégories détectées avant de valider."
         )
@@ -68,7 +68,7 @@ class ImportDialog(QDialog):
         self._btn_open.setIcon(get_icon("money.png"))
         self._btn_open.setMinimumHeight(40)
         self._btn_open.setMinimumWidth(200)
-        self._btn_open.setText("  Choisir un fichier CSV ou PDF")
+        self._btn_open.setText("  Choisir un fichier CSV / PDF / OFX / QIF")
         self._btn_open.clicked.connect(self._open_file)
         header.addWidget(self._btn_open)
 
@@ -156,7 +156,7 @@ class ImportDialog(QDialog):
         if not filepath:
             filepath, _ = QFileDialog.getOpenFileName(
                 self, "Choisir un relevé bancaire",
-                "", "Relevés bancaires (*.csv *.CSV *.pdf *.PDF)"
+                "", "Relevés bancaires (*.csv *.CSV *.pdf *.PDF *.ofx *.OFX *.qfx *.QFX *.qif *.QIF)"
             )
         if not filepath:
             return
@@ -166,6 +166,12 @@ class ImportDialog(QDialog):
             if ext == "pdf":
                 from services.import_service import load_pdf
                 fmt, rows = load_pdf(filepath)
+            elif ext in ("ofx", "qfx"):
+                from services.import_service import load_ofx
+                fmt, rows = load_ofx(filepath)
+            elif ext == "qif":
+                from services.import_service import load_qif
+                fmt, rows = load_qif(filepath)
             else:
                 from services.import_service import load_csv
                 fmt, rows = load_csv(filepath)
@@ -186,6 +192,8 @@ class ImportDialog(QDialog):
             "internal":    "Export Foyio",
             "pdf_sg":      "Société Générale (PDF)",
             "pdf_generic": "Relevé bancaire (PDF)",
+            "ofx":         "OFX / QFX",
+            "qif":         "QIF (Quicken)",
         }
         n_dup = sum(1 for r in rows if r.is_duplicate)
         n_ok  = len(rows) - n_dup

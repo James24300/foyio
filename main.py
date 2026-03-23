@@ -419,6 +419,22 @@ class MainWindow(QWidget):
         ]:
             self.stack.addTab(view, "")
 
+        # ── Systray ──
+        from PySide6.QtWidgets import QSystemTrayIcon, QMenu
+        self._tray = QSystemTrayIcon(QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")), self)
+        self._tray.setToolTip("Foyio")
+        tray_menu = QMenu()
+        tray_menu.addAction("Ouvrir Foyio", self.showNormal)
+        tray_menu.addSeparator()
+        tray_menu.addAction("Quitter", self._confirm_quit)
+        self._tray.setContextMenu(tray_menu)
+        self._tray.activated.connect(self._on_tray_activated)
+        self._tray.show()
+
+        # Notifications de rappel pour les récurrentes à venir
+        from PySide6.QtCore import QTimer as _QT
+        _QT.singleShot(2000, self._notify_upcoming_recurring)
+
         self.btn_dashboard.clicked.connect(lambda: self.set_active(0))
         self.btn_transactions.clicked.connect(lambda: self.set_active(1))
         self.btn_budget.clicked.connect(lambda: self.set_active(2))
@@ -857,6 +873,45 @@ class MainWindow(QWidget):
                 kind='warning'
             )
 
+    def _notify_upcoming_recurring(self):
+        """Affiche une notification Windows pour chaque récurrente proche."""
+        try:
+            from services.recurring_service import get_upcoming_recurring
+            from utils.formatters import format_money as _fmt
+            upcoming = get_upcoming_recurring()
+            if not upcoming:
+                return
+            if len(upcoming) == 1:
+                r = upcoming[0]
+                msg = f"{r['label']} — {_fmt(r['amount'])} dans {r['days_until']} jour(s)"
+            else:
+                msg = f"{len(upcoming)} échéances à venir ce mois"
+            self._tray.showMessage(
+                "Foyio — Rappel récurrentes",
+                msg,
+                QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")),
+                5000
+            )
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        """Minimiser dans le systray au lieu de fermer."""
+        event.ignore()
+        self.hide()
+        self._tray.showMessage(
+            "Foyio",
+            "L'application tourne en arrière-plan.\nDouble-cliquez sur l'icône pour la rouvrir.",
+            QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")),
+            2500
+        )
+
+    def _on_tray_activated(self, reason):
+        from PySide6.QtWidgets import QSystemTrayIcon
+        if reason == QSystemTrayIcon.DoubleClick:
+            self.showNormal()
+            self.activateWindow()
+
     def _confirm_quit(self):
         from PySide6.QtWidgets import QMessageBox
         msg = QMessageBox(self)
@@ -1046,6 +1101,47 @@ class MainWindow(QWidget):
 
 
 
+# ──────────────────────────────────────────────────────────────
+# Raccourci clavier global Windows — Ctrl+Shift+F
+# ──────────────────────────────────────────────────────────────
+try:
+    import ctypes, ctypes.wintypes
+    from PySide6.QtCore import QAbstractNativeEventFilter
+
+    class _GlobalHotkeyFilter(QAbstractNativeEventFilter):
+        _ID       = 9742          # identifiant arbitraire
+        _MOD_CTRL = 0x0002
+        _MOD_SHFT = 0x0004
+        _VK_F     = 0x46          # touche F
+        _WM_HOTKEY = 0x0312
+
+        def __init__(self, callback):
+            super().__init__()
+            self._cb = callback
+            ctypes.windll.user32.RegisterHotKey(
+                None, self._ID,
+                self._MOD_CTRL | self._MOD_SHFT,
+                self._VK_F,
+            )
+
+        def nativeEventFilter(self, eventType, message):
+            if eventType == b"windows_generic_MSG":
+                try:
+                    msg = ctypes.wintypes.MSG.from_address(int(message))
+                    if msg.message == self._WM_HOTKEY and msg.wParam == self._ID:
+                        self._cb()
+                except Exception:
+                    pass
+            return False, 0
+
+        def unregister(self):
+            ctypes.windll.user32.UnregisterHotKey(None, self._ID)
+
+    _HOTKEY_AVAILABLE = True
+except Exception:
+    _HOTKEY_AVAILABLE = False
+
+
 def main():
     # Supprimer les avertissements Qt sur les polices système
     os.environ["QT_LOGGING_RULES"] = "qt.qpa.fonts=false"
@@ -1081,14 +1177,50 @@ def main():
     QLocale.setDefault(QLocale(QLocale.French, QLocale.France))
     app.setStyleSheet(BANK_THEME)
 
+    # ── Splash screen ──
+    from PySide6.QtWidgets import QSplashScreen
+    from PySide6.QtGui import QPixmap, QPainter, QFont, QColor
+    from PySide6.QtCore import Qt, QTimer
+
+    _logo_path = os.path.join(BASE_DIR, "icons", "foyio_logo.png")
+    _splash_pix = QPixmap(_logo_path).scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+    splash = QSplashScreen(_splash_pix, Qt.WindowStaysOnTopHint)
+    splash.setFixedSize(200, 220)
+    splash.show()
+    splash.showMessage(
+        "Chargement…",
+        Qt.AlignHCenter | Qt.AlignBottom,
+        QColor("#c8cdd4")
+    )
+    app.processEvents()
+
     # ── Authentification ──
     pwd_dlg = PasswordDialog()
+    splash.finish(pwd_dlg)
     if pwd_dlg.exec() != PasswordDialog.Accepted:
         sys.exit(0)  # Fenêtre fermée sans authentification
 
     window = MainWindow()
     window.show()
-    sys.exit(app.exec())
+
+    # ── Raccourci global Ctrl+Shift+F ──
+    _hotkey = None
+    if _HOTKEY_AVAILABLE:
+        def _bring_to_front():
+            window.showNormal()
+            window.activateWindow()
+            window.raise_()
+        try:
+            _hotkey = _GlobalHotkeyFilter(_bring_to_front)
+            app.installNativeEventFilter(_hotkey)
+        except Exception:
+            pass
+
+    ret = app.exec()
+    if _hotkey:
+        _hotkey.unregister()
+    sys.exit(ret)
 
 
 if __name__ == "__main__":

@@ -519,6 +519,120 @@ def insert_row(row: ImportRow, category_id: int,
 
 
 # ──────────────────────────────────────────────────────────────
+# Import OFX / QFX
+# ──────────────────────────────────────────────────────────────
+
+def parse_ofx(filepath: str) -> List[ImportRow]:
+    """Parse un fichier OFX/QFX (Open Financial Exchange v1 SGML ou v2 XML)."""
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+
+    rows: List[ImportRow] = []
+    for trn in re.findall(r'<STMTTRN>(.*?)</STMTTRN>', content,
+                          re.DOTALL | re.IGNORECASE):
+        date_m = re.search(r'<DTPOSTED>(\d{8})', trn, re.IGNORECASE)
+        amt_m  = re.search(r'<TRNAMT>\s*([-\d.,]+)', trn, re.IGNORECASE)
+        if not date_m or not amt_m:
+            continue
+        try:
+            date = datetime.strptime(date_m.group(1), "%Y%m%d").date()
+            amount = float(amt_m.group(1).replace(',', '.'))
+        except ValueError:
+            continue
+
+        name_m = re.search(r'<NAME>(.*?)(?:[\r\n<]|$)', trn, re.IGNORECASE)
+        memo_m = re.search(r'<MEMO>(.*?)(?:[\r\n<]|$)', trn, re.IGNORECASE)
+        label  = name_m.group(1).strip() if name_m else ""
+        memo   = memo_m.group(1).strip() if memo_m else ""
+        if memo and memo != label:
+            label = f"{label} {memo}".strip()
+
+        rows.append(ImportRow(
+            date=date, label=label, amount=amount,
+            type="income" if amount >= 0 else "expense",
+        ))
+    return rows
+
+
+def load_ofx(filepath: str):
+    """Charge un fichier OFX/QFX. Retourne ('ofx', list[ImportRow])."""
+    rows = parse_ofx(filepath)
+    if not rows:
+        raise ValueError("Aucune transaction trouvée dans ce fichier OFX/QFX.")
+    rows = enrich_rows(rows)
+    return "ofx", rows
+
+
+# ──────────────────────────────────────────────────────────────
+# Import QIF
+# ──────────────────────────────────────────────────────────────
+
+def parse_qif(filepath: str) -> List[ImportRow]:
+    """Parse un fichier QIF (Quicken Interchange Format)."""
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    _DATE_FMTS = (
+        "%d/%m/%Y", "%m/%d/%Y", "%d/%m/%y", "%m/%d/%y",
+        "%d-%m-%Y", "%Y-%m-%d", "%d.%m.%Y", "%d.%m.%y",
+    )
+
+    def _parse_date(s: str):
+        s = s.replace("'", "/").strip()
+        for fmt in _DATE_FMTS:
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                pass
+        return None
+
+    rows: List[ImportRow] = []
+    rec: dict = {}
+    for line in lines:
+        line = line.rstrip("\r\n")
+        if not line or line.startswith("!"):
+            continue
+        code, value = line[0], line[1:].strip()
+        if code == "D":
+            rec["date"] = value
+        elif code == "T":
+            rec["amount"] = value.replace(",", "").replace(" ", "")
+        elif code == "P":
+            rec["payee"] = value
+        elif code == "M":
+            rec["memo"] = value
+        elif code == "^":
+            if "date" in rec and "amount" in rec:
+                date = _parse_date(rec["date"])
+                if date is None:
+                    rec = {}; continue
+                try:
+                    amount = float(rec["amount"].replace(",", "."))
+                except ValueError:
+                    rec = {}; continue
+                payee = rec.get("payee", "")
+                memo  = rec.get("memo", "")
+                label = payee or memo
+                if memo and memo != payee:
+                    label = f"{payee} {memo}".strip()
+                rows.append(ImportRow(
+                    date=date, label=label, amount=amount,
+                    type="income" if amount >= 0 else "expense",
+                ))
+            rec = {}
+    return rows
+
+
+def load_qif(filepath: str):
+    """Charge un fichier QIF. Retourne ('qif', list[ImportRow])."""
+    rows = parse_qif(filepath)
+    if not rows:
+        raise ValueError("Aucune transaction trouvée dans ce fichier QIF.")
+    rows = enrich_rows(rows)
+    return "qif", rows
+
+
+# ──────────────────────────────────────────────────────────────
 # Import PDF — Société Générale
 # ──────────────────────────────────────────────────────────────
 
