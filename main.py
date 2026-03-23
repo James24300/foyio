@@ -55,6 +55,7 @@ from ui.savings_view import SavingsView
 from ui.calculator import Calculator
 from ui.tools_view import ToolsView
 from ui.about_view import AboutView
+from ui.features_view import FeaturesView
 from ui.settings_view import SettingsView
 from ui.loans_view import LoansView
 from services.update_service import check_async, get_current_version
@@ -170,8 +171,9 @@ class MainWindow(QWidget):
             ("btn_accounts",     " Comptes",      "bank.png"),
             ("btn_loans",        " Prêts",        "money.png"),
             ("btn_tools",        " Outils",       "stats.png"),
-            ("btn_settings",     " Paramètres",   "other.png"),
-            ("btn_about",        " À propos",     "other.png"),
+            ("btn_settings",     " Paramètres",      "other.png"),
+            ("btn_features",     " Fonctionnalités","reports.png"),
+            ("btn_about",        " À propos",        "other.png"),
         ]
 
         self._nav_buttons = []
@@ -410,12 +412,13 @@ class MainWindow(QWidget):
         self.tools        = ToolsView()
         self.about        = AboutView()
         self.settings_v   = SettingsView()
+        self.features_v   = FeaturesView()
 
         for view in [
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
             self.savings, self.accounts, self.loans,
-            self.tools, self.settings_v, self.about
+            self.tools, self.settings_v, self.features_v, self.about
         ]:
             self.stack.addTab(view, "")
 
@@ -446,7 +449,8 @@ class MainWindow(QWidget):
         self.btn_loans.clicked.connect(lambda: self.set_active(8))
         self.btn_tools.clicked.connect(lambda: self.set_active(9))
         self.btn_settings.clicked.connect(lambda: self.set_active(10))
-        self.btn_about.clicked.connect(lambda: self.set_active(11))
+        self.btn_features.clicked.connect(lambda: self.set_active(11))
+        self.btn_about.clicked.connect(lambda: self.set_active(12))
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
