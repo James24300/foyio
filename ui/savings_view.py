@@ -63,7 +63,7 @@ class SavingsView(QWidget):
         self._tabs.addTab(self._tab_rate,  "  Taux d'épargne")
         self._tabs.addTab(self._tab_sim,   "  Simulateur")
 
-        # ── Bouton aide contextuelle ──
+        # ── Barre titre + aide ──
         _HELP = {
             0: ("Objectifs d'épargne",
                 "Créez des objectifs (voyage, voiture, urgences…) avec un montant cible.\n\n"
@@ -87,20 +87,23 @@ class SavingsView(QWidget):
                 "• Les résultats sont indicatifs et ne constituent pas un conseil financier."),
         }
         from PySide6.QtWidgets import QMessageBox as _QMB
-        _help_btn = QPushButton("?")
-        _help_btn.setFixedSize(26, 26)
+        top_row = QHBoxLayout()
+        top_row.addStretch()
+        _help_btn = QPushButton(" ? Aide")
+        _help_btn.setFixedHeight(26)
         _help_btn.setToolTip("Aide sur cet onglet")
         _help_btn.setStyleSheet(
-            "QPushButton { background:#2e3238; color:#7a8494; border:1px solid #3d4248; "
-            "border-radius:13px; font-size:12px; font-weight:700; }"
-            "QPushButton:hover { background:#3e4550; color:#c8cdd4; }"
+            "QPushButton { background:transparent; color:#5a6472; border:1px solid #3d4248; "
+            "border-radius:6px; font-size:11px; font-weight:600; padding:0 8px; }"
+            "QPushButton:hover { color:#c8cdd4; border-color:#6b7280; }"
         )
         def _show_help():
             idx = self._tabs.currentIndex()
             title, text = _HELP.get(idx, ("Aide", ""))
             _QMB.information(self, title, text)
         _help_btn.clicked.connect(_show_help)
-        self._tabs.setCornerWidget(_help_btn)
+        top_row.addWidget(_help_btn)
+        layout.addLayout(top_row)
 
         layout.addWidget(self._tabs)
         self.refresh()

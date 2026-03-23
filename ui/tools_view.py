@@ -980,13 +980,13 @@ class ToolsView(QWidget):
         title_row = QHBoxLayout()
         title_row.addWidget(_lbl("Rapport fiscal annuel", bold=True, color="#c8cdd4"))
         title_row.addStretch()
-        _help = QPushButton("?")
-        _help.setFixedSize(24, 24)
+        _help = QPushButton(" ? Aide")
+        _help.setFixedHeight(26)
         _help.setToolTip("Comment fonctionne le rapport fiscal ?")
         _help.setStyleSheet(
-            "QPushButton { background:#2e3238; color:#7a8494; border:1px solid #3d4248; "
-            "border-radius:12px; font-size:11px; font-weight:700; }"
-            "QPushButton:hover { background:#3e4550; color:#c8cdd4; }"
+            "QPushButton { background:transparent; color:#5a6472; border:1px solid #3d4248; "
+            "border-radius:6px; font-size:11px; font-weight:600; padding:0 8px; }"
+            "QPushButton:hover { color:#c8cdd4; border-color:#6b7280; }"
         )
         from PySide6.QtWidgets import QMessageBox as _QMB
         _help.clicked.connect(lambda: _QMB.information(
