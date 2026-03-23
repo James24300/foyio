@@ -245,7 +245,21 @@ class SavingsView(QWidget):
                 btn_del = QPushButton("✕")
                 btn_del.setFixedSize(28, 28)
                 btn_del.setStyleSheet("background:#3a1a1a; color:#ef4444; border-radius:6px; border:none;")
-                btn_del.clicked.connect(lambda _, aid=a["id"]: (delete_allocation(aid), reload_allocs(), self._reload_txn_table(), self._reload_goals()))
+                def _confirm_del(_, aid=a["id"]):
+                    from PySide6.QtWidgets import QMessageBox
+                    msg = QMessageBox(self)
+                    msg.setWindowTitle("Confirmer la suppression")
+                    msg.setText("Supprimer cette ventilation ?")
+                    btn_yes = msg.addButton("Oui", QMessageBox.AcceptRole)
+                    msg.addButton("Non", QMessageBox.RejectRole)
+                    msg.exec()
+                    if msg.clickedButton() != btn_yes:
+                        return
+                    delete_allocation(aid)
+                    reload_allocs()
+                    self._reload_txn_table()
+                    self._reload_goals()
+                btn_del.clicked.connect(_confirm_del)
                 alloc_tbl.setCellWidget(i, 2, btn_del)
 
         reload_allocs()

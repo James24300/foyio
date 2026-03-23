@@ -475,6 +475,13 @@ class MainWindow(QWidget):
         check_async(callback=self._on_update_checked)
         self._update_period_buttons()
 
+        # ── Verrouillage automatique ──
+        self._lock_timer = QTimer(self)
+        self._lock_timer.setSingleShot(True)
+        self._lock_timer.timeout.connect(self._auto_lock)
+        self._restart_lock_timer()
+        QApplication.instance().installEventFilter(self)
+
         # ── Raccourcis clavier ──
         from PySide6.QtGui import QShortcut, QKeySequence
         for key, slot in [
@@ -863,6 +870,40 @@ class MainWindow(QWidget):
         btn_close.clicked.connect(dlg.accept)
         vl.addWidget(btn_close)
         dlg.exec()
+
+    def _restart_lock_timer(self):
+        """Relit le délai dans les paramètres et (re)démarre le timer."""
+        from services.settings_service import load_settings
+        minutes = load_settings().get("lock_after_minutes", 0)
+        if minutes and minutes > 0:
+            self._lock_timer.start(minutes * 60 * 1000)
+        else:
+            self._lock_timer.stop()
+
+    def eventFilter(self, obj, event):
+        """Remet à zéro le timer d'inactivité à chaque interaction."""
+        from PySide6.QtCore import QEvent
+        if event.type() in (
+            QEvent.MouseMove, QEvent.MouseButtonPress,
+            QEvent.KeyPress, QEvent.Wheel,
+        ):
+            if self._lock_timer.isActive():
+                self._lock_timer.start(self._lock_timer.interval())
+        return super().eventFilter(obj, event)
+
+    def _auto_lock(self):
+        """Verrouille l'appli après inactivité — redemande le mot de passe."""
+        from ui.password_dialog import PasswordDialog, is_password_set
+        if not is_password_set():
+            return
+        self.hide()
+        dlg = PasswordDialog()
+        if dlg.exec() != PasswordDialog.Accepted:
+            QApplication.quit()
+            return
+        self.show()
+        self.activateWindow()
+        self._restart_lock_timer()
 
     def _on_update_checked(self, available, latest, notes):
         """Appelé après vérification de mise à jour."""

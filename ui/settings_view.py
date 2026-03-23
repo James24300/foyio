@@ -200,6 +200,37 @@ class SettingsView(QWidget):
         layout.addLayout(clean_row)
         layout.addWidget(_sep())
 
+        # ── Sécurité ──
+        layout.addWidget(_section('Sécurité'))
+        sec_form = QFormLayout(); sec_form.setSpacing(12)
+
+        self._lock_combo = QComboBox()
+        self._lock_combo.setMinimumHeight(36)
+        self._lock_combo.setStyleSheet("""
+            QComboBox { background:#191c20; color:#c8cdd4;
+                border:1px solid #3d4248; border-radius:8px; padding:4px 8px; }
+            QComboBox QAbstractItemView { background:#292d32; color:#c8cdd4;
+                selection-background-color:#383d44;
+                border:1px solid #3d4248; outline:none; padding:0; margin:0; }
+            QComboBox QAbstractItemView::item { padding:6px 8px; border:none; }
+            QComboBox QAbstractItemView::item:selected { background:#383d44; }
+        """)
+        _lock_options = [
+            ("Jamais", 0),
+            ("5 minutes", 5),
+            ("10 minutes", 10),
+            ("15 minutes", 15),
+            ("30 minutes", 30),
+        ]
+        _current_lock = settings.get("lock_after_minutes", 0)
+        for label, val in _lock_options:
+            self._lock_combo.addItem(label, val)
+            if val == _current_lock:
+                self._lock_combo.setCurrentIndex(self._lock_combo.count() - 1)
+        sec_form.addRow(QLabel("Verrouillage automatique :"), self._lock_combo)
+        layout.addLayout(sec_form)
+        layout.addWidget(_sep())
+
         # ── Thème ──
         layout.addWidget(_section('Thème'))
 
@@ -262,6 +293,7 @@ class SettingsView(QWidget):
         settings["currency"]        = code
         settings["currency_symbol"] = symbol
         settings["startup_notifications"] = self._notif_check.isChecked()
+        settings["lock_after_minutes"] = self._lock_combo.currentData()
         settings["accent_color"] = self._accent_color
         save_settings(settings)
         # Invalider le cache du symbole monétaire

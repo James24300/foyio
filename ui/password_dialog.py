@@ -77,8 +77,8 @@ class PasswordDialog(QDialog):
         )
         logo = QLabel()
         logo.setAlignment(Qt.AlignCenter)
-        logo.setPixmap(QIcon(_logo_path).pixmap(80, 80))
-        logo.setStyleSheet("background:transparent;")
+        logo.setPixmap(QIcon(_logo_path).pixmap(48, 48))
+        logo.setStyleSheet("background:transparent; border:none; padding:0;")
         layout.addWidget(logo)
 
         subtitle = QLabel(
