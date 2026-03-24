@@ -17,6 +17,12 @@ import json
 import shutil
 import subprocess
 
+# Securiser l'affichage console Windows (cp1252)
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 APP_NAME = "Foyio"
 VERSION  = "1.0.0"
@@ -36,9 +42,9 @@ def run(cmd, **kwargs):
         sys.exit(result.returncode)
 
 
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # 1. Build PyInstaller
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 def build_exe():
     dist_dir  = os.path.join(BASE_DIR, "dist")
     build_dir = os.path.join(BASE_DIR, "build")
@@ -52,9 +58,9 @@ def build_exe():
     print(f"\nOK Executable : dist/{APP_NAME}/{APP_NAME}.exe")
 
 
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # 2. Script Inno Setup
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 def create_iss():
     iss_path = os.path.join(BASE_DIR, "foyio_setup.iss")
     iss = f"""; Script Inno Setup — Foyio v{VERSION}
@@ -83,7 +89,7 @@ SetupIconFile=icons\\foyio.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 MinVersion=10.0
 
 [Languages]
@@ -115,9 +121,9 @@ Type: filesandordirs; Name: "{{app}}"
     return iss_path
 
 
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 # 3. Build installateur
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
 def build_installer(iss_path):
     inno_candidates = [
         r"C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
@@ -138,21 +144,21 @@ def build_installer(iss_path):
     return True
 
 
-# ──────────────────────────────────────────────────────────────
-# Point d'entrée
-# ──────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------
+# Point d'entree
+# ---------------------------------------------------------------
 if __name__ == "__main__":
     print(f"=== Build Foyio v{VERSION} ===\n")
 
-    print("Etape 1 : Generation du script Inno Setup")
+    print("Etape 1/3 : Generation du script Inno Setup")
     iss_path = create_iss()
 
-    print("\nEtape 2 : Compilation avec PyInstaller")
+    print("\nEtape 2/3 : Compilation avec PyInstaller")
     build_exe()
 
-    print("\nEtape 3 : Creation de l'installateur")
+    print("\nEtape 3/3 : Creation de l'installateur")
     build_installer(iss_path)
 
-    print("\n=== Build termine ! ===")
+    print("\n=== Build termine avec succes ! ===")
     print(f"  Executable   : dist/{APP_NAME}/{APP_NAME}.exe")
     print(f"  Installateur : Output/FoyioSetup-{VERSION}.exe")

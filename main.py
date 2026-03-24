@@ -58,7 +58,7 @@ from ui.about_view import AboutView
 from ui.features_view import FeaturesView
 from ui.settings_view import SettingsView
 from ui.loans_view import LoansView
-from services.update_service import check_async, get_current_version
+from services.update_service import get_current_version
 from ui.password_dialog import PasswordDialog
 
 
@@ -91,7 +91,6 @@ class AnimatedNavBtn(QPushButton):
 
 class MainWindow(QWidget):
 
-    _update_signal = Signal(str)   # émet la version distante
 
     def __init__(self):
         super().__init__()
@@ -477,11 +476,8 @@ class MainWindow(QWidget):
         # Notifications au démarrage
         from PySide6.QtCore import QTimer
         QTimer.singleShot(1200, self._startup_notifications)
-        # Vérification de mise à jour en arrière-plan
-        check_async()
-        self._update_poll = QTimer(self)
-        self._update_poll.timeout.connect(self._poll_update_result)
-        self._update_poll.start(3000)
+        # Vérification de mise à jour après 6 secondes
+        QTimer.singleShot(6000, self._do_update_check)
         self._update_period_buttons()
 
         # ── Verrouillage automatique ──
@@ -914,25 +910,37 @@ class MainWindow(QWidget):
         self.activateWindow()
         self._restart_lock_timer()
 
-    def _poll_update_result(self):
-        """Vérifie depuis le thread principal si le résultat est prêt."""
-        from services.update_service import is_update_available, get_latest_version, get_release_notes
-        if not is_update_available():
-            return
-        # Mise à jour trouvée — arrêter le polling et afficher
-        self._update_poll.stop()
-        latest = get_latest_version()
-        notes = get_release_notes()
-        from PySide6.QtWidgets import QMessageBox
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Mise à jour disponible")
-        msg.setText(f"Une nouvelle version de Foyio est disponible : v{latest}")
-        msg.setInformativeText(
-            f"{notes}\n\nRendez-vous sur la page A propos pour mettre a jour."
-        )
-        msg.setIcon(QMessageBox.Information)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.exec()
+    def _do_update_check(self):
+        """Vérifie directement si une mise à jour est disponible."""
+        try:
+            import urllib.request
+            import json as _json
+            url = "https://raw.githubusercontent.com/James24300/foyio/main/version.json"
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                data = _json.loads(resp.read())
+            latest = data.get("version", "")
+            notes = data.get("notes", "")
+            current = get_current_version()
+            # Comparer les versions
+            def _vt(v):
+                try:
+                    return tuple(int(x) for x in v.strip().split("."))
+                except Exception:
+                    return (0, 0, 0)
+            if _vt(latest) <= _vt(current):
+                return
+            from PySide6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Mise à jour disponible")
+            msg.setText(f"Une nouvelle version de Foyio est disponible : v{latest}")
+            msg.setInformativeText(
+                f"{notes}\n\nRendez-vous sur la page À propos pour mettre à jour."
+            )
+            msg.setIcon(QMessageBox.Information)
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec()
+        except Exception:
+            pass  # Pas de connexion → on ignore silencieusement
 
     def _notify_upcoming_recurring(self):
         """Affiche une notification Windows pour chaque récurrente proche."""
