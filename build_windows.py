@@ -80,7 +80,7 @@ AppPublisher={{#MyAppPublisher}}
 AppPublisherURL={{#MyAppURL}}
 AppSupportURL={{#MyAppURL}}
 AppUpdatesURL={{#MyAppURL}}
-DefaultDirName={{autopf}}\\{{#MyAppName}}
+DefaultDirName={{localappdata}}\\{{#MyAppName}}
 DefaultGroupName={{#MyAppName}}
 AllowNoIcons=yes
 OutputDir=Output
@@ -105,7 +105,7 @@ Source: "dist\\{APP_NAME}\\*"; DestDir: "{{app}}"; Flags: ignoreversion recurses
 [Icons]
 Name: "{{group}}\\{{#MyAppName}}";                        Filename: "{{app}}\\{{#MyAppExeName}}"
 Name: "{{group}}\\{{cm:UninstallProgram,{{#MyAppName}}}}"; Filename: "{{uninstallexe}}"
-Name: "{{commondesktop}}\\{{#MyAppName}}";                 Filename: "{{app}}\\{{#MyAppExeName}}"; Tasks: desktopicon
+Name: "{{userdesktop}}\\{{#MyAppName}}";                   Filename: "{{app}}\\{{#MyAppExeName}}"; Tasks: desktopicon
 Name: "{{userstartup}}\\{{#MyAppName}}";                   Filename: "{{app}}\\{{#MyAppExeName}}"; Tasks: startupicon
 
 [Run]
