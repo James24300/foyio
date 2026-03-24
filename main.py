@@ -477,9 +477,9 @@ class MainWindow(QWidget):
         # Notifications au démarrage
         from PySide6.QtCore import QTimer
         QTimer.singleShot(1200, self._startup_notifications)
-        # Vérification de mise à jour en arrière-plan
+        # Vérification de mise à jour en arrière-plan (après 4s pour laisser la fenêtre s'afficher)
         self._update_signal.connect(self._show_update_toast)
-        check_async(callback=self._on_update_checked)
+        QTimer.singleShot(4000, lambda: check_async(callback=self._on_update_checked))
         self._update_period_buttons()
 
         # ── Verrouillage automatique ──
