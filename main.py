@@ -477,9 +477,11 @@ class MainWindow(QWidget):
         # Notifications au démarrage
         from PySide6.QtCore import QTimer
         QTimer.singleShot(1200, self._startup_notifications)
-        # Vérification de mise à jour en arrière-plan (après 4s pour laisser la fenêtre s'afficher)
-        self._update_signal.connect(self._show_update_dialog)
-        QTimer.singleShot(4000, lambda: check_async(callback=self._on_update_checked))
+        # Vérification de mise à jour en arrière-plan
+        check_async()
+        self._update_poll = QTimer(self)
+        self._update_poll.timeout.connect(self._poll_update_result)
+        self._update_poll.start(3000)
         self._update_period_buttons()
 
         # ── Verrouillage automatique ──
@@ -912,20 +914,21 @@ class MainWindow(QWidget):
         self.activateWindow()
         self._restart_lock_timer()
 
-    def _on_update_checked(self, available, latest, notes):
-        """Appelé depuis le thread de fond — repasse sur le thread principal."""
-        if available and latest:
-            from PySide6.QtCore import QTimer
-            QTimer.singleShot(0, lambda: self._show_update_dialog(latest, notes or ""))
-
-    def _show_update_dialog(self, latest: str, notes: str):
-        """Affiche une boîte de dialogue de mise à jour."""
+    def _poll_update_result(self):
+        """Vérifie depuis le thread principal si le résultat est prêt."""
+        from services.update_service import is_update_available, get_latest_version, get_release_notes
+        if not is_update_available():
+            return
+        # Mise à jour trouvée — arrêter le polling et afficher
+        self._update_poll.stop()
+        latest = get_latest_version()
+        notes = get_release_notes()
         from PySide6.QtWidgets import QMessageBox
         msg = QMessageBox(self)
         msg.setWindowTitle("Mise à jour disponible")
-        msg.setText(f"Une nouvelle version de Foyio est disponible : <b>v{latest}</b>")
+        msg.setText(f"Une nouvelle version de Foyio est disponible : v{latest}")
         msg.setInformativeText(
-            f"{notes}\n\nTéléchargez le nouvel installateur et lancez-le pour mettre à jour."
+            f"{notes}\n\nRendez-vous sur la page A propos pour mettre a jour."
         )
         msg.setIcon(QMessageBox.Information)
         msg.setStandardButtons(QMessageBox.Ok)
