@@ -478,7 +478,7 @@ class MainWindow(QWidget):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(1200, self._startup_notifications)
         # Vérification de mise à jour en arrière-plan (après 4s pour laisser la fenêtre s'afficher)
-        self._update_signal.connect(self._show_update_toast)
+        self._update_signal.connect(self._show_update_dialog)
         QTimer.singleShot(4000, lambda: check_async(callback=self._on_update_checked))
         self._update_period_buttons()
 
