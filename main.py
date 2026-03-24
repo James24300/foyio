@@ -913,17 +913,23 @@ class MainWindow(QWidget):
         self._restart_lock_timer()
 
     def _on_update_checked(self, available, latest, notes):
-        """Appelé depuis le thread de fond — émet un signal vers le thread principal."""
+        """Appelé depuis le thread de fond — repasse sur le thread principal."""
         if available and latest:
-            self._update_signal.emit(latest)
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._show_update_dialog(latest, notes or ""))
 
-    def _show_update_toast(self, latest: str):
-        """Appelé sur le thread principal via le signal."""
-        from ui.toast import Toast
-        Toast.show(self,
-            f"Mise a jour disponible : v{latest} — Voir A propos",
-            kind='warning'
+    def _show_update_dialog(self, latest: str, notes: str):
+        """Affiche une boîte de dialogue de mise à jour."""
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Mise à jour disponible")
+        msg.setText(f"Une nouvelle version de Foyio est disponible : <b>v{latest}</b>")
+        msg.setInformativeText(
+            f"{notes}\n\nTéléchargez le nouvel installateur et lancez-le pour mettre à jour."
         )
+        msg.setIcon(QMessageBox.Information)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec()
 
     def _notify_upcoming_recurring(self):
         """Affiche une notification Windows pour chaque récurrente proche."""
