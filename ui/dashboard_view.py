@@ -175,7 +175,7 @@ class DashboardView(QWidget):
         main_layout.addWidget(self._balance_chart_view)
 
         # ── Graphique revenus vs dépenses (6 mois) ──
-        self._rev_dep_title = QLabel("Revenus vs Dépenses — 6 derniers mois")
+        self._rev_dep_title = QLabel("Revenus vs Dépenses — 6 prochains mois")
         self._rev_dep_title.setStyleSheet(
             "font-size:12px; font-weight:600; color:#848c94; "
             "background:transparent; letter-spacing:0.5px;"
@@ -653,7 +653,9 @@ class DashboardView(QWidget):
             chart.removeAxis(ax)
 
         from services.stats_service import monthly_income_expense
-        data = monthly_income_expense(6)
+        import period_state as _ps
+        _p = _ps.get()
+        data = monthly_income_expense(6, ref_month=_p.month, ref_year=_p.year)
 
         MONTHS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin",
                      "Juil","Août","Sep","Oct","Nov","Déc"]

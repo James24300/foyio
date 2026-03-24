@@ -208,6 +208,7 @@ class CategoryView(QWidget):
             "travel.png":    "Voyage",
             "wallet.png":    "Portefeuille",
             "water.png":     "Eau",
+            "scissors.svg":  "Coiffeur / Beauté",
         }
         # Ajouter les icônes disponibles dans le dossier
         SKIP_FILES = {
@@ -219,10 +220,11 @@ class CategoryView(QWidget):
         if os.path.isdir(icons_dir):
             entries = []
             for filename in os.listdir(icons_dir):
-                if filename.endswith(".png") and filename not in SKIP_FILES:
-                    label = ICON_LABELS.get(filename, filename.replace(".png","").capitalize())
+                if (filename.endswith(".png") or filename.endswith(".svg")) and filename not in SKIP_FILES:
+                    label = ICON_LABELS.get(filename, filename.replace(".png","").replace(".svg","").capitalize())
                     entries.append((label, filename))
-            for label, filename in sorted(entries, key=lambda x: x[0].lower()):
+            import unicodedata as _ud
+            for label, filename in sorted(entries, key=lambda x: _ud.normalize("NFD", x[0].lower())):
                 self.icon_combo.addItem(get_icon(filename, 22), label, filename)
         # Fallback si dossier vide
         if self.icon_combo.count() == 0:
@@ -238,7 +240,7 @@ class CategoryView(QWidget):
     def load(self):
         acc_id = account_state.get_id()
         with Session() as session:
-            all_cats = session.query(Category).order_by(Category.name).all()
+            all_cats = session.query(Category).all()
 
             # Catégories masquées sur ce compte
             hidden_ids = set()
@@ -249,8 +251,14 @@ class CategoryView(QWidget):
                     .filter_by(account_id=acc_id, hidden=True).all()
                 }
 
-            # Ne montrer que les catégories visibles
-            categories = [c for c in all_cats if c.id not in hidden_ids]
+            # Ne montrer que les catégories visibles, triées alphabétiquement (accents inclus)
+            import unicodedata
+            def _sort_key(c):
+                return unicodedata.normalize("NFD", c.name.lower())
+            categories = sorted(
+                [c for c in all_cats if c.id not in hidden_ids],
+                key=_sort_key
+            )
 
             # Filtrer counts et amounts par compte actif
             q_counts  = session.query(Transaction.category_id, func.count(Transaction.id))
@@ -292,7 +300,7 @@ class CategoryView(QWidget):
 
             # Nom
             raw_icon = c.icon or ""
-            icon_file = raw_icon if raw_icon.endswith(".png") else get_category_icon(c.name)
+            icon_file = raw_icon if (raw_icon.endswith(".png") or raw_icon.endswith(".svg")) else get_category_icon(c.name)
             item = QTableWidgetItem(f"  {c.name}")
             item.setIcon(get_icon(icon_file, 20))
             item.setData(Qt.UserRole, c.id)
@@ -395,17 +403,22 @@ class CategoryView(QWidget):
             "shopping.png": "Shopping", "train.png": "Train",
             "transport.png": "Transport", "travel.png": "Voyage",
             "wallet.png": "Portefeuille", "water.png": "Eau",
+            "scissors.svg": "Coiffeur / Beauté",
         }
         SKIP = {"add.png","delete.png","balance.png","budget.png","categories.png",
                 "depenses.png","expense.png","income.png","moon.png","revenus.png",
                 "stats.png","sun.png","transactions.png","home.png"}
         if _os.path.isdir(icons_dir):
-            for fname in sorted(_os.listdir(icons_dir)):
-                if fname.endswith(".png") and fname not in SKIP:
-                    label = ICON_LABELS.get(fname, fname.replace(".png","").capitalize())
-                    icon_combo.addItem(get_icon(fname, 22), label, fname)
-                    if fname == old_icon:
-                        icon_combo.setCurrentIndex(icon_combo.count() - 1)
+            import unicodedata as _ud2
+            entries = []
+            for fname in _os.listdir(icons_dir):
+                if (fname.endswith(".png") or fname.endswith(".svg")) and fname not in SKIP:
+                    label = ICON_LABELS.get(fname, fname.replace(".png","").replace(".svg","").capitalize())
+                    entries.append((label, fname))
+            for label, fname in sorted(entries, key=lambda x: _ud2.normalize("NFD", x[0].lower())):
+                icon_combo.addItem(get_icon(fname, 22), label, fname)
+                if fname == old_icon:
+                    icon_combo.setCurrentIndex(icon_combo.count() - 1)
 
         def pick_color():
             c = QColorDialog.getColor(QColor(chosen_color[0]))
@@ -488,7 +501,6 @@ class CategoryView(QWidget):
     def suppress_category(self):
         """Supprime définitivement la catégorie sélectionnée."""
         from PySide6.QtWidgets import QMessageBox
-        from services.init_categories import delete_category_permanent
         rows = self.list.selectedItems()
         if not rows:
             Toast.show(self, "Sélectionnez une catégorie à supprimer", kind="warning")
@@ -524,7 +536,8 @@ class CategoryView(QWidget):
                 cat = session.query(Category).filter_by(id=cid).first()
                 if cat:
                     session.delete(cat)
-            self.refresh()
+            self.load()
+            self.refresh_all()
             Toast.show(self, f"Catégorie « {cname} » supprimée", kind="success")
         except Exception as e:
             Toast.show(self, f"Erreur : {e}", kind="warning")
@@ -541,6 +554,9 @@ class CategoryView(QWidget):
             session.commit()
         self.load()
         self.refresh_all()
+
+    def refresh(self):
+        self.load()
 
     def refresh_all(self):
         if hasattr(self.main_window, "transactions"):

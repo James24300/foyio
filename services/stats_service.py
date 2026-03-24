@@ -115,19 +115,21 @@ def monthly_totals():
     return income, expense, income - expense
 
 
-def monthly_income_expense(months: int = 12):
+def monthly_income_expense(months: int = 12, ref_month: int = None, ref_year: int = None):
     """Revenus et dépenses mois par mois sur N mois pour le compte actif."""
     MONTHS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin",
                  "Juil","Août","Sep","Oct","Nov","Déc"]
 
     today  = datetime.now()
+    base_m = ref_month if ref_month is not None else today.month
+    base_y = ref_year  if ref_year  is not None else today.year
     result = []
 
     with Session() as session:
-        for i in range(months - 1, -1, -1):
-            m, y = today.month - i, today.year
-            while m <= 0:
-                m += 12; y -= 1
+        for i in range(0, months):
+            m, y = base_m + i, base_y
+            while m > 12:
+                m -= 12; y += 1
 
             def _s(ttype):
                 q = (

@@ -48,8 +48,8 @@ def build_exe():
             shutil.rmtree(d)
 
     spec = os.path.join(BASE_DIR, "foyio.spec")
-    run(["pyinstaller", "--noconfirm", spec], cwd=BASE_DIR)
-    print(f"\n✓ Exécutable généré : dist/{APP_NAME}/{APP_NAME}.exe")
+    run([sys.executable, "-m", "PyInstaller", "--noconfirm", spec], cwd=BASE_DIR)
+    print(f"\nOK Executable : dist/{APP_NAME}/{APP_NAME}.exe")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -67,7 +67,7 @@ def create_iss():
 #define MyAppExeName   "{APP_NAME}.exe"
 
 [Setup]
-AppId={{F0Y10APP-2026-ABCD-EF12-34567890ABCD}}
+AppId={{{{F0Y10APP-2026-ABCD-EF12-34567890ABCD}}}}
 AppName={{#MyAppName}}
 AppVersion={{#MyAppVersion}}
 AppPublisher={{#MyAppPublisher}}
@@ -111,7 +111,7 @@ Type: filesandordirs; Name: "{{app}}"
 """
     with open(iss_path, "w", encoding="utf-8") as f:
         f.write(iss.strip())
-    print(f"✓ Script Inno Setup généré : foyio_setup.iss")
+    print(f"OK Script Inno Setup : foyio_setup.iss")
     return iss_path
 
 
@@ -126,7 +126,7 @@ def build_installer(iss_path):
     iscc = next((p for p in inno_candidates if os.path.exists(p)), None)
 
     if not iscc:
-        print("\n⚠  Inno Setup non trouvé — installateur non généré.")
+        print("\nATTENTION : Inno Setup non trouve -- installateur non genere.")
         print("   Télécharger : https://jrsoftware.org/isdl.php")
         print(f"   Puis relancer ce script, ou ouvrir {iss_path} dans Inno Setup.")
         return False
@@ -134,7 +134,7 @@ def build_installer(iss_path):
     run([iscc, iss_path], cwd=BASE_DIR)
     output = os.path.join(BASE_DIR, "Output", f"FoyioSetup-{VERSION}.exe")
     if os.path.exists(output):
-        print(f"\n✓ Installateur prêt : Output/FoyioSetup-{VERSION}.exe")
+        print(f"\nOK Installateur : Output/FoyioSetup-{VERSION}.exe")
     return True
 
 
@@ -142,21 +142,17 @@ def build_installer(iss_path):
 # Point d'entrée
 # ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print(f"╔══════════════════════════════════╗")
-    print(f"║   Build Foyio v{VERSION:<18} ║")
-    print(f"╚══════════════════════════════════╝\n")
+    print(f"=== Build Foyio v{VERSION} ===\n")
 
-    print("── Étape 1 : Génération du script Inno Setup ──")
+    print("Etape 1 : Generation du script Inno Setup")
     iss_path = create_iss()
 
-    print("\n── Étape 2 : Compilation avec PyInstaller ──")
+    print("\nEtape 2 : Compilation avec PyInstaller")
     build_exe()
 
-    print("\n── Étape 3 : Création de l'installateur ──")
+    print("\nEtape 3 : Creation de l'installateur")
     build_installer(iss_path)
 
-    print("\n╔══════════════════════════════════╗")
-    print( "║         Build terminé !          ║")
-    print( "╚══════════════════════════════════╝")
-    print(f"\n  Exécutable  : dist/{APP_NAME}/{APP_NAME}.exe")
+    print("\n=== Build termine ! ===")
+    print(f"  Executable   : dist/{APP_NAME}/{APP_NAME}.exe")
     print(f"  Installateur : Output/FoyioSetup-{VERSION}.exe")

@@ -268,7 +268,7 @@ class StatisticsView(QWidget):
         self._sep3.setStyleSheet("color:#3a3f47;")
         layout.addWidget(self._sep3)
 
-        self._title_proj = QLabel("Projection des revenus — 6 derniers mois")
+        self._title_proj = QLabel("Projection des revenus — 6 prochains mois")
         self._title_proj.setStyleSheet("font-size:14px; font-weight:600; color:#c8cdd4;")
         self._title_proj.setAlignment(Qt.AlignCenter)
         layout.addWidget(self._title_proj)
@@ -690,17 +690,20 @@ class StatisticsView(QWidget):
         from models import Transaction
         import account_state as acc_state
 
-        now = datetime.now()
+        import period_state as _ps2
+        _p2 = _ps2.get()
         MONTHS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin",
                      "Juil","Août","Sep","Oct","Nov","Déc"]
 
-        # Collecter les revenus réels des 6 derniers mois
+        # Collecter les revenus réels : mois courant + 5 mois suivants
+        from datetime import datetime as _dt2
+        _today2 = _dt2.now()
         months_data = []
         with Session() as session:
-            for i in range(5, -1, -1):
-                m, y = now.month - i, now.year
-                while m <= 0:
-                    m += 12; y -= 1
+            for i in range(0, 6):
+                m, y = _p2.month + i, _p2.year
+                while m > 12:
+                    m -= 12; y += 1
                 q = (
                     session.query(sqlfunc.sum(Transaction.amount))
                     .filter(Transaction.type == "income")
@@ -713,18 +716,34 @@ class StatisticsView(QWidget):
                 actual = q.scalar() or 0
                 months_data.append((f"{MONTHS_FR[m]} {y}", actual))
 
-        # Calculer la moyenne glissante (projection) pour chaque mois
+        # Calculer la moyenne sur les 3 derniers mois historiques (avant le mois de référence)
+        hist_vals = []
+        with Session() as session2:
+            for j in range(1, 4):
+                hm, hy = _p2.month - j, _p2.year
+                while hm <= 0:
+                    hm += 12; hy -= 1
+                hq = (
+                    session2.query(sqlfunc.sum(Transaction.amount))
+                    .filter(Transaction.type == "income")
+                    .filter(sqlfunc.extract("year",  Transaction.date) == hy)
+                    .filter(sqlfunc.extract("month", Transaction.date) == hm)
+                )
+                haid = acc_state.get_id()
+                if haid is not None:
+                    hq = hq.filter(Transaction.account_id == haid)
+                v = hq.scalar() or 0
+                if v > 0:
+                    hist_vals.append(v)
+        avg_hist = sum(hist_vals) / len(hist_vals) if hist_vals else 0
+
+        # Projection : valeur historique pour les mois futurs
         projected_data = []
-        all_actuals = [d[1] for d in months_data]
-        for idx in range(len(months_data)):
-            # Moyenne des mois précédents disponibles (3 mois max)
-            prev = [all_actuals[j] for j in range(max(0, idx - 3), idx) if all_actuals[j] > 0]
-            if prev:
-                projected_data.append(sum(prev) / len(prev))
-            elif idx == 0:
-                projected_data.append(all_actuals[0])
-            else:
-                projected_data.append(0)
+        for idx, (label, actual) in enumerate(months_data):
+            mi = (_p2.month + idx - 1) % 12 + 1
+            yi = _p2.year + (_p2.month + idx - 1) // 12
+            is_future = (yi > _today2.year) or (yi == _today2.year and mi > _today2.month)
+            projected_data.append(avg_hist if is_future else 0)
 
         categories = [d[0] for d in months_data]
         actuals    = [d[1] for d in months_data]
@@ -810,6 +829,8 @@ class StatisticsView(QWidget):
                 layout.removeWidget(old_view)
                 old_view.deleteLater()
                 layout.insertWidget(i, new_view, stretch)
+                setattr(self, attr, new_view)
+                break
                 break
         setattr(self, attr, new_view)
 

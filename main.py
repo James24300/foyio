@@ -1066,6 +1066,7 @@ class MainWindow(QWidget):
             ("money.png",        "Prêts"),
             ("stats.png",        "Outils"),
             ("other.png",        "Paramètres"),
+            ("other.png",        "Fonctionnalités"),
             ("other.png",        "À propos"),
         ]
         for i, btn in enumerate(self._nav_buttons):

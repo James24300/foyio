@@ -378,7 +378,7 @@ class Transactions(QWidget):
         for c in categories:
             raw = c.icon or ""
             from utils.category_icons import get_category_icon as _gci
-            icon_file = raw if raw.endswith(".png") else _gci(c.name)
+            icon_file = raw if (raw.endswith(".png") or raw.endswith(".svg")) else _gci(c.name)
             self.category.addItem(get_icon(icon_file, 18), c.name, c.id)
         self.category.setCurrentIndex(0)
 

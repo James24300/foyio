@@ -116,8 +116,8 @@ def migrate_category_icons():
                 cat.icon = _EMOJI_TO_PNG[icon]
                 changed += 1
 
-            # Cas 2 : pas un fichier .png (emoji inconnu, chaîne vide, etc.)
-            elif not icon.endswith(".png"):
+            # Cas 2 : pas un fichier image valide (emoji inconnu, chaîne vide, etc.)
+            elif not icon.endswith(".png") and not icon.endswith(".svg"):
                 cat.icon = get_category_icon(cat.name)
                 changed += 1
 
