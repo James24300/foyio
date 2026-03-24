@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QScrollArea, QTabWidget, QComboBox
 )
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal
 from PySide6.QtGui import QIcon
 
 from db import Base, engine, Session
@@ -90,6 +90,8 @@ class AnimatedNavBtn(QPushButton):
 
 
 class MainWindow(QWidget):
+
+    _update_signal = Signal(str)   # émet la version distante
 
     def __init__(self):
         super().__init__()
@@ -476,6 +478,7 @@ class MainWindow(QWidget):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(1200, self._startup_notifications)
         # Vérification de mise à jour en arrière-plan
+        self._update_signal.connect(self._show_update_toast)
         check_async(callback=self._on_update_checked)
         self._update_period_buttons()
 
@@ -910,13 +913,17 @@ class MainWindow(QWidget):
         self._restart_lock_timer()
 
     def _on_update_checked(self, available, latest, notes):
-        """Appelé après vérification de mise à jour."""
+        """Appelé depuis le thread de fond — émet un signal vers le thread principal."""
         if available and latest:
-            from ui.toast import Toast
-            Toast.show(self,
-                f"Mise à jour disponible : v{latest} — Voir À propos",
-                kind='warning'
-            )
+            self._update_signal.emit(latest)
+
+    def _show_update_toast(self, latest: str):
+        """Appelé sur le thread principal via le signal."""
+        from ui.toast import Toast
+        Toast.show(self,
+            f"Mise a jour disponible : v{latest} — Voir A propos",
+            kind='warning'
+        )
 
     def _notify_upcoming_recurring(self):
         """Affiche une notification Windows pour chaque récurrente proche."""
