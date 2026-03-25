@@ -68,7 +68,7 @@ def create_iss():
 
 #define MyAppName      "{APP_NAME}"
 #define MyAppVersion   "{VERSION}"
-#define MyAppPublisher "James-William PULSFORD"
+#define MyAppPublisher "Foyio"
 #define MyAppURL       "https://github.com/James24300/foyio"
 #define MyAppExeName   "{APP_NAME}.exe"
 
