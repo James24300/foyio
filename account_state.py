@@ -21,19 +21,29 @@ def set_account(account_id: int, account_name: str):
     global _current_id, _current_name
     _current_id   = account_id
     _current_name = account_name
+    from services.settings_service import set as _set_s 
+    _set_s("last_account_id", account_id)                
 
 
 def init_default():
     """
-    Charge le premier compte actif en base.
+    Charge le dernier compte sélectionné (mémorisé dans les paramètres),
+    ou à défaut le premier compte actif en base.
     Appelé au démarrage après create_all().
     """
     global _current_id, _current_name
     from db import Session
     from models import Account
+    from services.settings_service import get as _get_s
+
+    last_id = _get_s("last_account_id")
 
     with Session() as session:
-        acc = session.query(Account).filter_by(active=True).first()
+        acc = None
+        if last_id:
+            acc = session.query(Account).filter_by(id=last_id, active=True).first()
+        if acc is None:
+            acc = session.query(Account).filter_by(active=True).first()
         if acc:
             _current_id   = acc.id
             _current_name = acc.name

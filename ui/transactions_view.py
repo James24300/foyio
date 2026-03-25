@@ -965,7 +965,7 @@ class Transactions(QWidget):
             _ei.setFlags(Qt.ItemIsEnabled)
             self.table.setItem(0, 0, _ei)
             self.table.setSpan(0, 0, 1, self.table.columnCount())
-            self.update_totals(0.0, 0.0)
+            self.update_totals()
             return
 
         with Session() as session:
