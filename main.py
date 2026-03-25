@@ -94,10 +94,8 @@ class MainWindow(QWidget):
 
     def __init__(self):
         super().__init__()
-        from services.settings_service import get as _get_s
-        _uname = _get_s("user_name") or ""
-        _title = f"Foyio — {_uname}" if _uname else "Foyio"
-        self.setWindowTitle(_title)
+        self.setWindowTitle("Foyio")
+
         self.setWindowIcon(QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")))
         self.resize(1280, 760)
 
