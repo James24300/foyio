@@ -1,5 +1,6 @@
 {
-  "version": "1.0.1",
-  "release_date": "2026-03-24",
-  "notes": "Corrections icones, tri alphabetique, graphiques, mise a jour auto"
+  "version": "1.0.2",
+  "release_date": "2026-03-25",
+  "notes": "Fix crash au démarrage, session compte mémorisée, suppression nom personnel"
 }
+
