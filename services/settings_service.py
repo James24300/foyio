@@ -8,7 +8,7 @@ from config import APP_DIR
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 
 DEFAULTS = {
-    "user_name":     "James-William PULSFORD",
+    "user_name":     "",
     "currency":      "EUR",
     "currency_symbol": "€",
     "language":      "fr",
