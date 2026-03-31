@@ -55,6 +55,26 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### Installation sur Linux
+
+```bash
+git clone https://github.com/James24300/foyio.git
+cd foyio
+bash install_linux.sh
+```
+
+Le script installe les dépendances, copie les fichiers dans `~/.local/share/Foyio`, crée un lanceur `foyio` et une entrée dans le menu application.
+
+**Prérequis :** Python 3.10+, pip, rsync. Sur Ubuntu/Debian :
+```bash
+sudo apt install python3 python3-pip rsync
+```
+
+Après installation, lancez avec :
+```bash
+foyio
+```
+
 ### Créer un exécutable Windows
 
 ```bash
