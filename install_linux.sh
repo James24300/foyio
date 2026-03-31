@@ -8,16 +8,16 @@ BIN_DIR="$HOME/.local/bin"
 DESKTOP_DIR="$HOME/.local/share/applications"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── Vérification Python 3.10+ ──
+# ── Vérification Python 3.10+ ────────────────────────────────────────
 PYTHON=$(command -v python3 || true)
 if [ -z "$PYTHON" ]; then
     echo "Erreur : python3 introuvable. Installez Python 3.10 ou plus récent."
     exit 1
 fi
 
+PY_VERSION=$("$PYTHON" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 PY_MAJOR=$("$PYTHON" -c "import sys; print(sys.version_info.major)")
 PY_MINOR=$("$PYTHON" -c "import sys; print(sys.version_info.minor)")
-PY_VERSION="$PY_MAJOR.$PY_MINOR"
 
 if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
     echo "Erreur : Python $PY_VERSION détecté. Python 3.10+ requis."
@@ -26,7 +26,7 @@ fi
 
 echo "Python $PY_VERSION détecté."
 
-# ── Copie des fichiers ──
+# ── Copie des fichiers ───────────────────────────────────────────────
 echo "Installation dans $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR"
 rsync -a --delete \
@@ -40,11 +40,11 @@ rsync -a --delete \
     --exclude='tests' \
     "$SCRIPT_DIR/" "$INSTALL_DIR/"
 
-# ── Dépendances Python ──
+# ── Dépendances Python ───────────────────────────────────────────────
 echo "Installation des dépendances Python..."
 "$PYTHON" -m pip install --quiet --user -r "$INSTALL_DIR/requirements.txt"
 
-# ── Lanceur ──
+# ── Lanceur ─────────────────────────────────────────────────────────
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/foyio" << EOF
 #!/usr/bin/env bash
@@ -53,7 +53,7 @@ exec python3 "$INSTALL_DIR/main.py" "\$@"
 EOF
 chmod +x "$BIN_DIR/foyio"
 
-# ── Entrée .desktop (menu application) ──
+# ── Entrée .desktop (menu application) ──────────────────────────────
 mkdir -p "$DESKTOP_DIR"
 cat > "$DESKTOP_DIR/foyio.desktop" << EOF
 [Desktop Entry]
@@ -67,7 +67,7 @@ Categories=Office;Finance;
 StartupNotify=true
 EOF
 
-# ── Avertissement PATH ──
+# ── Avertissement PATH ───────────────────────────────────────────────
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     echo ""
     echo "Attention : $BIN_DIR n'est pas dans votre PATH."
