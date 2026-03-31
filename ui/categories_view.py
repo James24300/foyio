@@ -337,12 +337,18 @@ class CategoryView(QWidget):
         icon  = self.icon_combo.currentData() or get_category_icon(name)
         color = self.color if self.color != "#7a8494" else get_category_color(name)
 
-        with Session() as session:
-            if session.query(Category).filter_by(name=name).first():
-                Toast.show(self, "✕  Cette catégorie existe déjà", kind="error")
-                return
-            session.add(Category(name=name, icon=icon, color=color))
-            session.commit()
+        try:
+            with Session() as session:
+                if session.query(Category).filter_by(name=name).first():
+                    Toast.show(self, "✕  Cette catégorie existe déjà", kind="error")
+                    return
+                session.add(Category(name=name, icon=icon, color=color))
+                session.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).exception("Erreur ajout catégorie")
+            Toast.show(self, f"✕  Erreur : {e}", kind="error")
+            return
 
         added_name = self.name.text().strip()
         self.name.clear()
