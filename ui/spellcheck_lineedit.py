@@ -34,7 +34,7 @@ def _load_spell():
             "carte", "espèces", "chèque", "débit", "solde", "budget",
             "dépense", "revenu", "mensuel", "annuel", "trimestriel",
         ])
-    except ImportError:
+    except Exception:
         _spell = False  # False = indisponible
     return _spell
 
