@@ -418,6 +418,7 @@ class Transactions(QWidget):
             Toast.show(self, f"✕  Erreur : {e}", kind="error")
             return
 
+        self.load()
         main = self.window()
         if hasattr(main, "refresh_all"):
             main.refresh_all()
