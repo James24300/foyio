@@ -15,7 +15,7 @@ from utils.formatters import format_money
 from utils.icons import get_icon
 from ui.toast import Toast
 from services.loan_service import (
-    add_loan, get_loans, delete_loan,
+    add_loan, update_loan, get_loans, delete_loan,
     get_amortization_schedule, get_loan_summary,
 )
 
@@ -388,6 +388,20 @@ class LoansView(QWidget):
             actions_layout.setContentsMargins(4, 2, 4, 2)
             actions_layout.setSpacing(6)
 
+            btn_edit = QPushButton("Modifier")
+            btn_edit.setFixedHeight(28)
+            btn_edit.setStyleSheet("""
+                QPushButton {
+                    background:#2e3238; color:#c8cdd4;
+                    border:1px solid #3a3f47; border-radius:6px;
+                    font-size:11px; padding:0 10px;
+                }
+                QPushButton:hover { background:#3a3f47; color:#ffffff; }
+            """)
+            btn_edit.clicked.connect(
+                lambda checked, l=loan: self._edit(l)
+            )
+
             btn_schedule = QPushButton("Amortissement")
             btn_schedule.setFixedHeight(28)
             btn_schedule.setStyleSheet("""
@@ -416,6 +430,7 @@ class LoansView(QWidget):
                 lambda checked, lid=loan.id, lname=loan.name: self._delete(lid, lname)
             )
 
+            actions_layout.addWidget(btn_edit)
             actions_layout.addWidget(btn_schedule)
             actions_layout.addWidget(btn_delete)
             actions_layout.addStretch()
@@ -434,6 +449,93 @@ class LoansView(QWidget):
             self.lbl_end_date.setText("\u2014")
 
     # ------------------------------------------------------------------
+    def _edit(self, loan):
+        """Ouvre un dialogue pour modifier un prêt existant."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Modifier — {loan.name}")
+        dlg.setMinimumWidth(400)
+        dlg.setStyleSheet("background:#1e2124; color:#c8cdd4;")
+
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(10)
+
+        def lbl(text):
+            l = QLabel(text)
+            l.setStyleSheet("font-size:12px; color:#7a8494;")
+            return l
+
+        name_input = QLineEdit(loan.name)
+        name_input.setMinimumHeight(34)
+
+        total_input = QLineEdit(str(loan.total_amount))
+        total_input.setValidator(QDoubleValidator(0.01, 100_000_000, 2))
+        total_input.setMinimumHeight(34)
+
+        payment_input = QLineEdit(str(loan.monthly_payment))
+        payment_input.setValidator(QDoubleValidator(0.01, 100_000_000, 2))
+        payment_input.setMinimumHeight(34)
+
+        rate_input = QLineEdit(str(loan.interest_rate))
+        rate_input.setValidator(QDoubleValidator(0, 100, 4))
+        rate_input.setMinimumHeight(34)
+
+        start_input = QDateEdit(QDate(loan.start_date.year, loan.start_date.month, loan.start_date.day))
+        start_input.setCalendarPopup(True)
+        start_input.setMinimumHeight(34)
+
+        end_input = QDateEdit(QDate(loan.end_date.year, loan.end_date.month, loan.end_date.day))
+        end_input.setCalendarPopup(True)
+        end_input.setMinimumHeight(34)
+
+        for label, widget in [
+            ("Nom :", name_input),
+            ("Montant total (€) :", total_input),
+            ("Mensualité (€) :", payment_input),
+            ("Taux d'intérêt (%) :", rate_input),
+            ("Date de début :", start_input),
+            ("Date de fin :", end_input),
+        ]:
+            vl.addWidget(lbl(label))
+            vl.addWidget(widget)
+
+        btn_row = QHBoxLayout()
+        btn_save = QPushButton("  Enregistrer")
+        btn_save.setMinimumHeight(36)
+        btn_cancel = QPushButton("Annuler")
+        btn_cancel.setMinimumHeight(36)
+        btn_cancel.setStyleSheet("background:#2e2020; color:#e89090; border:1px solid #503030; border-radius:8px;")
+        btn_row.addWidget(btn_save)
+        btn_row.addWidget(btn_cancel)
+        vl.addLayout(btn_row)
+
+        btn_cancel.clicked.connect(dlg.reject)
+
+        def _save():
+            name = name_input.text().strip()
+            if not name:
+                Toast.show(self, "✕  Saisissez un nom", kind="error")
+                return
+            try:
+                total   = float(total_input.text().replace(",", "."))
+                payment = float(payment_input.text().replace(",", "."))
+                rate    = float(rate_input.text().replace(",", "."))
+            except ValueError:
+                Toast.show(self, "✕  Valeurs numériques invalides", kind="error")
+                return
+            start_d = start_input.date().toPython()
+            end_d   = end_input.date().toPython()
+            if end_d <= start_d:
+                Toast.show(self, "✕  La date de fin doit être après le début", kind="error")
+                return
+            update_loan(loan.id, name, total, payment, rate, start_d, end_d)
+            dlg.accept()
+            self.load()
+            Toast.show(self, f"✓  Prêt « {name} » modifié", kind="success")
+
+        btn_save.clicked.connect(_save)
+        dlg.exec()
+
     def _delete(self, loan_id, loan_name):
         msg = QMessageBox(self)
         msg.setWindowTitle("Supprimer")

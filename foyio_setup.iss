@@ -1,8 +1,8 @@
-; Script Inno Setup — Foyio v1.0.1
+; Script Inno Setup — Foyio v1.0.3
 ; Généré automatiquement par build_windows.py
 
 #define MyAppName      "Foyio"
-#define MyAppVersion   "1.0.1"
+#define MyAppVersion   "1.0.3"
 #define MyAppPublisher "James-William PULSFORD"
 #define MyAppURL       "https://github.com/James24300/foyio"
 #define MyAppExeName   "Foyio.exe"
@@ -19,7 +19,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
-OutputBaseFilename=FoyioSetup-{#MyAppVersion}
+OutputBaseFilename=FoyioSetup-v{#MyAppVersion}
 SetupIconFile=icons\foyio.ico
 Compression=lzma
 SolidCompression=yes
