@@ -41,6 +41,20 @@ def get_loans(account_id: int = None, active_only: bool = True) -> list:
         return loans
 
 
+def update_loan(loan_id: int, name: str, total_amount: float, monthly_payment: float,
+                interest_rate: float, start_date: date, end_date: date):
+    """Met à jour un prêt existant."""
+    with safe_session() as session:
+        loan = session.query(Loan).filter_by(id=loan_id).first()
+        if loan:
+            loan.name            = name
+            loan.total_amount    = total_amount
+            loan.monthly_payment = monthly_payment
+            loan.interest_rate   = interest_rate
+            loan.start_date      = start_date
+            loan.end_date        = end_date
+
+
 def delete_loan(loan_id: int):
     """Supprime (désactive) un prêt."""
     with safe_session() as session:

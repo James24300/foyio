@@ -1111,29 +1111,34 @@ class SavingsView(QWidget):
 
         # Graphique évolution
         evolution = result["evolution"]
-        series = QLineSeries()
-        series.setColor(QColor("#22c55e"))
+        if not evolution or len(evolution) < 2:
+            self._sim_chart_view.setVisible(False)
+            self._btn_save_sim.setVisible(True)
+            return
+
+        self._sim_upper = QLineSeries()  # référence gardée sur self pour éviter GC/crash
+        self._sim_upper.setColor(QColor("#22c55e"))
 
         for i, v in enumerate(evolution):
-            series.append(i, v)
+            self._sim_upper.append(i, v)
 
         # Ligne objectif
-        target_line = QLineSeries()
-        target_line.setColor(QColor("#ef4444"))
-        pen = target_line.pen()
+        self._sim_target_line = QLineSeries()
+        self._sim_target_line.setColor(QColor("#ef4444"))
+        pen = self._sim_target_line.pen()
         pen.setStyle(Qt.DashLine)
         pen.setWidth(1)
-        target_line.setPen(pen)
-        target_line.append(0, target)
-        target_line.append(len(evolution) - 1, target)
+        self._sim_target_line.setPen(pen)
+        self._sim_target_line.append(0, target)
+        self._sim_target_line.append(len(evolution) - 1, target)
 
-        area = QAreaSeries(series)
+        area = QAreaSeries(self._sim_upper)
         area.setColor(QColor(34, 197, 94, 40))
         area.setBorderColor(QColor("#22c55e"))
 
         chart = QChart()
         chart.addSeries(area)
-        chart.addSeries(target_line)
+        chart.addSeries(self._sim_target_line)
         chart.setBackgroundVisible(False)
         chart.setAnimationOptions(QChart.SeriesAnimations)
         chart.setAnimationDuration(600)
@@ -1151,7 +1156,7 @@ class SavingsView(QWidget):
         axis_x.setTitleBrush(QColor("#7a8494"))
         chart.addAxis(axis_x, Qt.AlignBottom)
         area.attachAxis(axis_x)
-        target_line.attachAxis(axis_x)
+        self._sim_target_line.attachAxis(axis_x)
 
         axis_y = QValueAxis()
         axis_y.setRange(0, target * 1.1)
@@ -1161,7 +1166,7 @@ class SavingsView(QWidget):
         axis_y.setGridLineColor(QColor("#3a3f47"))
         chart.addAxis(axis_y, Qt.AlignLeft)
         area.attachAxis(axis_y)
-        target_line.attachAxis(axis_y)
+        self._sim_target_line.attachAxis(axis_y)
 
         self._sim_chart_view.setChart(chart)
         self._sim_chart_view.setVisible(True)
