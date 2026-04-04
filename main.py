@@ -1057,10 +1057,11 @@ class MainWindow(QWidget):
     def toggle_sidebar(self):
         expanded = self.sidebar_expanded
         end_width = 60 if expanded else 220
-        labels = ["", "", "", "", "", "", "", "", "", "", ""] if expanded else [
+        labels = ["", "", "", "", "", "", "", "", "", "", "", "", ""] if expanded else [
             " Accueil", " Transactions", " Budgets",
             " Catégories", " Statistiques", " Récurrentes",
-            " Épargne", " Comptes", " Outils", " Paramètres", " À propos"
+            " Épargne", " Comptes", " Prêts", " Outils",
+            " Paramètres", " Fonctionnalités", " À propos"
         ]
         for btn, label in zip(self._nav_buttons, labels):
             btn.setText(label)
