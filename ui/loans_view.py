@@ -430,10 +430,10 @@ class LoansView(QWidget):
                 lambda checked, lid=loan.id, lname=loan.name: self._delete(lid, lname)
             )
 
+            actions_layout.addStretch()
             actions_layout.addWidget(btn_edit)
             actions_layout.addWidget(btn_schedule)
             actions_layout.addWidget(btn_delete)
-            actions_layout.addStretch()
             self.table.setCellWidget(i, 6, actions_widget)
 
     # ------------------------------------------------------------------
