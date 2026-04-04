@@ -1,5 +1,5 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "release_date": "2026-04-04",
-  "notes": "Fix : les transactions s'affichaient avec un décalage d'une entrée après ajout"
+  "notes": "Fix transactions masquées après ajout, bouton Modifier dans Prêts, crash simulateur Épargne"
 }
