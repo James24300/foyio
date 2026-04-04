@@ -233,7 +233,7 @@ class LoansView(QWidget):
         self.table.setColumnWidth(3, 120)
         self.table.setColumnWidth(4, 70)
         self.table.setColumnWidth(5, 160)
-        self.table.setColumnWidth(6, 200)
+        self.table.setColumnWidth(6, 330)
 
         self.table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
