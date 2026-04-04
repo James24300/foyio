@@ -1,6 +1,5 @@
 {
-  "version": "1.0.2",
-  "release_date": "2026-03-25",
-  "notes": "Fix crash au démarrage, session compte mémorisée, suppression nom personnel"
+  "version": "1.0.3",
+  "release_date": "2026-04-04",
+  "notes": "Fix : les transactions s'affichaient avec un décalage d'une entrée après ajout"
 }
-
