@@ -1111,6 +1111,11 @@ class SavingsView(QWidget):
 
         # Graphique évolution
         evolution = result["evolution"]
+        if not evolution or len(evolution) < 2:
+            self._sim_chart_view.setVisible(False)
+            self._btn_save_sim.setVisible(True)
+            return
+
         series = QLineSeries()
         series.setColor(QColor("#22c55e"))
 
