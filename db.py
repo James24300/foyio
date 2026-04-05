@@ -276,3 +276,57 @@ def migrate_database():
                 )"""))
             conn.commit()
         logger.info("Migration v5.5 : table loans créée")
+
+    # v6.0 : table crypto_holdings
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "crypto_holdings"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS crypto_holdings (
+                    id INTEGER PRIMARY KEY,
+                    symbol VARCHAR(20) NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    coingecko_id VARCHAR(100) NOT NULL,
+                    quantity FLOAT NOT NULL DEFAULT 0.0,
+                    avg_buy_price FLOAT NOT NULL DEFAULT 0.0,
+                    account_id INTEGER REFERENCES accounts(id),
+                    active BOOLEAN DEFAULT 1
+                )"""))
+            conn.commit()
+        logger.info("Migration v6.0 : table crypto_holdings créée")
+
+    # v6.1 : table crypto_transactions
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "crypto_transactions"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS crypto_transactions (
+                    id INTEGER PRIMARY KEY,
+                    holding_id INTEGER NOT NULL REFERENCES crypto_holdings(id),
+                    type VARCHAR(10) NOT NULL,
+                    quantity FLOAT NOT NULL,
+                    price_eur FLOAT NOT NULL,
+                    total_eur FLOAT NOT NULL,
+                    date DATETIME NOT NULL,
+                    note VARCHAR(500),
+                    account_id INTEGER REFERENCES accounts(id)
+                )"""))
+            conn.commit()
+        logger.info("Migration v6.1 : table crypto_transactions créée")
+
+    # v6.2 : table crypto_alerts
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "crypto_alerts"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS crypto_alerts (
+                    id INTEGER PRIMARY KEY,
+                    holding_id INTEGER NOT NULL REFERENCES crypto_holdings(id),
+                    alert_type VARCHAR(10) NOT NULL,
+                    target_price FLOAT NOT NULL,
+                    active BOOLEAN DEFAULT 1,
+                    triggered BOOLEAN DEFAULT 0,
+                    account_id INTEGER REFERENCES accounts(id)
+                )"""))
+            conn.commit()
+        logger.info("Migration v6.2 : table crypto_alerts créée")

@@ -192,3 +192,45 @@ class Loan(Base):
     end_date        = Column(Date, nullable=False)
     account_id      = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     active          = Column(Boolean, default=True)
+
+
+class CryptoHolding(Base):
+    """Crypto-monnaie détenue dans le portefeuille."""
+    __tablename__ = "crypto_holdings"
+
+    id             = Column(Integer, primary_key=True)
+    symbol         = Column(String(20),  nullable=False)   # BTC, ETH…
+    name           = Column(String(100), nullable=False)   # Bitcoin, Ethereum…
+    coingecko_id   = Column(String(100), nullable=False)   # bitcoin, ethereum…
+    quantity       = Column(Float, nullable=False, default=0.0)
+    avg_buy_price  = Column(Float, nullable=False, default=0.0)  # € moyen d'achat
+    account_id     = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    active         = Column(Boolean, default=True)
+
+
+class CryptoTransaction(Base):
+    """Achat ou vente d'une crypto."""
+    __tablename__ = "crypto_transactions"
+
+    id         = Column(Integer, primary_key=True)
+    holding_id = Column(Integer, ForeignKey("crypto_holdings.id"), nullable=False)
+    type       = Column(String(10), nullable=False)   # buy / sell
+    quantity   = Column(Float, nullable=False)
+    price_eur  = Column(Float, nullable=False)         # prix unitaire en € au moment de la tx
+    total_eur  = Column(Float, nullable=False)         # quantité × prix
+    date       = Column(DateTime, nullable=False)
+    note       = Column(String(500), nullable=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
+
+class CryptoAlert(Base):
+    """Alerte de prix sur une crypto."""
+    __tablename__ = "crypto_alerts"
+
+    id          = Column(Integer, primary_key=True)
+    holding_id  = Column(Integer, ForeignKey("crypto_holdings.id"), nullable=False)
+    alert_type  = Column(String(10), nullable=False)   # above / below
+    target_price= Column(Float, nullable=False)
+    active      = Column(Boolean, default=True)
+    triggered   = Column(Boolean, default=False)
+    account_id  = Column(Integer, ForeignKey("accounts.id"), nullable=True)
