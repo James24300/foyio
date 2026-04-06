@@ -330,3 +330,19 @@ def migrate_database():
                 )"""))
             conn.commit()
         logger.info("Migration v6.2 : table crypto_alerts créée")
+
+    # v6.3 : table ideas (boîte à idées)
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "ideas"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS ideas (
+                    id INTEGER PRIMARY KEY,
+                    author VARCHAR(100) NOT NULL,
+                    content VARCHAR(2000) NOT NULL,
+                    submitted_at DATETIME NOT NULL,
+                    read BOOLEAN DEFAULT 0,
+                    account_id INTEGER REFERENCES accounts(id)
+                )"""))
+            conn.commit()
+        logger.info("Migration v6.3 : table ideas créée")

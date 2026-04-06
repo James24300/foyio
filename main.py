@@ -59,6 +59,7 @@ from ui.features_view import FeaturesView
 from ui.settings_view import SettingsView
 from ui.loans_view import LoansView
 from ui.crypto_view import CryptoView
+from ui.ideas_view import IdeasView
 from services.update_service import get_current_version
 from ui.password_dialog import PasswordDialog
 
@@ -166,16 +167,26 @@ class MainWindow(QWidget):
             ("btn_budget",       " Budgets",      "budget.png"),
             ("btn_categories",   " Catégories",   "categories.png"),
             ("btn_stats",        " Statistiques", "stats.png"),
-            ("btn_recurring",    " Récurrentes",  "transactions.png"),
-            ("btn_savings",      " Épargne",      "epargne.png"),
-            ("btn_accounts",     " Comptes",      "bank.png"),
-            ("btn_loans",        " Prêts",        "money.png"),
-            ("btn_tools",        " Outils",       "stats.png"),
-            ("btn_settings",     " Paramètres",      "other.png"),
-            ("btn_features",     " Fonctionnalités","reports.png"),
-            ("btn_about",        " À propos",        "other.png"),
-            ("btn_crypto",       " Crypto",           "money.png"),
+            ("btn_crypto",       " Crypto",       "money.png"),
         ]
+
+        _NAV_BTN_STYLE = """
+            QPushButton {
+                text-align:left; padding-left:12px;
+                border:none; border-radius:10px; background:transparent;
+                color:#5a6472; font-size:13px;
+            }
+            QPushButton:hover {
+                background:#23272b;
+                color:#c8cdd4;
+            }
+            QPushButton:checked {
+                background:#2e3238;
+                border-left:3px solid #c8cdd4;
+                border-radius:0px 10px 10px 0px;
+                color:#ffffff; font-weight:700;
+            }
+        """
 
         self._nav_buttons = []
         for attr, label, icon_name in nav_items:
@@ -184,26 +195,19 @@ class MainWindow(QWidget):
             btn.setCheckable(True)
             btn.setMinimumHeight(54)
             btn.setIconSize(QSize(26, 26))
-            btn.setStyleSheet("""
-                QPushButton {
-                    text-align:left; padding-left:12px;
-                    border:none; border-radius:10px; background:transparent;
-                    color:#5a6472; font-size:13px;
-                }
-                QPushButton:hover {
-                    background:#23272b;
-                    color:#c8cdd4;
-                }
-                QPushButton:checked {
-                    background:#2e3238;
-                    border-left:3px solid #c8cdd4;
-                    border-radius:0px 10px 10px 0px;
-                    color:#ffffff; font-weight:700;
-                }
-            """)
+            btn.setStyleSheet(_NAV_BTN_STYLE)
             setattr(self, attr, btn)
             self._nav_buttons.append(btn)
             sidebar.addWidget(btn)
+
+        # ── Bouton Plus (sous-menu) ──
+        self.btn_plus = AnimatedNavBtn(" Plus")
+        self.btn_plus.setIcon(QIcon(os.path.join(BASE_DIR, "icons", "other.png")))
+        self.btn_plus.setCheckable(True)
+        self.btn_plus.setMinimumHeight(54)
+        self.btn_plus.setIconSize(QSize(26, 26))
+        self.btn_plus.setStyleSheet(_NAV_BTN_STYLE)
+        sidebar.addWidget(self.btn_plus)
 
         sidebar.addStretch()
 
@@ -415,13 +419,14 @@ class MainWindow(QWidget):
         self.about        = AboutView()
         self.settings_v   = SettingsView()
         self.features_v   = FeaturesView()
+        self.ideas_v      = IdeasView()
 
         for view in [
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
             self.savings, self.accounts, self.loans,
             self.tools, self.settings_v, self.features_v, self.about,
-            self.crypto
+            self.crypto, self.ideas_v
         ]:
             self.stack.addTab(view, "")
 
@@ -446,15 +451,8 @@ class MainWindow(QWidget):
         self.btn_budget.clicked.connect(lambda: self.set_active(2))
         self.btn_categories.clicked.connect(lambda: self.set_active(3))
         self.btn_stats.clicked.connect(lambda: self.set_active(4))
-        self.btn_recurring.clicked.connect(lambda: self.set_active(5))
-        self.btn_savings.clicked.connect(lambda: self.set_active(6))
-        self.btn_accounts.clicked.connect(lambda: self.set_active(7))
-        self.btn_loans.clicked.connect(lambda: self.set_active(8))
-        self.btn_tools.clicked.connect(lambda: self.set_active(9))
-        self.btn_settings.clicked.connect(lambda: self.set_active(10))
-        self.btn_features.clicked.connect(lambda: self.set_active(11))
-        self.btn_about.clicked.connect(lambda: self.set_active(12))
         self.btn_crypto.clicked.connect(lambda: self.set_active(13))
+        self.btn_plus.clicked.connect(self._open_plus_menu)
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -711,6 +709,48 @@ class MainWindow(QWidget):
         if hasattr(self, 'transactions'):
             self.transactions.add()
 
+    def _open_plus_menu(self):
+        """Affiche le sous-menu 'Plus' au-dessus du bouton."""
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background:#1e2124; border:1px solid #2e3238;
+                border-radius:8px; padding:6px 0;
+            }
+            QMenu::item {
+                color:#c8cdd4; font-size:13px;
+                padding:8px 20px 8px 14px; border-radius:6px;
+            }
+            QMenu::item:selected { background:#2e3238; color:#ffffff; }
+            QMenu::separator { height:1px; background:#2e3238; margin:4px 10px; }
+        """)
+        items = [
+            ("transactions.png", " Récurrentes",    5),
+            ("epargne.png",      " Épargne",         6),
+            ("bank.png",         " Comptes",          7),
+            ("money.png",        " Prêts",            8),
+            ("stats.png",        " Outils",           9),
+            (None, None, None),  # séparateur
+            ("other.png",        " Paramètres",      10),
+            ("reports.png",      " Fonctionnalités", 11),
+            ("other.png",        " À propos",        12),
+            (None, None, None),  # séparateur
+            ("other.png",        " Boîte à idées",   14),
+        ]
+        for icon_name, label, idx in items:
+            if icon_name is None:
+                menu.addSeparator()
+            else:
+                act = menu.addAction(
+                    QIcon(os.path.join(BASE_DIR, "icons", icon_name)), label
+                )
+                act.triggered.connect(lambda checked=False, i=idx: self.set_active(i))
+        # Positionner le menu au-dessus du bouton
+        btn_rect = self.btn_plus.rect()
+        pos = self.btn_plus.mapToGlobal(btn_rect.topLeft())
+        menu.exec(pos)
+
     def _open_calculator(self):
         """Ouvre la calculatrice flottante."""
         if not hasattr(self, '_calculator'):
@@ -908,14 +948,14 @@ class MainWindow(QWidget):
     def toggle_sidebar(self):
         expanded = self.sidebar_expanded
         end_width = 60 if expanded else 220
-        labels = ["", "", "", "", "", "", "", "", "", "", "", "", "", ""] if expanded else [
+        labels = ["", "", "", "", "", ""] if expanded else [
             " Accueil", " Transactions", " Budgets",
-            " Catégories", " Statistiques", " Récurrentes",
-            " Épargne", " Comptes", " Prêts", " Outils",
-            " Paramètres", " Fonctionnalités", " À propos", " Crypto",
+            " Catégories", " Statistiques", " Crypto",
         ]
         for btn, label in zip(self._nav_buttons, labels):
             btn.setText(label)
+        if hasattr(self, "btn_plus"):
+            self.btn_plus.setText("" if expanded else " Plus")
         # Cacher le texte logo quand réduit
         if hasattr(self, "_logo_text"):
             self._logo_text.setVisible(not expanded)
@@ -945,9 +985,16 @@ class MainWindow(QWidget):
             ("other.png",        "Fonctionnalités"),
             ("other.png",        "À propos"),
             ("money.png",        "Crypto-monnaies"),
+            ("other.png",        "Boîte à idées"),
         ]
+
+        # Indices correspondant aux boutons principaux de la sidebar
+        _MAIN_INDICES = [0, 1, 2, 3, 4, 13]
+        _PLUS_INDICES = {5, 6, 7, 8, 9, 10, 11, 12, 14}
         for i, btn in enumerate(self._nav_buttons):
-            btn.setChecked(i == index)
+            btn.setChecked(_MAIN_INDICES[i] == index)
+        if hasattr(self, "btn_plus"):
+            self.btn_plus.setChecked(index in _PLUS_INDICES)
 
         # Transition fondu
         current_widget = self.stack.currentWidget()
@@ -1021,6 +1068,7 @@ class MainWindow(QWidget):
         if hasattr(self, "budget"):       self.budget.refresh()
         if hasattr(self, "recurring"):    self.recurring.load()
         if hasattr(self, "crypto"):       self.crypto.refresh()
+        if hasattr(self, "ideas_v"):      self.ideas_v.refresh()
 
 
 
