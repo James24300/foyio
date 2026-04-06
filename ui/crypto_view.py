@@ -158,27 +158,28 @@ class CryptoView(QWidget):
 
         # Boutons
         btn_row = QHBoxLayout()
-        btn_add = QPushButton("  Ajouter une crypto")
+        _bs = "border:none; border-radius:8px; font-weight:700; padding:0 16px; text-align:center;"
+        btn_add = QPushButton("Ajouter une crypto")
         btn_add.setMinimumHeight(36)
-        btn_add.setStyleSheet("background:#22c55e; color:#000; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
+        btn_add.setStyleSheet(f"background:#22c55e; color:#000; {_bs}")
         btn_add.clicked.connect(self._dialog_add)
 
-        self._btn_sell = QPushButton("  Vendre")
+        self._btn_sell = QPushButton("Vendre")
         self._btn_sell.setMinimumHeight(36)
         self._btn_sell.setEnabled(False)
-        self._btn_sell.setStyleSheet("background:#ef4444; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
+        self._btn_sell.setStyleSheet(f"background:#ef4444; color:#fff; {_bs}")
         self._btn_sell.clicked.connect(self._dialog_sell)
 
-        self._btn_edit = QPushButton("  Modifier")
+        self._btn_edit = QPushButton("Modifier")
         self._btn_edit.setMinimumHeight(36)
         self._btn_edit.setEnabled(False)
-        self._btn_edit.setStyleSheet("background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
+        self._btn_edit.setStyleSheet(f"background:#3b82f6; color:#fff; {_bs}")
         self._btn_edit.clicked.connect(self._dialog_edit)
 
-        self._btn_del = QPushButton("  Supprimer")
+        self._btn_del = QPushButton("Supprimer")
         self._btn_del.setMinimumHeight(36)
         self._btn_del.setEnabled(False)
-        self._btn_del.setStyleSheet("background:#2e2020; color:#e89090; border:1px solid #503030; border-radius:8px; padding:0 16px;")
+        self._btn_del.setStyleSheet("background:#2e2020; color:#e89090; border:1px solid #503030; border-radius:8px; padding:0 16px; text-align:center;")
         self._btn_del.clicked.connect(self._delete_holding)
 
         btn_row.addWidget(btn_add)
@@ -224,8 +225,7 @@ class CryptoView(QWidget):
         # Graphique camembert
         self._pie_chart_view = QChartView()
         self._pie_chart_view.setRenderHint(QPainter.Antialiasing)
-        self._pie_chart_view.setMinimumHeight(180)
-        self._pie_chart_view.setMaximumHeight(200)
+        self._pie_chart_view.setFixedHeight(240)
         self._pie_chart_view.setStyleSheet("background:transparent; border:none;")
         vl.addWidget(self._pie_chart_view)
 
@@ -535,17 +535,24 @@ class CryptoView(QWidget):
             tbl.setItem(i, 6, _item(f"{'+' if pnl>=0 else ''}{pnl:,.2f} €", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
             tbl.setItem(i, 7, _item(f"{'+' if pnl_p>=0 else ''}{pnl_p:.1f}%", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
 
-            if value > 0:
-                sl = pie.append(h.symbol, value)
+            # Pie : valeur réelle si prix connu, sinon prix d'achat (fallback)
+            pie_value = value if value > 0 else h.quantity * h.avg_buy_price
+            if pie_value > 0:
+                sl = pie.append(h.symbol, pie_value)
                 sl.setColor(QColor(color))
-                sl.setLabelVisible(True)
-                sl.setLabel(f"{h.symbol} {value/max(sum(hh.quantity*(self._prices.get(hh.coingecko_id,{}).get('price',0)) for hh in self._holdings),1)*100:.0f}%")
+                sl.setLabelVisible(False)
 
         chart = QChart()
         chart.addSeries(pie)
         chart.setBackgroundVisible(False)
-        chart.legend().setVisible(False)
-        chart.setMargins(__import__('PySide6.QtCore', fromlist=['QMargins']).QMargins(0,0,0,0))
+        chart.layout().setContentsMargins(0, 0, 0, 0)
+        legend = chart.legend()
+        legend.setVisible(True)
+        legend.setAlignment(Qt.AlignBottom)
+        legend.setLabelColor(QColor("#c8cdd4"))
+        from PySide6.QtGui import QFont as _QFont
+        legend.setFont(_QFont("Arial", 9))
+        legend.setBackgroundVisible(False)
         self._pie_chart_view.setChart(chart)
 
     def _load_transactions(self):
