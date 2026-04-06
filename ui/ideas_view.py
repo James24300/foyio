@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem,
     QHeaderView, QInputDialog, QLineEdit as QLE, QFrame, QScrollArea
 )
-from PySide6.QtCore import Qt, QLineEdit as QCoreLE
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from services.ideas_service import submit_idea, get_ideas, mark_read, delete_idea, get_unread_count
 from services.settings_service import get as get_setting
