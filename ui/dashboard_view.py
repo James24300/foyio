@@ -1275,11 +1275,19 @@ class DashboardView(QWidget):
             self._crypto_widget.setVisible(True)
             ids = [h.coingecko_id for h in holdings]
 
-            # Si le cache contient les prix → affichage immédiat
-            if all(cg in _price_cache for cg in ids):
+            import time as _t
+            from services.crypto_service import _CACHE_TTL
+            now = _t.time()
+            cache_fresh = all(
+                cg in _price_cache and now - _price_cache[cg].get("ts", 0) < _CACHE_TTL
+                for cg in ids
+            )
+
+            if cache_fresh:
+                # Cache frais → affichage immédiat, aucun appel réseau
                 self._apply_crypto_prices(holdings, _price_cache)
             else:
-                # Cache vide → afficher les valeurs d'achat en attendant + lancer fetch
+                # Cache absent ou périmé → afficher valeurs d'achat + fetch en background
                 self._apply_crypto_prices(holdings, {})
                 self._crypto_fetcher = _CryptoPriceFetcher(ids)
                 self._crypto_fetcher.done.connect(
