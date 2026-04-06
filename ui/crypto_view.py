@@ -915,14 +915,14 @@ class CryptoView(QWidget):
         self._wl_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._wl_table.setShowGrid(False)
         self._wl_table.verticalHeader().setVisible(False)
-        self._wl_table.verticalHeader().setDefaultSectionSize(42)
+        self._wl_table.verticalHeader().setDefaultSectionSize(46)
         hdr = self._wl_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
         hdr.setSectionResizeMode(1, QHeaderView.Fixed); self._wl_table.setColumnWidth(1, 130)
         hdr.setSectionResizeMode(2, QHeaderView.Fixed); self._wl_table.setColumnWidth(2, 90)
         hdr.setSectionResizeMode(3, QHeaderView.Fixed); self._wl_table.setColumnWidth(3, 160)
         hdr.setSectionResizeMode(4, QHeaderView.Fixed); self._wl_table.setColumnWidth(4, 100)
-        hdr.setSectionResizeMode(5, QHeaderView.Fixed); self._wl_table.setColumnWidth(5, 110)
+        hdr.setSectionResizeMode(5, QHeaderView.Fixed); self._wl_table.setColumnWidth(5, 170)
         self._wl_table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
             QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }
@@ -961,24 +961,26 @@ class CryptoView(QWidget):
 
             btn_row = QHBoxLayout()
             btn_buy = QPushButton("Acheter")
-            btn_buy.setFixedHeight(28)
+            btn_buy.setMinimumWidth(72)
+            btn_buy.setFixedHeight(30)
             btn_buy.setStyleSheet(
                 "background:#22c55e; color:#000; border:none; border-radius:6px;"
-                "font-size:11px; font-weight:700;"
+                "font-size:12px; font-weight:700; text-align:center;"
             )
             btn_buy.clicked.connect(lambda _, it=item: self._buy_from_watchlist(it))
 
             btn_del = QPushButton("Retirer")
-            btn_del.setFixedHeight(28)
+            btn_del.setMinimumWidth(66)
+            btn_del.setFixedHeight(30)
             btn_del.setStyleSheet(
                 "background:#2e2020; color:#e89090; border:1px solid #503030;"
-                "border-radius:6px; font-size:11px;"
+                "border-radius:6px; font-size:12px; text-align:center;"
             )
             btn_del.clicked.connect(lambda _, it=item: self._remove_watchlist(it))
 
             cell_w = QWidget()
             hl = QHBoxLayout(cell_w)
-            hl.setContentsMargins(4, 4, 4, 4)
+            hl.setContentsMargins(4, 6, 4, 6)
             hl.setSpacing(4)
             hl.addWidget(btn_buy)
             hl.addWidget(btn_del)
@@ -1614,13 +1616,31 @@ class CryptoView(QWidget):
 
         self._evo_chart_view.setChart(chart)
 
+    def _show_tray_msg(self, title: str, message: str):
+        """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
+        from PySide6.QtWidgets import QSystemTrayIcon
+        from PySide6.QtGui import QIcon
+        import os
+        # Chercher le _tray dans les parents ou dans les top-level widgets
+        w = self.window()
+        tray = getattr(w, "_tray", None)
+        if tray is None:
+            from PySide6.QtWidgets import QApplication
+            for tw in QApplication.topLevelWidgets():
+                if hasattr(tw, "_tray"):
+                    tray = tw._tray
+                    break
+        if tray:
+            tray.showMessage(title, message, QSystemTrayIcon.Information, 6000)
+
     def _check_alerts_now(self):
         triggered = check_alerts(self._prices)
         for t in triggered:
             direction = "au-dessus" if t["alert_type"] == "above" else "en-dessous"
             msg = (f"{t['name']} ({t['symbol']}) est passé {direction} de "
-                   f"{t['target_price']:,.2f} € → Prix actuel : {t['current_price']:,.2f} €")
+                   f"{t['target_price']:,.2f} €\nPrix actuel : {t['current_price']:,.2f} €")
             Toast.show(self, f"🔔  {msg}", kind="info")
+            self._show_tray_msg(f"🔔 Alerte Crypto — {t['name']}", msg)
         if triggered:
             self._load_alerts()
 
