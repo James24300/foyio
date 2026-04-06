@@ -34,22 +34,35 @@ _MIN_DELAY   = 2.5              # secondes minimum entre deux appels API
 # ── Appels API CoinGecko ─────────────────────────────────────────────────────
 
 def _get(url: str, timeout: int = 10) -> dict | list | None:
-    """GET JSON depuis CoinGecko avec rate-limiting global (2.5s min entre appels)."""
+    """GET JSON depuis CoinGecko avec rate-limiting global et backoff exponentiel sur 429."""
     global _last_call_t
     with _api_lock:
         wait = _MIN_DELAY - (time.time() - _last_call_t)
         if wait > 0:
             time.sleep(wait)
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Foyio/1.0"})
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                result = json.loads(resp.read())
-            _last_call_t = time.time()
-            return result
-        except Exception as e:
-            _last_call_t = time.time()
-            logger.warning(f"CoinGecko API error: {e}")
-            return None
+        for attempt in range(4):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Foyio/1.0"})
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    result = json.loads(resp.read())
+                _last_call_t = time.time()
+                return result
+            except urllib.error.HTTPError as e:
+                _last_call_t = time.time()
+                if e.code == 429:
+                    backoff = (attempt + 1) * 10  # 10s, 20s, 30s, 40s
+                    logger.warning(f"CoinGecko 429, attente {backoff}s (essai {attempt+1}/4)")
+                    time.sleep(backoff)
+                else:
+                    logger.warning(f"CoinGecko HTTP error {e.code}: {e}")
+                    return None
+            except Exception as e:
+                _last_call_t = time.time()
+                logger.warning(f"CoinGecko API error: {e}")
+                return None
+        _last_call_t = time.time()
+        logger.warning("CoinGecko 429 persistant après 4 essais, abandon.")
+        return None
 
 
 def get_prices(coingecko_ids: list[str]) -> dict:
