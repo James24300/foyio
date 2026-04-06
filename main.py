@@ -165,7 +165,7 @@ class MainWindow(QWidget):
             ("btn_dashboard",    " Accueil",      "home.png"),
             ("btn_transactions", " Transactions", "transactions.png"),
             ("btn_budget",       " Budgets",      "budget.png"),
-            ("btn_categories",   " Catégories",   "categories.png"),
+            ("btn_savings",      " Épargne",       "epargne.png"),
             ("btn_stats",        " Statistiques", "stats.png"),
             ("btn_crypto",       " Crypto",       "money.png"),
         ]
@@ -449,7 +449,7 @@ class MainWindow(QWidget):
         self.btn_dashboard.clicked.connect(lambda: self.set_active(0))
         self.btn_transactions.clicked.connect(lambda: self.set_active(1))
         self.btn_budget.clicked.connect(lambda: self.set_active(2))
-        self.btn_categories.clicked.connect(lambda: self.set_active(3))
+        self.btn_savings.clicked.connect(lambda: self.set_active(6))
         self.btn_stats.clicked.connect(lambda: self.set_active(4))
         self.btn_crypto.clicked.connect(lambda: self.set_active(13))
         self.btn_plus.clicked.connect(self._open_plus_menu)
@@ -727,7 +727,7 @@ class MainWindow(QWidget):
         """)
         items = [
             ("transactions.png", " Récurrentes",    5),
-            ("epargne.png",      " Épargne",         6),
+            ("categories.png",   " Catégories",      3),
             ("bank.png",         " Comptes",          7),
             ("money.png",        " Prêts",            8),
             ("stats.png",        " Outils",           9),
@@ -950,7 +950,7 @@ class MainWindow(QWidget):
         end_width = 60 if expanded else 220
         labels = ["", "", "", "", "", ""] if expanded else [
             " Accueil", " Transactions", " Budgets",
-            " Catégories", " Statistiques", " Crypto",
+            " Épargne", " Statistiques", " Crypto",
         ]
         for btn, label in zip(self._nav_buttons, labels):
             btn.setText(label)
@@ -989,8 +989,8 @@ class MainWindow(QWidget):
         ]
 
         # Indices correspondant aux boutons principaux de la sidebar
-        _MAIN_INDICES = [0, 1, 2, 3, 4, 13]
-        _PLUS_INDICES = {5, 6, 7, 8, 9, 10, 11, 12, 14}
+        _MAIN_INDICES = [0, 1, 2, 6, 4, 13]
+        _PLUS_INDICES = {3, 5, 7, 8, 9, 10, 11, 12, 14}
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(_MAIN_INDICES[i] == index)
         if hasattr(self, "btn_plus"):
