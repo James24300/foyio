@@ -187,6 +187,11 @@ class CryptoView(QWidget):
         btn_row.addWidget(self._btn_edit)
         btn_row.addWidget(self._btn_del)
         btn_row.addStretch()
+        _btn_export_p = QPushButton("Exporter CSV")
+        _btn_export_p.setMinimumHeight(36)
+        _btn_export_p.setStyleSheet("background:#26292e; color:#c8cdd4; border:1px solid #3a3f47; border-radius:8px; padding:0 14px; text-align:center;")
+        _btn_export_p.clicked.connect(self._export_portfolio_csv)
+        btn_row.addWidget(_btn_export_p)
         vl.addLayout(btn_row)
 
         # Tableau
@@ -293,6 +298,15 @@ class CryptoView(QWidget):
                 border-bottom:1px solid #3a3f47; padding:6px 8px; font-size:11px; }
         """)
         vl.addWidget(self._tx_table, 1)
+
+        tx_btn_row = QHBoxLayout()
+        tx_btn_row.addStretch()
+        _btn_export_t = QPushButton("Exporter CSV")
+        _btn_export_t.setMinimumHeight(36)
+        _btn_export_t.setStyleSheet("background:#26292e; color:#c8cdd4; border:1px solid #3a3f47; border-radius:8px; padding:0 14px; text-align:center;")
+        _btn_export_t.clicked.connect(self._export_transactions_csv)
+        tx_btn_row.addWidget(_btn_export_t)
+        vl.addLayout(tx_btn_row)
         return w
 
     # ── Onglet Simulateur ─────────────────────────────────────────────────────
@@ -855,6 +869,65 @@ class CryptoView(QWidget):
         Toast.show(self, "✓  Alerte supprimée", kind="success")
 
     # ── Historique de prix (double-clic) ─────────────────────────────────────
+    # ── Export CSV ───────────────────────────────────────────────────────────
+    def _export_portfolio_csv(self):
+        from PySide6.QtWidgets import QFileDialog
+        import csv, os
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter le portefeuille", "portefeuille_crypto.csv",
+            "Fichiers CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                w = csv.writer(f, delimiter=";")
+                w.writerow(["Crypto", "Symbole", "Quantité", "Prix moyen achat (€)",
+                             "Prix actuel (€)", "Valeur (€)", "P&L (€)", "P&L (%)"])
+                for h in self._holdings:
+                    info  = self._prices.get(h.coingecko_id, {})
+                    price = info.get("price", 0)
+                    value = h.quantity * price
+                    pnl   = value - h.quantity * h.avg_buy_price
+                    pnl_p = (pnl / (h.quantity * h.avg_buy_price) * 100) if h.avg_buy_price > 0 else 0
+                    w.writerow([h.name, h.symbol,
+                                f"{h.quantity:.8f}".rstrip("0").rstrip("."),
+                                f"{h.avg_buy_price:.2f}", f"{price:.2f}",
+                                f"{value:.2f}", f"{pnl:.2f}", f"{pnl_p:.1f}"])
+            Toast.show(self, f"✓  Export réussi", kind="success")
+        except Exception as e:
+            Toast.show(self, f"✕  Erreur : {e}", kind="error")
+
+    def _export_transactions_csv(self):
+        from PySide6.QtWidgets import QFileDialog
+        import csv
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Exporter les transactions", "transactions_crypto.csv",
+            "Fichiers CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            holdings_map = {h.id: h for h in get_holdings()}
+            txs = get_transactions()
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                w = csv.writer(f, delimiter=";")
+                w.writerow(["Date", "Crypto", "Symbole", "Type",
+                             "Quantité", "Prix unitaire (€)", "Total (€)", "Note"])
+                for tx in txs:
+                    h = holdings_map.get(tx.holding_id)
+                    w.writerow([
+                        tx.date.strftime("%d/%m/%Y %H:%M"),
+                        h.name if h else "—", h.symbol if h else "—",
+                        "Achat" if tx.type == "buy" else "Vente",
+                        f"{tx.quantity:.8f}".rstrip("0").rstrip("."),
+                        f"{tx.price_eur:.2f}", f"{tx.total_eur:.2f}",
+                        tx.note or ""
+                    ])
+            Toast.show(self, f"✓  Export réussi ({len(txs)} ligne(s))", kind="success")
+        except Exception as e:
+            Toast.show(self, f"✕  Erreur : {e}", kind="error")
+
     def _on_portfolio_double_click(self, row: int, _col: int):
         item = self._portfolio_table.item(row, 1)
         if not item:
