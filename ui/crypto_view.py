@@ -570,8 +570,6 @@ class CryptoView(QWidget):
         self._load_alerts()
         self._load_watchlist()
         self._fetch_prices()
-        if self._holdings:
-            self._fetch_evolution()
 
     def refresh(self):
         self.load()
