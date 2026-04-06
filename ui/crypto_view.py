@@ -21,7 +21,7 @@ from utils.formatters import format_money
 from utils.icons import get_icon
 from ui.toast import Toast
 from services.crypto_service import (
-    get_holdings, add_holding, sell_holding, delete_holding,
+    get_holdings, add_holding, sell_holding, delete_holding, update_holding,
     get_transactions, get_prices, get_portfolio_summary,
     add_alert, get_alerts, delete_alert, check_alerts,
     simulate_dca, simulate_what_if, get_top_coins, search_coins,
@@ -55,9 +55,12 @@ class _EvoFetcher(QThread):
         self._days = days
 
     def run(self):
+        import time as _time
         result = {}
         try:
-            for h in self._holdings:
+            for i, h in enumerate(self._holdings):
+                if i > 0:
+                    _time.sleep(1.2)   # respecter le rate-limit CoinGecko
                 hist = get_price_history(h.coingecko_id, self._days)
                 if hist:
                     result[h.coingecko_id] = (h.quantity, hist)
@@ -99,10 +102,10 @@ class CryptoView(QWidget):
         self._tabs.addTab(self._build_alerts_tab(),       "  Alertes")
         layout.addWidget(self._tabs, 1)
 
-        # Rafraîchissement auto toutes les 60s
+        # Rafraîchissement auto toutes les 3 min (évite les 429 CoinGecko)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._fetch_prices)
-        self._refresh_timer.start(60_000)
+        self._refresh_timer.start(180_000)
 
         self.load()
 
@@ -166,6 +169,12 @@ class CryptoView(QWidget):
         self._btn_sell.setStyleSheet("background:#ef4444; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
         self._btn_sell.clicked.connect(self._dialog_sell)
 
+        self._btn_edit = QPushButton("  Modifier")
+        self._btn_edit.setMinimumHeight(36)
+        self._btn_edit.setEnabled(False)
+        self._btn_edit.setStyleSheet("background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
+        self._btn_edit.clicked.connect(self._dialog_edit)
+
         self._btn_del = QPushButton("  Supprimer")
         self._btn_del.setMinimumHeight(36)
         self._btn_del.setEnabled(False)
@@ -174,6 +183,7 @@ class CryptoView(QWidget):
 
         btn_row.addWidget(btn_add)
         btn_row.addWidget(self._btn_sell)
+        btn_row.addWidget(self._btn_edit)
         btn_row.addWidget(self._btn_del)
         btn_row.addStretch()
         vl.addLayout(btn_row)
@@ -206,7 +216,10 @@ class CryptoView(QWidget):
                 border-bottom:1px solid #3a3f47; padding:6px 8px; font-size:11px; }
         """)
         self._portfolio_table.itemSelectionChanged.connect(self._on_portfolio_selection)
-        vl.addWidget(self._portfolio_table, 1)
+        self._portfolio_table.cellDoubleClicked.connect(self._on_portfolio_double_click)
+        self._portfolio_table.setMinimumHeight(120)
+        self._portfolio_table.setMaximumHeight(320)
+        vl.addWidget(self._portfolio_table)
 
         # Graphique camembert
         self._pie_chart_view = QChartView()
@@ -435,6 +448,8 @@ class CryptoView(QWidget):
         self._load_transactions()
         self._load_alerts()
         self._fetch_prices()
+        if self._holdings:
+            self._fetch_evolution()
 
     def refresh(self):
         self.load()
@@ -452,8 +467,6 @@ class CryptoView(QWidget):
         self._load_portfolio()
         self._update_summary()
         self._check_alerts_now()
-        if self._holdings:
-            self._fetch_evolution()
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
@@ -586,6 +599,7 @@ class CryptoView(QWidget):
     def _on_portfolio_selection(self):
         has_sel = bool(self._portfolio_table.selectedItems())
         self._btn_sell.setEnabled(has_sel)
+        self._btn_edit.setEnabled(has_sel)
         self._btn_del.setEnabled(has_sel)
 
     def _selected_holding(self):
@@ -749,6 +763,59 @@ class CryptoView(QWidget):
         btn_ok.clicked.connect(_do_sell)
         dlg.exec()
 
+    def _dialog_edit(self):
+        h = self._selected_holding()
+        if not h:
+            return
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Modifier — {h.name}")
+        dlg.setMinimumWidth(360)
+        dlg.setStyleSheet("background:#1e2124; color:#c8cdd4;")
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(10)
+
+        def lbl(t):
+            l = QLabel(t); l.setStyleSheet("font-size:11px; color:#7a8494;"); return l
+
+        qty_spin = QDoubleSpinBox()
+        qty_spin.setRange(0.000001, 999999)
+        qty_spin.setDecimals(8)
+        qty_spin.setValue(h.quantity)
+        qty_spin.setMinimumHeight(34)
+
+        price_spin = QDoubleSpinBox()
+        price_spin.setRange(0.000001, 9_999_999)
+        price_spin.setDecimals(2)
+        price_spin.setSuffix(" €")
+        price_spin.setValue(h.avg_buy_price)
+        price_spin.setMinimumHeight(34)
+
+        vl.addWidget(lbl(f"Crypto : {h.name} ({h.symbol})"))
+        vl.addSpacing(4)
+        vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
+        vl.addWidget(lbl("Prix moyen d'achat :")); vl.addWidget(price_spin)
+
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton("  Enregistrer")
+        btn_ok.setMinimumHeight(36)
+        btn_ok.setStyleSheet("background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:700;")
+        btn_cancel = QPushButton("Annuler")
+        btn_cancel.setMinimumHeight(36)
+        btn_row.addWidget(btn_ok); btn_row.addWidget(btn_cancel)
+        vl.addLayout(btn_row)
+        btn_cancel.clicked.connect(dlg.reject)
+
+        def _do_edit():
+            update_holding(h.id, qty_spin.value(), price_spin.value())
+            dlg.accept()
+            self.load()
+            Toast.show(self, f"✓  {h.name} mis à jour", kind="success")
+
+        btn_ok.clicked.connect(_do_edit)
+        dlg.exec()
+
     def _delete_holding(self):
         h = self._selected_holding()
         if not h:
@@ -779,6 +846,190 @@ class CryptoView(QWidget):
         delete_alert(alert_id)
         self._load_alerts()
         Toast.show(self, "✓  Alerte supprimée", kind="success")
+
+    # ── Historique de prix (double-clic) ─────────────────────────────────────
+    def _on_portfolio_double_click(self, row: int, _col: int):
+        item = self._portfolio_table.item(row, 1)
+        if not item:
+            return
+        holding_id = item.data(Qt.UserRole)
+        h = next((x for x in self._holdings if x.id == holding_id), None)
+        if h:
+            self._dialog_history(h)
+
+    def _dialog_history(self, h):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+        info  = self._prices.get(h.coingecko_id, {})
+        price = info.get("price", 0)
+        chg   = info.get("change_24h", 0)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"{h.name} ({h.symbol})")
+        dlg.setMinimumSize(600, 460)
+        dlg.setStyleSheet("background:#1e2124; color:#c8cdd4;")
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(12)
+
+        # En-tête
+        header = QHBoxLayout()
+        name_lbl = QLabel(f"{h.name}  <span style='color:#7a8494;font-size:13px;'>({h.symbol})</span>")
+        name_lbl.setStyleSheet("font-size:18px; font-weight:700; color:#e0e4ea;")
+        name_lbl.setTextFormat(Qt.RichText)
+        header.addWidget(name_lbl)
+        header.addStretch()
+
+        chg_color = "#22c55e" if chg >= 0 else "#ef4444"
+        chg_sign  = "+" if chg >= 0 else ""
+        price_lbl = QLabel(
+            f"<span style='font-size:20px; font-weight:700; color:#e0e4ea;'>"
+            f"{price:,.2f} €</span>"
+            f"  <span style='font-size:13px; color:{chg_color};'>"
+            f"{chg_sign}{chg:.2f}% 24h</span>"
+        )
+        price_lbl.setTextFormat(Qt.RichText)
+        header.addWidget(price_lbl)
+        vl.addLayout(header)
+
+        # Infos holding
+        pnl   = h.quantity * price - h.quantity * h.avg_buy_price
+        pnl_p = (pnl / (h.quantity * h.avg_buy_price) * 100) if h.avg_buy_price > 0 else 0
+        pnl_c = "#22c55e" if pnl >= 0 else "#ef4444"
+        pnl_s = "+" if pnl >= 0 else ""
+        info_row = QHBoxLayout()
+        for label, value in [
+            ("Quantité",     f"{h.quantity:,.8f}".rstrip("0").rstrip(".")),
+            ("Prix moyen",   f"{h.avg_buy_price:,.2f} €"),
+            ("Valeur",       f"{h.quantity * price:,.2f} €"),
+            ("P&L",          f"{pnl_s}{pnl:,.2f} € ({pnl_s}{pnl_p:.1f}%)"),
+        ]:
+            card = QLabel(f"<div style='color:#7a8494;font-size:10px;'>{label}</div>"
+                          f"<div style='color:{'#c8cdd4' if label != 'P&L' else pnl_c};"
+                          f"font-size:13px;font-weight:600;'>{value}</div>")
+            card.setTextFormat(Qt.RichText)
+            card.setStyleSheet("background:#26292e; border-radius:8px; padding:10px 14px;")
+            info_row.addWidget(card)
+        vl.addLayout(info_row)
+
+        # Sélecteur de période
+        period_row = QHBoxLayout()
+        period_row.addStretch()
+        _period_btns: dict[int, QPushButton] = {}
+        _current_days = [30]
+
+        chart_view = QChartView()
+        chart_view.setRenderHint(QPainter.Antialiasing)
+        chart_view.setStyleSheet("background:transparent; border:none;")
+        chart_view.setMinimumHeight(220)
+
+        def _load_chart(days: int):
+            _current_days[0] = days
+            for d, b in _period_btns.items():
+                b.setChecked(d == days)
+
+            def _do():
+                return get_price_history(h.coingecko_id, days)
+
+            import threading
+            result = [None]
+            done_event = __import__("threading").Event()
+
+            def _worker():
+                result[0] = get_price_history(h.coingecko_id, days)
+                done_event.set()
+
+            t = threading.Thread(target=_worker, daemon=True)
+            t.start()
+            # Attente non-bloquante via QTimer
+            def _check():
+                if not done_event.is_set():
+                    QTimer.singleShot(50, _check)
+                    return
+                _draw(result[0] or [])
+            QTimer.singleShot(50, _check)
+
+        def _draw(history):
+            if len(history) < 2:
+                return
+            series = QLineSeries()
+            pen = QPen(QColor("#3b82f6"))
+            pen.setWidth(2)
+            series.setPen(pen)
+            for ts_ms, p in history:
+                series.append(ts_ms, p)
+            # Aire sous la courbe
+            zero = QLineSeries()
+            for ts_ms, _ in history:
+                zero.append(ts_ms, 0)
+            area = QAreaSeries(series, zero)
+            from PySide6.QtGui import QLinearGradient, QGradient
+            grad = QLinearGradient(0, 0, 0, 1)
+            grad.setCoordinateMode(QGradient.ObjectMode)
+            grad.setColorAt(0.0, QColor(59, 130, 246, 80))
+            grad.setColorAt(1.0, QColor(59, 130, 246, 0))
+            area.setBrush(grad)
+            area.setPen(QPen(Qt.NoPen))
+
+            chart = QChart()
+            chart.addSeries(area)
+            chart.addSeries(series)
+            chart.setBackgroundBrush(QColor("#1e2124"))
+            chart.setBackgroundRoundness(0)
+            chart.legend().hide()
+            chart.layout().setContentsMargins(0, 0, 0, 0)
+
+            days = _current_days[0]
+            ax = QDateTimeAxis()
+            ax.setFormat("dd/MM" if days <= 90 else "MMM yy")
+            ax.setLabelsColor(QColor("#7a8494"))
+            ax.setGridLineColor(QColor("#2e3238"))
+            ax.setTickCount(min(6, len(history)))
+            chart.addAxis(ax, Qt.AlignBottom)
+            series.attachAxis(ax)
+            area.attachAxis(ax)
+
+            prices_only = [p for _, p in history]
+            ay = QValueAxis()
+            ay.setRange(min(prices_only) * 0.97, max(prices_only) * 1.03)
+            ay.setLabelsColor(QColor("#7a8494"))
+            ay.setGridLineColor(QColor("#2e3238"))
+            ay.setLabelFormat("%.2f €")
+            ay.setTickCount(4)
+            chart.addAxis(ay, Qt.AlignLeft)
+            series.attachAxis(ay)
+            area.attachAxis(ay)
+
+            chart_view.setChart(chart)
+            # Garder les références pour éviter GC
+            chart_view._series = series
+            chart_view._area   = area
+            chart_view._zero   = zero
+
+        for label, days in [("7J", 7), ("30J", 30), ("90J", 90), ("1AN", 365)]:
+            btn = QPushButton(label)
+            btn.setFixedSize(48, 26)
+            btn.setCheckable(True)
+            btn.setChecked(days == 30)
+            btn.setStyleSheet("""
+                QPushButton { background:#26292e; color:#7a8494; border:1px solid #3a3f47;
+                    border-radius:6px; font-size:11px; font-weight:600; }
+                QPushButton:hover { color:#c8cdd4; }
+                QPushButton:checked { background:#3b82f6; color:#fff; border:none; }
+            """)
+            btn.clicked.connect(lambda _, d=days: _load_chart(d))
+            period_row.addWidget(btn)
+            _period_btns[days] = btn
+
+        vl.addLayout(period_row)
+        vl.addWidget(chart_view, 1)
+
+        btn_close = QPushButton("Fermer")
+        btn_close.setMinimumHeight(34)
+        btn_close.clicked.connect(dlg.accept)
+        vl.addWidget(btn_close)
+
+        _load_chart(30)
+        dlg.exec()
 
     # ── Évolution portefeuille ────────────────────────────────────────────────
     def _set_evo_period(self, days: int):
