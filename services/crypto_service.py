@@ -69,7 +69,8 @@ def _get(url: str, timeout: int = 10) -> dict | list | None:
 def get_prices(coingecko_ids: list[str]) -> dict:
     """
     Retourne {id: {"price": float, "change_24h": float}} pour chaque id.
-    Utilise le cache TTL=60s.
+    Utilise /coins/markets (un seul appel qui retourne prix ET image).
+    Cache TTL=120s.
     """
     if not coingecko_ids:
         return {}
@@ -80,18 +81,22 @@ def get_prices(coingecko_ids: list[str]) -> dict:
 
     if to_fetch:
         ids_param = ",".join(to_fetch)
-        url = (f"{COINGECKO_BASE}/simple/price"
-               f"?ids={ids_param}&vs_currencies=eur"
-               f"&include_24hr_change=true&include_market_cap=true")
+        url = (f"{COINGECKO_BASE}/coins/markets"
+               f"?vs_currency=eur&ids={ids_param}&per_page=250&page=1"
+               f"&price_change_percentage=24h")
         data = _get(url)
         if data:
-            for cid, info in data.items():
+            for coin in data:
+                cid = coin["id"]
                 _price_cache[cid] = {
-                    "price":      info.get("eur", 0),
-                    "change_24h": info.get("eur_24h_change", 0),
-                    "market_cap": info.get("eur_market_cap", 0),
+                    "price":      coin.get("current_price", 0) or 0,
+                    "change_24h": coin.get("price_change_percentage_24h", 0) or 0,
+                    "market_cap": coin.get("market_cap", 0) or 0,
                     "ts":         now,
                 }
+                # Image récupérée en même temps — aucun appel supplémentaire
+                if coin.get("image"):
+                    _image_url_cache[cid] = coin["image"]
 
     return {
         cid: {k: v for k, v in _price_cache[cid].items() if k != "ts"}
@@ -101,7 +106,9 @@ def get_prices(coingecko_ids: list[str]) -> dict:
 
 
 def get_coin_image_urls(coingecko_ids: list[str]) -> dict[str, str]:
-    """Retourne {id: image_url} depuis coins/markets (batch, mis en cache)."""
+    """Retourne {id: image_url} — utilise le cache rempli par get_prices()."""
+    # Si les images ne sont pas encore en cache (logos chargés avant les prix),
+    # on fait un appel coins/markets uniquement pour les IDs manquants.
     to_fetch = [i for i in coingecko_ids if i not in _image_url_cache]
     if not to_fetch:
         return {cid: _image_url_cache[cid] for cid in coingecko_ids if cid in _image_url_cache}
