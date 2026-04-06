@@ -346,3 +346,18 @@ def migrate_database():
                 )"""))
             conn.commit()
         logger.info("Migration v6.3 : table ideas créée")
+
+    # v6.4 : table watchlist
+    if not _table_exists(inspector, "watchlist"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS watchlist (
+                    id INTEGER PRIMARY KEY,
+                    coingecko_id VARCHAR(100) NOT NULL UNIQUE,
+                    symbol VARCHAR(20) NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    added_at DATETIME NOT NULL,
+                    note VARCHAR(500)
+                )"""))
+            conn.commit()
+        logger.info("Migration v6.4 : table watchlist créée")

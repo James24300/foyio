@@ -246,3 +246,15 @@ class Idea(Base):
     submitted_at = Column(DateTime,     nullable=False)
     read         = Column(Boolean,      default=False)
     account_id   = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
+
+class WatchlistItem(Base):
+    """Crypto surveillée sans position ouverte."""
+    __tablename__ = "watchlist"
+
+    id            = Column(Integer,      primary_key=True)
+    coingecko_id  = Column(String(100),  nullable=False, unique=True)
+    symbol        = Column(String(20),   nullable=False)
+    name          = Column(String(100),  nullable=False)
+    added_at      = Column(DateTime,     nullable=False)
+    note          = Column(String(500),  nullable=True)
