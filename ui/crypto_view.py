@@ -686,7 +686,7 @@ class CryptoView(QWidget):
         self._dca_table.verticalHeader().setDefaultSectionSize(48)
         hdr = self._dca_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
-        for col, w_ in [(1, 110), (2, 80), (3, 120), (4, 100), (5, 90), (6, 200)]:
+        for col, w_ in [(1, 110), (2, 80), (3, 120), (4, 100), (5, 90), (6, 260)]:
             hdr.setSectionResizeMode(col, QHeaderView.Fixed)
             self._dca_table.setColumnWidth(col, w_)
         self._dca_table.setStyleSheet("""
@@ -770,45 +770,39 @@ class CryptoView(QWidget):
             cell.setStyleSheet("background:transparent;")
             hl = QHBoxLayout(cell)
             hl.setContentsMargins(4, 4, 4, 4)
-            hl.setSpacing(6)
+            hl.setSpacing(4)
+
+            _btn_s = "border:none; border-radius:6px; font-size:11px; font-weight:600; text-align:center; padding:0 8px;"
 
             btn_exec = QPushButton("Exécuter")
-            btn_exec.setFixedHeight(30)
-            btn_exec.setMinimumWidth(76)
+            btn_exec.setFixedHeight(28)
+            btn_exec.setFixedWidth(74)
             btn_exec.setEnabled(plan.active)
-            btn_exec.setStyleSheet(
-                "background:#3b82f6; color:#fff; border:none; border-radius:6px;"
-                "font-size:11px; font-weight:600; text-align:center;"
-            )
+            btn_exec.setStyleSheet(f"background:#3b82f6; color:#fff; {_btn_s}")
             btn_exec.clicked.connect(lambda checked, pid=plan.id: self._execute_dca(pid))
 
             btn_toggle = QPushButton("Désactiver" if plan.active else "Activer")
-            btn_toggle.setFixedHeight(30)
-            btn_toggle.setMinimumWidth(76)
-            btn_toggle.setStyleSheet(
-                "background:#f59e0b; color:#000; border:none; border-radius:6px;"
-                "font-size:11px; font-weight:600; text-align:center;"
-            )
+            btn_toggle.setFixedHeight(28)
+            btn_toggle.setFixedWidth(80)
+            btn_toggle.setStyleSheet(f"background:#f59e0b; color:#000; {_btn_s}")
             btn_toggle.clicked.connect(lambda checked, pid=plan.id: self._toggle_dca(pid))
 
             btn_del = QPushButton("Suppr.")
-            btn_del.setFixedHeight(30)
-            btn_del.setMinimumWidth(60)
-            btn_del.setStyleSheet(
-                "background:#ef4444; color:#fff; border:none; border-radius:6px;"
-                "font-size:11px; font-weight:600; text-align:center;"
-            )
+            btn_del.setFixedHeight(28)
+            btn_del.setFixedWidth(60)
+            btn_del.setStyleSheet(f"background:#ef4444; color:#fff; {_btn_s}")
             btn_del.clicked.connect(lambda checked, pid=plan.id: self._delete_dca(pid))
 
             hl.addWidget(btn_exec)
             hl.addWidget(btn_toggle)
             hl.addWidget(btn_del)
+            hl.addStretch()
             self._dca_table.setCellWidget(row, 6, cell)
 
     def _add_dca_plan(self):
         holding_id = self._dca_holding_combo.currentData()
         if holding_id is None:
-            Toast(self, "Aucune crypto sélectionnée.", "warning").show()
+            Toast.show(self, "Aucune crypto sélectionnée.", "warning")
             return
         amount = self._dca_amount.value()
         day    = self._dca_day.value()
@@ -816,7 +810,7 @@ class CryptoView(QWidget):
         add_dca_plan(holding_id, amount, day, note)
         self._dca_note.clear()
         self._load_dca()
-        Toast(self, "Plan DCA créé.", "success").show()
+        Toast.show(self, "Plan DCA créé.", "success")
 
     def _execute_dca(self, plan_id: int):
         dlg = QDialog(self)
@@ -860,15 +854,15 @@ class CryptoView(QWidget):
 
         result = execute_dca(plan_id, link_financial=chk_link.isChecked())
         if result is None:
-            Toast(self, "Impossible de récupérer le prix actuel.", "error").show()
+            Toast.show(self, "Impossible de récupérer le prix actuel.", "error")
             return
 
-        Toast(
+        Toast.show(
             self,
             f"Acheté {result['qty']:.6f} {result['symbol'].upper()} "
             f"à {result['price']:.2f} € — Total : {result['total']:.2f} €",
             "success"
-        ).show()
+        )
         self._holdings = get_holdings()
         self._load_portfolio()
         self._load_transactions()
@@ -877,7 +871,7 @@ class CryptoView(QWidget):
     def _toggle_dca(self, plan_id: int):
         new_state = toggle_dca_plan(plan_id)
         self._load_dca()
-        Toast(self, f"Plan {'activé' if new_state else 'désactivé'}.", "success").show()
+        Toast.show(self, f"Plan {'activé' if new_state else 'désactivé'}.", "success")
 
     def _delete_dca(self, plan_id: int):
         rep = QMessageBox.question(
@@ -888,7 +882,7 @@ class CryptoView(QWidget):
         if rep == QMessageBox.Yes:
             delete_dca_plan(plan_id)
             self._load_dca()
-            Toast(self, "Plan supprimé.", "success").show()
+            Toast.show(self, "Plan supprimé.", "success")
 
     def _check_due_dca(self):
         """Vérifie les plans DCA dus aujourd'hui et envoie une notification systray."""
@@ -1988,7 +1982,7 @@ class CryptoView(QWidget):
                 w.writerow(["", "", "", "", "", "", "PLUS-VALUES", "", f"{r['total_gains']:.2f}"])
                 w.writerow(["", "", "", "", "", "", "MOINS-VALUES", "", f"{r['total_losses']:.2f}"])
                 w.writerow(["", "", "", "", "", "", "NET IMPOSABLE", "", f"{r['net']:.2f}"])
-            Toast(self, f"Rapport exporté : {path}", "success").show()
+            Toast.show(self, f"Rapport exporté : {path}", "success")
 
         btn_calc.clicked.connect(_run_calc)
         btn_export_fifo.clicked.connect(_export_fifo_csv)
