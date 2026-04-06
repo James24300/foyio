@@ -59,12 +59,9 @@ class _EvoFetcher(QThread):
         self._days = days
 
     def run(self):
-        import time as _time
         result = {}
         try:
-            for i, h in enumerate(self._holdings):
-                if i > 0:
-                    _time.sleep(1.2)   # respecter le rate-limit CoinGecko
+            for h in self._holdings:
                 hist = get_price_history(h.coingecko_id, self._days)
                 if hist:
                     result[h.coingecko_id] = (h.quantity, hist)
@@ -83,17 +80,12 @@ class _CompFetcher(QThread):
         self._days = days
 
     def run(self):
-        import time as _time
         result = {}
         try:
             result["btc"] = get_price_history("bitcoin", self._days)
-            _time.sleep(1.2)
             result["eth"] = get_price_history("ethereum", self._days)
-            # Portfolio : agréger valeur totale par jour
             daily: dict[int, float] = {}
-            for i, h in enumerate(self._holdings):
-                if i > 0:
-                    _time.sleep(1.2)
+            for h in self._holdings:
                 hist = get_price_history(h.coingecko_id, self._days)
                 for ts_ms, price in hist:
                     day = (ts_ms // 86_400_000) * 86_400_000
@@ -121,6 +113,7 @@ class CryptoView(QWidget):
         self._prices: dict = {}
         self._holdings: list = []
         self._fetcher = None
+        self._threads: list = []   # garde les threads en vie jusqu'à leur fin
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -583,13 +576,19 @@ class CryptoView(QWidget):
     def refresh(self):
         self.load()
 
+    def _start_thread(self, thread):
+        """Démarre un thread en gardant sa référence pour éviter le GC."""
+        self._threads = [t for t in self._threads if t.isRunning()]
+        self._threads.append(thread)
+        thread.start()
+
     def _fetch_prices(self):
         ids = list({h.coingecko_id for h in self._holdings} | set(get_watchlist_ids()))
         if not ids:
             return
         self._fetcher = _PriceFetcher(ids)
         self._fetcher.done.connect(self._on_prices_received)
-        self._fetcher.start()
+        self._start_thread(self._fetcher)
 
     def _on_prices_received(self, prices: dict):
         self._prices = prices
@@ -1285,7 +1284,7 @@ class CryptoView(QWidget):
         self._top_table.setRowCount(0)
         self._top_fetcher = _TopFetcher()
         self._top_fetcher.done.connect(self._on_top_received)
-        self._top_fetcher.start()
+        self._start_thread(self._top_fetcher)
 
     def _on_top_received(self, coins: list):
         self._top_loading.hide()
@@ -1683,7 +1682,7 @@ class CryptoView(QWidget):
     def _fetch_evolution(self):
         self._evo_fetcher = _EvoFetcher(self._holdings, self._evo_period)
         self._evo_fetcher.done.connect(self._on_evo_received)
-        self._evo_fetcher.start()
+        self._start_thread(self._evo_fetcher)
 
     def _on_evo_received(self, data: dict):
         """Reconstruit le graphique d'évolution à partir des historiques reçus."""
@@ -1788,7 +1787,7 @@ class CryptoView(QWidget):
         self._cmp_status.setText("Chargement des données…")
         self._comp_fetcher = _CompFetcher(self._holdings, days)
         self._comp_fetcher.done.connect(self._on_comp_received)
-        self._comp_fetcher.start()
+        self._start_thread(self._comp_fetcher)
 
     def _on_comp_received(self, data: dict):
         def _normalize(series_data):

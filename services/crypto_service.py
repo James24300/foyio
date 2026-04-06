@@ -17,25 +17,39 @@ logger = logging.getLogger(__name__)
 
 # ── Cache prix (évite les appels répétés) ────────────────────────────────────
 _price_cache: dict = {}          # {coingecko_id: {"price": float, "change_24h": float, "ts": float}}
-_CACHE_TTL = 120                 # secondes (augmenté pour limiter les 429)
+_CACHE_TTL = 120                 # secondes
 
 _history_cache: dict = {}        # {(coingecko_id, days): {"data": list, "ts": float}}
-_HISTORY_CACHE_TTL = 600         # 10 minutes
+_HISTORY_CACHE_TTL = 1800        # 30 minutes
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+
+# ── Rate limiter global ───────────────────────────────────────────────────────
+import threading as _threading
+_api_lock    = _threading.Lock()
+_last_call_t = 0.0
+_MIN_DELAY   = 2.5              # secondes minimum entre deux appels API
 
 
 # ── Appels API CoinGecko ─────────────────────────────────────────────────────
 
-def _get(url: str, timeout: int = 8) -> dict | list | None:
-    """GET JSON depuis CoinGecko. Retourne None en cas d'erreur."""
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Foyio/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read())
-    except Exception as e:
-        logger.warning(f"CoinGecko API error: {e}")
-        return None
+def _get(url: str, timeout: int = 10) -> dict | list | None:
+    """GET JSON depuis CoinGecko avec rate-limiting global (2.5s min entre appels)."""
+    global _last_call_t
+    with _api_lock:
+        wait = _MIN_DELAY - (time.time() - _last_call_t)
+        if wait > 0:
+            time.sleep(wait)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Foyio/1.0"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                result = json.loads(resp.read())
+            _last_call_t = time.time()
+            return result
+        except Exception as e:
+            _last_call_t = time.time()
+            logger.warning(f"CoinGecko API error: {e}")
+            return None
 
 
 def get_prices(coingecko_ids: list[str]) -> dict:
