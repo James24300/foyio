@@ -55,9 +55,12 @@ class _EvoFetcher(QThread):
         self._days = days
 
     def run(self):
+        import time as _time
         result = {}
         try:
-            for h in self._holdings:
+            for i, h in enumerate(self._holdings):
+                if i > 0:
+                    _time.sleep(1.2)   # respecter le rate-limit CoinGecko
                 hist = get_price_history(h.coingecko_id, self._days)
                 if hist:
                     result[h.coingecko_id] = (h.quantity, hist)
@@ -99,10 +102,10 @@ class CryptoView(QWidget):
         self._tabs.addTab(self._build_alerts_tab(),       "  Alertes")
         layout.addWidget(self._tabs, 1)
 
-        # Rafraîchissement auto toutes les 60s
+        # Rafraîchissement auto toutes les 3 min (évite les 429 CoinGecko)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._fetch_prices)
-        self._refresh_timer.start(60_000)
+        self._refresh_timer.start(180_000)
 
         self.load()
 
@@ -436,6 +439,8 @@ class CryptoView(QWidget):
         self._load_transactions()
         self._load_alerts()
         self._fetch_prices()
+        if self._holdings:
+            self._fetch_evolution()
 
     def refresh(self):
         self.load()
@@ -453,8 +458,6 @@ class CryptoView(QWidget):
         self._load_portfolio()
         self._update_summary()
         self._check_alerts_now()
-        if self._holdings:
-            self._fetch_evolution()
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
