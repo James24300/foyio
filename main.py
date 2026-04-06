@@ -58,6 +58,7 @@ from ui.about_view import AboutView
 from ui.features_view import FeaturesView
 from ui.settings_view import SettingsView
 from ui.loans_view import LoansView
+from ui.crypto_view import CryptoView
 from services.update_service import get_current_version
 from ui.password_dialog import PasswordDialog
 
@@ -173,6 +174,7 @@ class MainWindow(QWidget):
             ("btn_settings",     " Paramètres",      "other.png"),
             ("btn_features",     " Fonctionnalités","reports.png"),
             ("btn_about",        " À propos",        "other.png"),
+            ("btn_crypto",       " Crypto",           "money.png"),
         ]
 
         self._nav_buttons = []
@@ -408,6 +410,7 @@ class MainWindow(QWidget):
         self.accounts     = AccountsView(self)
         self.savings      = SavingsView()
         self.loans        = LoansView()
+        self.crypto       = CryptoView()
         self.tools        = ToolsView()
         self.about        = AboutView()
         self.settings_v   = SettingsView()
@@ -417,7 +420,8 @@ class MainWindow(QWidget):
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
             self.savings, self.accounts, self.loans,
-            self.tools, self.settings_v, self.features_v, self.about
+            self.tools, self.settings_v, self.features_v, self.about,
+            self.crypto
         ]:
             self.stack.addTab(view, "")
 
@@ -450,6 +454,7 @@ class MainWindow(QWidget):
         self.btn_settings.clicked.connect(lambda: self.set_active(10))
         self.btn_features.clicked.connect(lambda: self.set_active(11))
         self.btn_about.clicked.connect(lambda: self.set_active(12))
+        self.btn_crypto.clicked.connect(lambda: self.set_active(13))
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -533,6 +538,7 @@ class MainWindow(QWidget):
             ]),
             ("Actions", [
                 ("Ctrl+N",  "Nouvelle transaction"),
+                ("Ctrl+F",  "Recherche globale"),
                 ("Ctrl+K",  "Ouvrir la calculatrice"),
                 ("Ctrl+?",  "Afficher cette aide"),
             ]),
@@ -902,11 +908,11 @@ class MainWindow(QWidget):
     def toggle_sidebar(self):
         expanded = self.sidebar_expanded
         end_width = 60 if expanded else 220
-        labels = ["", "", "", "", "", "", "", "", "", "", "", "", ""] if expanded else [
+        labels = ["", "", "", "", "", "", "", "", "", "", "", "", "", ""] if expanded else [
             " Accueil", " Transactions", " Budgets",
             " Catégories", " Statistiques", " Récurrentes",
             " Épargne", " Comptes", " Prêts", " Outils",
-            " Paramètres", " Fonctionnalités", " À propos"
+            " Paramètres", " Fonctionnalités", " À propos", " Crypto",
         ]
         for btn, label in zip(self._nav_buttons, labels):
             btn.setText(label)
@@ -938,6 +944,7 @@ class MainWindow(QWidget):
             ("other.png",        "Paramètres"),
             ("other.png",        "Fonctionnalités"),
             ("other.png",        "À propos"),
+            ("money.png",        "Crypto-monnaies"),
         ]
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
@@ -1013,6 +1020,7 @@ class MainWindow(QWidget):
         if hasattr(self, "stats"):        self.stats.refresh()
         if hasattr(self, "budget"):       self.budget.refresh()
         if hasattr(self, "recurring"):    self.recurring.load()
+        if hasattr(self, "crypto"):       self.crypto.refresh()
 
 
 
