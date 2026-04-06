@@ -378,3 +378,13 @@ def migrate_database():
                 )"""))
             conn.commit()
         logger.info("Migration v6.5 : table crypto_dca créée")
+
+    # v6.6 : payment_day sur savings_goals
+    inspector = inspect(engine)
+    if _table_exists(inspector, "savings_goals") and \
+       not _col_exists(inspector, "savings_goals", "payment_day"):
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE savings_goals ADD COLUMN payment_day INTEGER"))
+            conn.commit()
+        logger.info("Migration v6.6 : payment_day ajouté sur savings_goals")

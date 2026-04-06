@@ -1186,6 +1186,7 @@ class SavingsView(QWidget):
                 color=data["color"],
                 deadline=data.get("deadline"),
                 monthly_target=data.get("monthly_target", 0),
+                payment_day=data.get("payment_day"),
                 category_id=data.get("category_id"),
             )
             self._reload_goals()
@@ -1282,10 +1283,20 @@ class SavingsView(QWidget):
         monthly_spin.setMinimumHeight(34)
         monthly_spin.setSpecialValueText("Aucun")
 
+        from PySide6.QtWidgets import QSpinBox as _QSB
+        payment_day_spin = _QSB()
+        payment_day_spin.setRange(0, 28)
+        payment_day_spin.setSpecialValueText("Pas de jour fixe")
+        payment_day_spin.setSuffix(" du mois")
+        payment_day_spin.setMinimumHeight(34)
+        current_pd = getattr(goal, "payment_day", None) if goal else None
+        payment_day_spin.setValue(current_pd if current_pd else 0)
+
         form.addRow(lbl("Nom :"),                  name_inp)
         form.addRow(lbl("Objectif :"),             target_spin)
         form.addRow(lbl("Épargne actuelle :"),     current_spin)
         form.addRow(lbl("Versement mensuel :"),    monthly_spin)
+        form.addRow(lbl("Jour de versement :"),    payment_day_spin)
 
         # Sélecteur de catégorie liée
         from db import Session as _S
@@ -1325,11 +1336,13 @@ class SavingsView(QWidget):
         def get_data():
             from datetime import date
             qd = deadline_edit.date()
+            pd = payment_day_spin.value()
             return {
                 "name":           name_inp.text().strip(),
                 "target_amount":  target_spin.value(),
                 "current_amount": current_spin.value(),
                 "monthly_target": monthly_spin.value(),
+                "payment_day":    pd if pd > 0 else None,
                 "category_id":    cat_combo.currentData(),
                 "color":          color_combo.currentData(),
                 "deadline":       date(qd.year(), qd.month(), qd.day()) if deadline_check.isChecked() else None,
