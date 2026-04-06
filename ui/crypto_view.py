@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget,
     QDialog, QFormLayout, QLineEdit, QDoubleSpinBox, QComboBox,
     QSpinBox, QMessageBox, QFrame, QScrollArea, QSizePolicy,
-    QProgressBar
+    QProgressBar, QCheckBox
 )
 from PySide6.QtCharts import (
     QChart, QChartView, QLineSeries, QPieSeries, QValueAxis, QAreaSeries
@@ -24,7 +24,7 @@ from services.crypto_service import (
     get_transactions, get_prices, get_portfolio_summary,
     add_alert, get_alerts, delete_alert, check_alerts,
     simulate_dca, simulate_what_if, get_top_coins, search_coins,
-    get_price_history,
+    get_price_history, link_to_transaction,
 )
 
 
@@ -571,9 +571,14 @@ class CryptoView(QWidget):
         price_spin = QDoubleSpinBox(); price_spin.setRange(0.000001, 9_999_999); price_spin.setDecimals(2); price_spin.setSuffix(" €"); price_spin.setValue(0); price_spin.setMinimumHeight(34)
         note_edit = QLineEdit(); note_edit.setPlaceholderText("Note (optionnel)"); note_edit.setMinimumHeight(34)
 
+        chk_link = QCheckBox("Enregistrer comme dépense dans les transactions")
+        chk_link.setChecked(True)
+        chk_link.setStyleSheet("color:#c8cdd4; font-size:12px;")
+
         vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
         vl.addWidget(lbl("Prix d'achat unitaire :")); vl.addWidget(price_spin)
         vl.addWidget(lbl("Note :")); vl.addWidget(note_edit)
+        vl.addWidget(chk_link)
 
         # Pré-remplir le prix depuis l'API
         def _on_coin_selected(idx):
@@ -621,6 +626,11 @@ class CryptoView(QWidget):
             if qty <= 0 or price <= 0:
                 Toast.show(self, "✕  Quantité et prix doivent être > 0", kind="error"); return
             add_holding(coin["symbol"], coin["name"], coin["id"], qty, price)
+            if chk_link.isChecked():
+                link_to_transaction(
+                    qty * price, "expense",
+                    f"Achat {qty} {coin['symbol']} à {price:.2f} €"
+                )
             dlg.accept()
             self.load()
             Toast.show(self, f"✓  {coin['name']} ajouté au portefeuille", kind="success")
@@ -650,9 +660,14 @@ class CryptoView(QWidget):
         price_spin = QDoubleSpinBox(); price_spin.setRange(0.000001, 9_999_999); price_spin.setDecimals(2); price_spin.setSuffix(" €"); price_spin.setValue(round(price, 2)); price_spin.setMinimumHeight(34)
         note_edit = QLineEdit(); note_edit.setPlaceholderText("Note (optionnel)"); note_edit.setMinimumHeight(34)
 
+        chk_link_sell = QCheckBox("Enregistrer comme revenu dans les transactions")
+        chk_link_sell.setChecked(True)
+        chk_link_sell.setStyleSheet("color:#c8cdd4; font-size:12px;")
+
         vl.addWidget(lbl(f"Quantité disponible : {h.quantity}")); vl.addWidget(qty_spin)
         vl.addWidget(lbl("Prix de vente unitaire :")); vl.addWidget(price_spin)
         vl.addWidget(lbl("Note :")); vl.addWidget(note_edit)
+        vl.addWidget(chk_link_sell)
 
         btn_row = QHBoxLayout()
         btn_ok = QPushButton("  Vendre"); btn_ok.setMinimumHeight(36); btn_ok.setStyleSheet("background:#ef4444; color:#fff; border:none; border-radius:8px; font-weight:700;")
@@ -662,9 +677,16 @@ class CryptoView(QWidget):
         btn_cancel.clicked.connect(dlg.reject)
 
         def _do_sell():
-            ok = sell_holding(h.id, qty_spin.value(), price_spin.value(), note_edit.text())
+            qty   = qty_spin.value()
+            sp    = price_spin.value()
+            ok = sell_holding(h.id, qty, sp, note_edit.text())
             if not ok:
                 Toast.show(self, "✕  Quantité insuffisante", kind="error"); return
+            if chk_link_sell.isChecked():
+                link_to_transaction(
+                    qty * sp, "income",
+                    f"Vente {qty} {h.symbol} à {sp:.2f} €"
+                )
             dlg.accept(); self.load()
             Toast.show(self, f"✓  Vente enregistrée", kind="success")
 

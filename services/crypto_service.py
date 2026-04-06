@@ -10,7 +10,7 @@ import json
 from datetime import datetime
 
 from db import Session, safe_session
-from models import CryptoHolding, CryptoTransaction, CryptoAlert
+from models import CryptoHolding, CryptoTransaction, CryptoAlert, Category
 import account_state
 
 logger = logging.getLogger(__name__)
@@ -392,3 +392,33 @@ def simulate_what_if(coingecko_id: str, invested_eur: float, months_ago: int) ->
 
 # Fix missing import
 import urllib.parse
+
+
+# ── Intégration transactions financières ──────────────────────────────────────
+
+def _get_or_create_crypto_category() -> int:
+    """Retourne l'id de la catégorie 'Crypto', la crée si elle n'existe pas."""
+    with safe_session() as session:
+        cat = session.query(Category).filter_by(name="Crypto").first()
+        if not cat:
+            cat = Category(name="Crypto", icon="money.png", color="#f59e0b")
+            session.add(cat)
+            session.flush()
+        return cat.id
+
+
+def link_to_transaction(amount: float, tx_type: str, note: str):
+    """
+    Crée une transaction financière liée à une opération crypto.
+    tx_type : 'expense' (achat) ou 'income' (vente).
+    """
+    from services.transaction_service import add_transaction
+    from datetime import datetime
+    cat_id = _get_or_create_crypto_category()
+    add_transaction(
+        amount=round(amount, 2),
+        type=tx_type,
+        category_id=cat_id,
+        note=note,
+        date=datetime.now(),
+    )
