@@ -622,3 +622,146 @@ def execute_dca(plan_id: int, link_financial: bool = False) -> dict | None:
         "price":    round(price, 2),
         "total":    round(amount_eur, 2),
     }
+
+
+# ── Rapport fiscal FIFO ───────────────────────────────────────────────────────
+
+def compute_fifo_report(year: int) -> dict:
+    """
+    Calcule les plus/moins-values réalisées sur l'année `year` selon la méthode FIFO.
+
+    Retourne :
+    {
+      "lots": [
+        {
+          "symbol": str,
+          "name": str,
+          "buy_date": date,
+          "sell_date": date,
+          "qty": float,
+          "buy_price": float,   # prix unitaire d'achat
+          "sell_price": float,  # prix unitaire de vente
+          "buy_total": float,   # qty * buy_price
+          "sell_total": float,  # qty * sell_price
+          "gain": float,        # sell_total - buy_total
+        },
+        ...
+      ],
+      "total_gains": float,
+      "total_losses": float,
+      "net": float,
+    }
+    """
+    from collections import deque
+
+    with Session() as session:
+        holdings = session.query(CryptoHolding).all()
+        all_txs  = (
+            session.query(CryptoTransaction)
+            .order_by(CryptoTransaction.date)
+            .all()
+        )
+        session.expunge_all()
+
+    holding_map = {h.id: h for h in holdings}
+
+    # Regrouper les transactions par holding
+    buys_by_holding:  dict[int, deque] = {}
+    sells_by_holding: dict[int, list]  = {}
+
+    for tx in all_txs:
+        hid = tx.holding_id
+        if tx.type == "buy":
+            buys_by_holding.setdefault(hid, deque()).append({
+                "date":  tx.date.date() if hasattr(tx.date, "date") else tx.date,
+                "qty":   tx.quantity,
+                "price": tx.price_eur,
+            })
+        elif tx.type == "sell":
+            sell_date = tx.date.date() if hasattr(tx.date, "date") else tx.date
+            sells_by_holding.setdefault(hid, []).append({
+                "date":  sell_date,
+                "qty":   tx.quantity,
+                "price": tx.price_eur,
+            })
+
+    lots = []
+
+    for hid, sells in sells_by_holding.items():
+        holding = holding_map.get(hid)
+        if not holding:
+            continue
+
+        buy_queue = deque(
+            {"date": b["date"], "qty": b["qty"], "price": b["price"]}
+            for b in buys_by_holding.get(hid, [])
+        )
+
+        for sell in sells:
+            # On ne garde que les ventes de l'année demandée
+            if sell["date"].year != year:
+                # Mais on doit quand même consommer les lots achetés avant
+                # pour maintenir l'ordre FIFO correct → traiter silencieusement
+                remaining = sell["qty"]
+                while remaining > EPSILON and buy_queue:
+                    lot = buy_queue[0]
+                    matched = min(remaining, lot["qty"])
+                    remaining     -= matched
+                    lot["qty"]    -= matched
+                    if lot["qty"] < EPSILON:
+                        buy_queue.popleft()
+                continue
+
+            remaining = sell["qty"]
+            while remaining > EPSILON and buy_queue:
+                lot     = buy_queue[0]
+                matched = min(remaining, lot["qty"])
+
+                lots.append({
+                    "symbol":     holding.symbol.upper(),
+                    "name":       holding.name,
+                    "buy_date":   lot["date"],
+                    "sell_date":  sell["date"],
+                    "qty":        round(matched, 8),
+                    "buy_price":  round(lot["price"], 4),
+                    "sell_price": round(sell["price"], 4),
+                    "buy_total":  round(matched * lot["price"], 2),
+                    "sell_total": round(matched * sell["price"], 2),
+                    "gain":       round(matched * (sell["price"] - lot["price"]), 2),
+                })
+
+                remaining  -= matched
+                lot["qty"] -= matched
+                if lot["qty"] < EPSILON:
+                    buy_queue.popleft()
+
+            # Vente sans lot d'achat correspondant (LIFO/DCA antérieur ignoré)
+            if remaining > EPSILON:
+                lots.append({
+                    "symbol":     holding.symbol.upper(),
+                    "name":       holding.name,
+                    "buy_date":   None,
+                    "sell_date":  sell["date"],
+                    "qty":        round(remaining, 8),
+                    "buy_price":  0.0,
+                    "sell_price": round(sell["price"], 4),
+                    "buy_total":  0.0,
+                    "sell_total": round(remaining * sell["price"], 2),
+                    "gain":       round(remaining * sell["price"], 2),
+                })
+
+    lots.sort(key=lambda x: x["sell_date"] or _date.min)
+
+    total_gains  = sum(l["gain"] for l in lots if l["gain"] > 0)
+    total_losses = sum(l["gain"] for l in lots if l["gain"] < 0)
+    net          = total_gains + total_losses
+
+    return {
+        "lots":         lots,
+        "total_gains":  round(total_gains,  2),
+        "total_losses": round(total_losses, 2),
+        "net":          round(net,          2),
+    }
+
+
+EPSILON = 1e-9  # seuil de comparaison pour les quantités flottantes
