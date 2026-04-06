@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # ── Cache prix (évite les appels répétés) ────────────────────────────────────
 _price_cache: dict = {}          # {coingecko_id: {"price": float, "change_24h": float, "ts": float}}
-_CACHE_TTL = 120                 # secondes
+_CACHE_TTL = 300                 # secondes (5 min — réduit les appels API)
 
 _history_cache: dict = {}        # {(coingecko_id, days): {"data": list, "ts": float}}
 _HISTORY_CACHE_TTL = 1800        # 30 minutes
@@ -29,7 +29,7 @@ COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 import threading as _threading
 _api_lock    = _threading.Lock()
 _last_call_t = 0.0
-_MIN_DELAY   = 2.5              # secondes minimum entre deux appels API
+_MIN_DELAY   = 6.0              # secondes minimum entre deux appels API
 
 
 # ── Appels API CoinGecko ─────────────────────────────────────────────────────
