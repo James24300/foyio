@@ -217,6 +217,17 @@ def sell_holding(holding_id: int, quantity: float, sell_price: float, note: str 
     return True
 
 
+def update_holding(holding_id: int, quantity: float, avg_buy_price: float):
+    """Modifie la quantité et le prix moyen d'achat d'une position."""
+    with safe_session() as session:
+        h = session.query(CryptoHolding).filter_by(id=holding_id).first()
+        if h:
+            h.quantity      = round(quantity, 8)
+            h.avg_buy_price = round(avg_buy_price, 2)
+            if h.quantity <= 0:
+                h.active = False
+
+
 def delete_holding(holding_id: int):
     """Supprime (désactive) une position."""
     with safe_session() as session:
