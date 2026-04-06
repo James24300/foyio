@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 
 # ── Cache prix (évite les appels répétés) ────────────────────────────────────
 _price_cache: dict = {}          # {coingecko_id: {"price": float, "change_24h": float, "ts": float}}
-_CACHE_TTL = 60                  # secondes
+_CACHE_TTL = 120                 # secondes (augmenté pour limiter les 429)
+
+_history_cache: dict = {}        # {(coingecko_id, days): {"data": list, "ts": float}}
+_HISTORY_CACHE_TTL = 600         # 10 minutes
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
@@ -94,13 +97,22 @@ def search_coins(query: str) -> list[dict]:
 def get_price_history(coingecko_id: str, days: int = 30) -> list[tuple[int, float]]:
     """
     Retourne [(timestamp_ms, price_eur), …] sur N jours.
+    Utilise un cache de 10 minutes pour éviter les erreurs 429.
     """
+    key = (coingecko_id, days)
+    now = time.time()
+    cached = _history_cache.get(key)
+    if cached and now - cached["ts"] < _HISTORY_CACHE_TTL:
+        return cached["data"]
+
     url = (f"{COINGECKO_BASE}/coins/{coingecko_id}/market_chart"
            f"?vs_currency=eur&days={days}&interval=daily")
     data = _get(url)
     if not data:
-        return []
-    return [(int(p[0]), float(p[1])) for p in data.get("prices", [])]
+        return cached["data"] if cached else []  # retourner l'ancien cache si dispo
+    result = [(int(p[0]), float(p[1])) for p in data.get("prices", [])]
+    _history_cache[key] = {"data": result, "ts": now}
+    return result
 
 
 def get_top_coins(limit: int = 50) -> list[dict]:
