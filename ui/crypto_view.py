@@ -508,12 +508,7 @@ class CryptoView(QWidget):
         self._cmp_chart.setRenderHint(QPainter.Antialiasing)
         self._cmp_chart.setFixedHeight(260)
         self._cmp_chart.setStyleSheet("background:transparent; border:none;")
-        _empty_cmp = QChart()
-        _empty_cmp.setBackgroundBrush(QColor("#26292e"))
-        _empty_cmp.setBackgroundRoundness(0)
-        _empty_cmp.legend().hide()
-        _empty_cmp.layout().setContentsMargins(0, 0, 0, 0)
-        self._cmp_chart.setChart(_empty_cmp)
+        self._cmp_chart.setVisible(False)
         cl_cmp.addWidget(self._cmp_chart)
 
         self._cmp_status = QLabel("Sélectionnez une période et cliquez sur Comparer.")
@@ -2608,6 +2603,7 @@ class CryptoView(QWidget):
         # Stocker pour éviter le GC
         self._cmp_series_list = series_list
         self._cmp_chart.setChart(chart)
+        self._cmp_chart.setVisible(True)
 
         labels = []
         if port_norm: labels.append(f"Portfolio {port_norm[-1][1]-100:+.1f}%")
