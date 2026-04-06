@@ -1082,7 +1082,6 @@ class CryptoView(QWidget):
         self._load_watchlist()
         self._load_dca()
         self._fetch_prices()
-        self._fetch_logos()
         self._check_due_dca()
 
     def refresh(self):
@@ -1108,6 +1107,7 @@ class CryptoView(QWidget):
         self._update_summary()
         self._check_alerts_now()
         self._refresh_watchlist_prices()
+        self._fetch_logos()  # URLs déjà dans _image_url_cache grâce à coins/markets
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
