@@ -119,6 +119,7 @@ class SavingsGoal(Base):
     deadline     = Column(Date,        nullable=True)
     account_id   = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     monthly_target= Column(Float,      default=0.0)   # versement mensuel cible
+    payment_day  = Column(Integer,     nullable=True) # jour du mois pour le versement (1-28)
     category_id  = Column(Integer, ForeignKey('categories.id'), nullable=True)
     manual_amount = Column(Float,      default=0.0)   # versements manuels cumulés
     active       = Column(Boolean,     default=True)
