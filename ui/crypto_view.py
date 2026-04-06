@@ -874,12 +874,13 @@ class CryptoView(QWidget):
         Toast.show(self, f"Plan {'activé' if new_state else 'désactivé'}.", "success")
 
     def _delete_dca(self, plan_id: int):
-        rep = QMessageBox.question(
-            self, "Supprimer le plan DCA",
-            "Voulez-vous vraiment supprimer ce plan DCA ?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        if rep == QMessageBox.Yes:
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Supprimer le plan DCA")
+        msg.setText("Voulez-vous vraiment supprimer ce plan DCA ?")
+        btn_oui = msg.addButton("Oui", QMessageBox.DestructiveRole)
+        msg.addButton("Non", QMessageBox.RejectRole)
+        msg.exec()
+        if msg.clickedButton() == btn_oui:
             delete_dca_plan(plan_id)
             self._load_dca()
             Toast.show(self, "Plan supprimé.", "success")
