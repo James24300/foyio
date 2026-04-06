@@ -308,7 +308,8 @@ class CryptoView(QWidget):
         self._pie_chart_view = QChartView()
         self._pie_chart_view.setRenderHint(QPainter.Antialiasing)
         self._pie_chart_view.setFixedHeight(240)
-        self._pie_chart_view.setStyleSheet("background:transparent; border:none;")
+        self._pie_chart_view.setStyleSheet("background:#1e2023; border:none; border-radius:8px;")
+        _ep = QChart(); _ep.setBackgroundBrush(QColor("#1e2023")); _ep.setBackgroundRoundness(0); _ep.legend().hide(); _ep.layout().setContentsMargins(0,0,0,0); self._pie_chart_view.setChart(_ep)
         vl.addWidget(self._pie_chart_view)
 
         # ── Évolution de la valeur totale ──
@@ -340,7 +341,8 @@ class CryptoView(QWidget):
         self._evo_chart_view = QChartView()
         self._evo_chart_view.setRenderHint(QPainter.Antialiasing)
         self._evo_chart_view.setFixedHeight(180)
-        self._evo_chart_view.setStyleSheet("background:transparent; border:none;")
+        self._evo_chart_view.setStyleSheet("background:#1e2023; border:none; border-radius:8px;")
+        _ee = QChart(); _ee.setBackgroundBrush(QColor("#1e2023")); _ee.setBackgroundRoundness(0); _ee.legend().hide(); _ee.layout().setContentsMargins(0,0,0,0); self._evo_chart_view.setChart(_ee)
         vl.addWidget(self._evo_chart_view)
         return w
 
@@ -427,7 +429,12 @@ class CryptoView(QWidget):
         self._dca_result = QLabel(); self._dca_result.setWordWrap(True); self._dca_result.setVisible(False)
         self._dca_result.setStyleSheet("font-size:12px; color:#22c55e; background:#1a2a1a; border-radius:8px; padding:10px;")
         cl_dca.addWidget(self._dca_result)
-        self._dca_chart = QChartView(); self._dca_chart.setRenderHint(QPainter.Antialiasing); self._dca_chart.setMinimumHeight(200); self._dca_chart.setVisible(False)
+        self._dca_chart = QChartView()
+        self._dca_chart.setRenderHint(QPainter.Antialiasing)
+        self._dca_chart.setMinimumHeight(200)
+        self._dca_chart.setStyleSheet("background:#26292e; border:none; border-radius:8px;")
+        _ed = QChart(); _ed.setBackgroundBrush(QColor("#26292e")); _ed.setBackgroundRoundness(0); _ed.legend().hide(); _ed.layout().setContentsMargins(0,0,0,0); self._dca_chart.setChart(_ed)
+        self._dca_chart.setVisible(False)
         cl_dca.addWidget(self._dca_chart)
         vl.addWidget(card_dca)
 
@@ -1781,7 +1788,7 @@ class CryptoView(QWidget):
         hdr.setSectionResizeMode(2, QHeaderView.Fixed);  self._top_table.setColumnWidth(2, 130)
         hdr.setSectionResizeMode(3, QHeaderView.Fixed);  self._top_table.setColumnWidth(3, 90)
         hdr.setSectionResizeMode(4, QHeaderView.Fixed);  self._top_table.setColumnWidth(4, 160)
-        hdr.setSectionResizeMode(5, QHeaderView.Fixed);  self._top_table.setColumnWidth(5, 140)
+        hdr.setSectionResizeMode(5, QHeaderView.Fixed);  self._top_table.setColumnWidth(5, 200)
         self._top_table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
             QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }
@@ -1869,18 +1876,20 @@ class CryptoView(QWidget):
 
             btn_add = QPushButton("+ Acheter")
             btn_add.setFixedHeight(28)
+            btn_add.setFixedWidth(90)
             btn_add.setStyleSheet(
                 "background:#22c55e; color:#000; border:none; border-radius:6px;"
-                "font-size:10px; font-weight:700;"
+                "font-size:11px; font-weight:700; text-align:center;"
             )
             btn_add.clicked.connect(lambda _, coin=c: self._quick_add_from_top(coin))
 
             already = is_in_watchlist(c["id"])
             btn_watch = QPushButton("✓ WL" if already else "👁 WL")
             btn_watch.setFixedHeight(28)
+            btn_watch.setFixedWidth(76)
             btn_watch.setStyleSheet(
                 f"background:{'#374151' if already else '#26292e'}; color:#c8cdd4;"
-                "border:1px solid #3a3f47; border-radius:6px; font-size:10px;"
+                "border:1px solid #3a3f47; border-radius:6px; font-size:11px; text-align:center;"
             )
             btn_watch.setEnabled(not already)
             btn_watch.clicked.connect(lambda _, coin=c, b=btn_watch: self._watch_from_top(coin, b))
