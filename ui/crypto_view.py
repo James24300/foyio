@@ -1614,13 +1614,31 @@ class CryptoView(QWidget):
 
         self._evo_chart_view.setChart(chart)
 
+    def _show_tray_msg(self, title: str, message: str):
+        """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
+        from PySide6.QtWidgets import QSystemTrayIcon
+        from PySide6.QtGui import QIcon
+        import os
+        # Chercher le _tray dans les parents ou dans les top-level widgets
+        w = self.window()
+        tray = getattr(w, "_tray", None)
+        if tray is None:
+            from PySide6.QtWidgets import QApplication
+            for tw in QApplication.topLevelWidgets():
+                if hasattr(tw, "_tray"):
+                    tray = tw._tray
+                    break
+        if tray:
+            tray.showMessage(title, message, QSystemTrayIcon.Information, 6000)
+
     def _check_alerts_now(self):
         triggered = check_alerts(self._prices)
         for t in triggered:
             direction = "au-dessus" if t["alert_type"] == "above" else "en-dessous"
             msg = (f"{t['name']} ({t['symbol']}) est passé {direction} de "
-                   f"{t['target_price']:,.2f} € → Prix actuel : {t['current_price']:,.2f} €")
+                   f"{t['target_price']:,.2f} €\nPrix actuel : {t['current_price']:,.2f} €")
             Toast.show(self, f"🔔  {msg}", kind="info")
+            self._show_tray_msg(f"🔔 Alerte Crypto — {t['name']}", msg)
         if triggered:
             self._load_alerts()
 
