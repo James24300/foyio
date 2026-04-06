@@ -22,13 +22,14 @@ def get_goals() -> list:
 def add_goal(name: str, target: float, current: float = 0.0,
              icon: str = "epargne.png", color: str = "#22c55e",
              deadline: date = None, monthly_target: float = 0.0,
-             category_id: int = None) -> SavingsGoal:
+             category_id: int = None, payment_day: int = None) -> SavingsGoal:
     with safe_session() as session:
         goal = SavingsGoal(
             name=name, target_amount=target, current_amount=current,
             icon=icon, color=color, deadline=deadline,
             monthly_target=monthly_target,
             category_id=category_id,
+            payment_day=payment_day,
             account_id=account_state.get_id()
         )
         session.add(goal)
@@ -319,9 +320,15 @@ def check_monthly_targets() -> list:
             SavingsGoal.monthly_target > 0
         ).all()
 
+        today_day = now.day
+
         for goal in goals:
             if goal.current_amount >= goal.target_amount:
                 continue  # Objectif atteint
+
+            # Ne rappeler qu'à partir du jour de versement configuré
+            if goal.payment_day and today_day < goal.payment_day:
+                continue
 
             # Total versé ce mois dans catégories épargne
             total_this_month = 0.0
