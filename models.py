@@ -234,3 +234,15 @@ class CryptoAlert(Base):
     active      = Column(Boolean, default=True)
     triggered   = Column(Boolean, default=False)
     account_id  = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+
+
+class Idea(Base):
+    """Suggestion ou idée soumise par un utilisateur."""
+    __tablename__ = "ideas"
+
+    id           = Column(Integer,      primary_key=True)
+    author       = Column(String(100),  nullable=False)
+    content      = Column(String(2000), nullable=False)
+    submitted_at = Column(DateTime,     nullable=False)
+    read         = Column(Boolean,      default=False)
+    account_id   = Column(Integer, ForeignKey("accounts.id"), nullable=True)
