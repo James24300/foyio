@@ -7,10 +7,9 @@ import logging
 import time
 import urllib.request
 import json
-from datetime import datetime
-
+from datetime import datetime, date as _date
 from db import Session, safe_session
-from models import CryptoHolding, CryptoTransaction, CryptoAlert, Category
+from models import CryptoHolding, CryptoTransaction, CryptoAlert, Category, CryptoDCA
 import account_state
 
 logger = logging.getLogger(__name__)
@@ -469,7 +468,6 @@ def link_to_transaction(amount: float, tx_type: str, note: str):
     tx_type : 'expense' (achat) ou 'income' (vente).
     """
     from services.transaction_service import add_transaction
-    from datetime import datetime
     cat_id = _get_or_create_crypto_category()
     add_transaction(
         amount=round(amount, 2),
@@ -478,3 +476,149 @@ def link_to_transaction(amount: float, tx_type: str, note: str):
         note=note,
         date=datetime.now(),
     )
+
+
+# ── Plans DCA récurrents ──────────────────────────────────────────────────────
+
+def get_dca_plans() -> list:
+    """Retourne tous les plans DCA avec leur holding associé."""
+    with Session() as session:
+        plans = session.query(CryptoDCA).all()
+        session.expunge_all()
+        return plans
+
+
+def add_dca_plan(holding_id: int, amount_eur: float, day_of_month: int, note: str = "") -> CryptoDCA:
+    """Crée un nouveau plan DCA."""
+    with safe_session() as session:
+        plan = CryptoDCA(
+            holding_id=holding_id,
+            amount_eur=amount_eur,
+            day_of_month=max(1, min(28, day_of_month)),
+            active=True,
+            last_executed=None,
+            note=note or None,
+        )
+        session.add(plan)
+        session.flush()
+        session.expunge(plan)
+        return plan
+
+
+def delete_dca_plan(plan_id: int):
+    with safe_session() as session:
+        plan = session.query(CryptoDCA).filter_by(id=plan_id).first()
+        if plan:
+            session.delete(plan)
+
+
+def toggle_dca_plan(plan_id: int) -> bool:
+    """Active/désactive un plan DCA. Retourne le nouvel état."""
+    with safe_session() as session:
+        plan = session.query(CryptoDCA).filter_by(id=plan_id).first()
+        if plan:
+            plan.active = not plan.active
+            return plan.active
+        return False
+
+
+def get_due_dca_plans() -> list:
+    """
+    Retourne les plans actifs dont le jour prévu est aujourd'hui
+    et qui n'ont pas encore été exécutés ce mois-ci.
+    """
+    today = _date.today()
+    with Session() as session:
+        plans = session.query(CryptoDCA).filter_by(active=True).all()
+        due = []
+        for p in plans:
+            if p.day_of_month != today.day:
+                continue
+            if p.last_executed and p.last_executed.year == today.year \
+                    and p.last_executed.month == today.month:
+                continue
+            due.append(p)
+        session.expunge_all()
+        return due
+
+
+def execute_dca(plan_id: int, link_financial: bool = False) -> dict | None:
+    """
+    Exécute un plan DCA :
+    - Récupère le prix actuel
+    - Calcule la quantité achetée
+    - Crée une CryptoTransaction
+    - Met à jour la quantité et le prix moyen du holding
+    - Marque last_executed = aujourd'hui
+    Retourne un dict résumé ou None en cas d'erreur.
+    """
+    with Session() as session:
+        plan = session.query(CryptoDCA).filter_by(id=plan_id).first()
+        if not plan:
+            return None
+        holding = session.query(CryptoHolding).filter_by(id=plan.holding_id).first()
+        if not holding:
+            return None
+        session.expunge_all()
+        plan_id_     = plan.id
+        amount_eur   = plan.amount_eur
+        holding_id   = holding.id
+        cg_id        = holding.coingecko_id
+        symbol       = holding.symbol
+        name         = holding.name
+        old_qty      = holding.quantity
+        old_avg      = holding.avg_buy_price
+
+    prices = get_prices([cg_id])
+    if not prices or cg_id not in prices:
+        return None
+
+    price = prices[cg_id]["price"]
+    if price <= 0:
+        return None
+
+    qty = amount_eur / price
+    # Recalcul prix moyen pondéré
+    new_qty = old_qty + qty
+    new_avg = ((old_qty * old_avg) + (qty * price)) / new_qty if new_qty > 0 else price
+
+    today = _date.today()
+
+    with safe_session() as session:
+        # Créer la transaction crypto
+        tx = CryptoTransaction(
+            holding_id=holding_id,
+            type="buy",
+            quantity=round(qty, 8),
+            price_eur=round(price, 2),
+            total_eur=round(amount_eur, 2),
+            date=datetime.now(),
+            note=f"DCA automatique ({today.strftime('%d/%m/%Y')})",
+        )
+        session.add(tx)
+
+        # Mettre à jour le holding
+        h = session.query(CryptoHolding).filter_by(id=holding_id).first()
+        if h:
+            h.quantity      = round(new_qty, 8)
+            h.avg_buy_price = round(new_avg, 2)
+
+        # Marquer le plan exécuté
+        p = session.query(CryptoDCA).filter_by(id=plan_id_).first()
+        if p:
+            p.last_executed = today
+
+    if link_financial:
+        link_to_transaction(
+            amount=amount_eur,
+            tx_type="expense",
+            note=f"DCA {name} ({symbol.upper()}) — {today.strftime('%d/%m/%Y')}",
+        )
+
+    return {
+        "symbol":   symbol,
+        "name":     name,
+        "qty":      round(qty, 8),
+        "price":    round(price, 2),
+        "total":    round(amount_eur, 2),
+    }
