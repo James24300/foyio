@@ -26,6 +26,8 @@ from services.crypto_service import (
     add_alert, get_alerts, delete_alert, check_alerts,
     simulate_dca, simulate_what_if, get_top_coins, search_coins,
     get_price_history, link_to_transaction,
+    get_dca_plans, add_dca_plan, delete_dca_plan, toggle_dca_plan,
+    get_due_dca_plans, execute_dca, compute_fifo_report,
 )
 from services.watchlist_service import (
     get_watchlist, add_to_watchlist, remove_from_watchlist,
@@ -140,6 +142,7 @@ class CryptoView(QWidget):
         self._tabs.addTab(self._build_watchlist_tab(),    "  Watchlist")
         self._tabs.addTab(self._build_simulator_tab(),    "  Simulateur")
         self._tabs.addTab(self._build_alerts_tab(),       "  Alertes")
+        self._tabs.addTab(self._build_dca_tab(),          "  DCA")
         self._tabs.currentChanged.connect(self._on_tab_changed)
         layout.addWidget(self._tabs, 1)
 
@@ -228,6 +231,11 @@ class CryptoView(QWidget):
         btn_row.addWidget(self._btn_edit)
         btn_row.addWidget(self._btn_del)
         btn_row.addStretch()
+        _btn_fifo = QPushButton("Rapport fiscal")
+        _btn_fifo.setMinimumHeight(36)
+        _btn_fifo.setStyleSheet("background:#26292e; color:#c8cdd4; border:1px solid #3a3f47; border-radius:8px; padding:0 14px; text-align:center;")
+        _btn_fifo.clicked.connect(self._dialog_fifo_report)
+        btn_row.addWidget(_btn_fifo)
         _btn_export_p = QPushButton("Exporter CSV")
         _btn_export_p.setMinimumHeight(36)
         _btn_export_p.setStyleSheet("background:#26292e; color:#c8cdd4; border:1px solid #3a3f47; border-radius:8px; padding:0 14px; text-align:center;")
@@ -562,6 +570,342 @@ class CryptoView(QWidget):
         vl.addWidget(self._alerts_table, 1)
         return w
 
+    # ── Onglet DCA ────────────────────────────────────────────────────────────
+    def _build_dca_tab(self):
+        w = QWidget()
+        vl = QVBoxLayout(w)
+        vl.setContentsMargins(16, 16, 16, 16)
+        vl.setSpacing(12)
+
+        # En-tête explication
+        info = QLabel(
+            "Le DCA (Dollar Cost Averaging) consiste à investir un montant fixe "
+            "régulièrement, quel que soit le prix. Foyio vous rappelle chaque mois "
+            "et vous permet d'exécuter l'achat en un clic."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet("font-size:11px; color:#7a8494; padding:4px 0;")
+        vl.addWidget(info)
+
+        # Formulaire ajout plan
+        form_card = QWidget()
+        form_card.setStyleSheet(
+            "background:#26292e; border-radius:10px; border:1px solid #3a3f47;"
+        )
+        form_vl = QVBoxLayout(form_card)
+        form_vl.setContentsMargins(14, 12, 14, 12)
+        form_vl.setSpacing(10)
+
+        title_lbl = QLabel("Nouveau plan DCA")
+        title_lbl.setStyleSheet(
+            "font-size:13px; font-weight:700; color:#c8cdd4; background:transparent; border:none;"
+        )
+        form_vl.addWidget(title_lbl)
+
+        row = QHBoxLayout()
+        row.setSpacing(10)
+
+        # Crypto
+        col_crypto = QVBoxLayout()
+        lbl_crypto = QLabel("Crypto")
+        lbl_crypto.setStyleSheet("font-size:11px; color:#7a8494; background:transparent; border:none;")
+        self._dca_holding_combo = QComboBox()
+        self._dca_holding_combo.setMinimumHeight(34)
+        self._dca_holding_combo.setMinimumWidth(160)
+        col_crypto.addWidget(lbl_crypto)
+        col_crypto.addWidget(self._dca_holding_combo)
+        row.addLayout(col_crypto)
+
+        # Montant €
+        col_amt = QVBoxLayout()
+        lbl_amt = QLabel("Montant (€)")
+        lbl_amt.setStyleSheet("font-size:11px; color:#7a8494; background:transparent; border:none;")
+        self._dca_amount = QDoubleSpinBox()
+        self._dca_amount.setRange(1, 99_999)
+        self._dca_amount.setDecimals(2)
+        self._dca_amount.setSuffix(" €")
+        self._dca_amount.setValue(50)
+        self._dca_amount.setMinimumHeight(34)
+        self._dca_amount.setMinimumWidth(120)
+        col_amt.addWidget(lbl_amt)
+        col_amt.addWidget(self._dca_amount)
+        row.addLayout(col_amt)
+
+        # Jour du mois
+        col_day = QVBoxLayout()
+        lbl_day = QLabel("Jour du mois")
+        lbl_day.setStyleSheet("font-size:11px; color:#7a8494; background:transparent; border:none;")
+        self._dca_day = QSpinBox()
+        self._dca_day.setRange(1, 28)
+        self._dca_day.setValue(1)
+        self._dca_day.setSuffix("e du mois")
+        self._dca_day.setMinimumHeight(34)
+        self._dca_day.setMinimumWidth(120)
+        col_day.addWidget(lbl_day)
+        col_day.addWidget(self._dca_day)
+        row.addLayout(col_day)
+
+        # Note
+        col_note = QVBoxLayout()
+        lbl_note = QLabel("Note (optionnelle)")
+        lbl_note.setStyleSheet("font-size:11px; color:#7a8494; background:transparent; border:none;")
+        self._dca_note = QLineEdit()
+        self._dca_note.setPlaceholderText("Ex : Épargne long terme")
+        self._dca_note.setMinimumHeight(34)
+        col_note.addWidget(lbl_note)
+        col_note.addWidget(self._dca_note)
+        row.addLayout(col_note, 1)
+
+        # Bouton
+        btn_add_dca = QPushButton("Créer le plan")
+        btn_add_dca.setMinimumHeight(34)
+        btn_add_dca.setStyleSheet(
+            "background:#22c55e; color:#000; border:none; border-radius:8px;"
+            "font-weight:700; padding:0 14px; text-align:center;"
+        )
+        btn_add_dca.clicked.connect(self._add_dca_plan)
+        row.addWidget(btn_add_dca)
+
+        form_vl.addLayout(row)
+        vl.addWidget(form_card)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("background:#2e3238; max-height:1px; border:none;")
+        vl.addWidget(sep)
+
+        # Tableau des plans existants
+        self._dca_table = QTableWidget(0, 7)
+        self._dca_table.setHorizontalHeaderLabels([
+            "Crypto", "Montant", "Jour", "Dernier achat", "Prochain", "Statut", "Actions"
+        ])
+        self._dca_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self._dca_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self._dca_table.setShowGrid(False)
+        self._dca_table.verticalHeader().setVisible(False)
+        self._dca_table.verticalHeader().setDefaultSectionSize(48)
+        hdr = self._dca_table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
+        for col, w_ in [(1, 110), (2, 80), (3, 120), (4, 100), (5, 90), (6, 200)]:
+            hdr.setSectionResizeMode(col, QHeaderView.Fixed)
+            self._dca_table.setColumnWidth(col, w_)
+        self._dca_table.setStyleSheet("""
+            QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
+            QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }
+            QHeaderView::section { background:#26292e; color:#7a8494; border:none;
+                border-bottom:1px solid #3a3f47; padding:6px 8px; font-size:11px; }
+        """)
+        vl.addWidget(self._dca_table, 1)
+        return w
+
+    # ── Logique DCA ───────────────────────────────────────────────────────────
+    def _load_dca(self):
+        """Charge les plans DCA et les affiche dans le tableau."""
+        from datetime import date
+        # Mise à jour du combo de création
+        self._dca_holding_combo.clear()
+        for h in self._holdings:
+            self._dca_holding_combo.addItem(f"{h.name} ({h.symbol.upper()})", h.id)
+
+        plans = get_dca_plans()
+        holdings_map = {h.id: h for h in self._holdings}
+
+        self._dca_table.setRowCount(0)
+        today = date.today()
+
+        for plan in plans:
+            holding = holdings_map.get(plan.holding_id)
+            if not holding:
+                continue
+
+            row = self._dca_table.rowCount()
+            self._dca_table.insertRow(row)
+
+            name_txt = f"{holding.name} ({holding.symbol.upper()})"
+            self._dca_table.setItem(row, 0, QTableWidgetItem(name_txt))
+
+            amt_item = QTableWidgetItem(f"{plan.amount_eur:.2f} €")
+            amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            self._dca_table.setItem(row, 1, amt_item)
+
+            day_item = QTableWidgetItem(f"{plan.day_of_month}")
+            day_item.setTextAlignment(Qt.AlignCenter)
+            self._dca_table.setItem(row, 2, day_item)
+
+            last_txt = plan.last_executed.strftime("%d/%m/%Y") if plan.last_executed else "Jamais"
+            self._dca_table.setItem(row, 3, QTableWidgetItem(last_txt))
+
+            # Prochain achat
+            from datetime import date as _d
+            import calendar
+            if today.day <= plan.day_of_month:
+                next_month = today.month
+                next_year  = today.year
+            else:
+                if today.month == 12:
+                    next_month = 1
+                    next_year  = today.year + 1
+                else:
+                    next_month = today.month + 1
+                    next_year  = today.year
+            max_day  = calendar.monthrange(next_year, next_month)[1]
+            next_day = min(plan.day_of_month, max_day)
+            next_date = _d(next_year, next_month, next_day)
+            is_due = (next_date == today)
+            next_txt = "Aujourd'hui !" if is_due else next_date.strftime("%d/%m/%Y")
+            next_item = QTableWidgetItem(next_txt)
+            if is_due:
+                next_item.setForeground(QColor("#22c55e"))
+            self._dca_table.setItem(row, 4, next_item)
+
+            # Statut
+            status_txt = "Actif" if plan.active else "Inactif"
+            status_item = QTableWidgetItem(status_txt)
+            status_item.setForeground(QColor("#22c55e") if plan.active else QColor("#ef4444"))
+            status_item.setTextAlignment(Qt.AlignCenter)
+            self._dca_table.setItem(row, 5, status_item)
+
+            # Actions
+            cell = QWidget()
+            cell.setStyleSheet("background:transparent;")
+            hl = QHBoxLayout(cell)
+            hl.setContentsMargins(4, 4, 4, 4)
+            hl.setSpacing(6)
+
+            btn_exec = QPushButton("Exécuter")
+            btn_exec.setFixedHeight(30)
+            btn_exec.setMinimumWidth(76)
+            btn_exec.setEnabled(plan.active)
+            btn_exec.setStyleSheet(
+                "background:#3b82f6; color:#fff; border:none; border-radius:6px;"
+                "font-size:11px; font-weight:600; text-align:center;"
+            )
+            btn_exec.clicked.connect(lambda checked, pid=plan.id: self._execute_dca(pid))
+
+            btn_toggle = QPushButton("Désactiver" if plan.active else "Activer")
+            btn_toggle.setFixedHeight(30)
+            btn_toggle.setMinimumWidth(76)
+            btn_toggle.setStyleSheet(
+                "background:#f59e0b; color:#000; border:none; border-radius:6px;"
+                "font-size:11px; font-weight:600; text-align:center;"
+            )
+            btn_toggle.clicked.connect(lambda checked, pid=plan.id: self._toggle_dca(pid))
+
+            btn_del = QPushButton("Suppr.")
+            btn_del.setFixedHeight(30)
+            btn_del.setMinimumWidth(60)
+            btn_del.setStyleSheet(
+                "background:#ef4444; color:#fff; border:none; border-radius:6px;"
+                "font-size:11px; font-weight:600; text-align:center;"
+            )
+            btn_del.clicked.connect(lambda checked, pid=plan.id: self._delete_dca(pid))
+
+            hl.addWidget(btn_exec)
+            hl.addWidget(btn_toggle)
+            hl.addWidget(btn_del)
+            self._dca_table.setCellWidget(row, 6, cell)
+
+    def _add_dca_plan(self):
+        holding_id = self._dca_holding_combo.currentData()
+        if holding_id is None:
+            Toast(self, "Aucune crypto sélectionnée.", "warning").show()
+            return
+        amount = self._dca_amount.value()
+        day    = self._dca_day.value()
+        note   = self._dca_note.text().strip()
+        add_dca_plan(holding_id, amount, day, note)
+        self._dca_note.clear()
+        self._load_dca()
+        Toast(self, "Plan DCA créé.", "success").show()
+
+    def _execute_dca(self, plan_id: int):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Exécuter le DCA")
+        dlg.setMinimumWidth(340)
+        dlg.setStyleSheet("background:#1e2023; color:#c8cdd4;")
+        vl = QVBoxLayout(dlg)
+        vl.setSpacing(14)
+
+        lbl = QLabel("Voulez-vous exécuter ce plan DCA maintenant ?\nL'achat sera enregistré au prix actuel du marché.")
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet("color:#c8cdd4; font-size:12px;")
+        vl.addWidget(lbl)
+
+        chk_link = QCheckBox("Lier à une transaction financière")
+        chk_link.setStyleSheet("color:#a0a8b4; font-size:11px;")
+        vl.addWidget(chk_link)
+
+        row = QHBoxLayout()
+        btn_cancel = QPushButton("Annuler")
+        btn_cancel.setFixedHeight(34)
+        btn_cancel.setStyleSheet(
+            "background:#2e3238; color:#7a8494; border:none; border-radius:8px; padding:0 14px;"
+        )
+        btn_cancel.clicked.connect(dlg.reject)
+
+        btn_ok = QPushButton("Acheter maintenant")
+        btn_ok.setFixedHeight(34)
+        btn_ok.setStyleSheet(
+            "background:#22c55e; color:#000; border:none; border-radius:8px;"
+            "font-weight:700; padding:0 14px; text-align:center;"
+        )
+        btn_ok.clicked.connect(dlg.accept)
+
+        row.addWidget(btn_cancel)
+        row.addWidget(btn_ok)
+        vl.addLayout(row)
+
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        result = execute_dca(plan_id, link_financial=chk_link.isChecked())
+        if result is None:
+            Toast(self, "Impossible de récupérer le prix actuel.", "error").show()
+            return
+
+        Toast(
+            self,
+            f"Acheté {result['qty']:.6f} {result['symbol'].upper()} "
+            f"à {result['price']:.2f} € — Total : {result['total']:.2f} €",
+            "success"
+        ).show()
+        self._holdings = get_holdings()
+        self._load_portfolio()
+        self._load_transactions()
+        self._load_dca()
+
+    def _toggle_dca(self, plan_id: int):
+        new_state = toggle_dca_plan(plan_id)
+        self._load_dca()
+        Toast(self, f"Plan {'activé' if new_state else 'désactivé'}.", "success").show()
+
+    def _delete_dca(self, plan_id: int):
+        rep = QMessageBox.question(
+            self, "Supprimer le plan DCA",
+            "Voulez-vous vraiment supprimer ce plan DCA ?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if rep == QMessageBox.Yes:
+            delete_dca_plan(plan_id)
+            self._load_dca()
+            Toast(self, "Plan supprimé.", "success").show()
+
+    def _check_due_dca(self):
+        """Vérifie les plans DCA dus aujourd'hui et envoie une notification systray."""
+        due = get_due_dca_plans()
+        if not due:
+            return
+        holdings_map = {h.id: h for h in self._holdings}
+        for plan in due:
+            h = holdings_map.get(plan.holding_id)
+            if not h:
+                continue
+            msg = (
+                f"DCA {h.name} ({h.symbol.upper()}) : "
+                f"{plan.amount_eur:.0f} € prévu aujourd'hui !"
+            )
+            self._show_tray_msg("DCA récurrent", msg)
+
     # ── Chargement données ────────────────────────────────────────────────────
     def load(self):
         self._holdings = get_holdings()
@@ -569,9 +913,9 @@ class CryptoView(QWidget):
         self._load_transactions()
         self._load_alerts()
         self._load_watchlist()
+        self._load_dca()
         self._fetch_prices()
-        if self._holdings:
-            self._fetch_evolution()
+        self._check_due_dca()
 
     def refresh(self):
         self.load()
@@ -1427,6 +1771,228 @@ class CryptoView(QWidget):
             Toast.show(self, f"✓  {coin['name']} ajouté au portefeuille", kind="success")
 
         btn_ok.clicked.connect(_do)
+        dlg.exec()
+
+    # ── Rapport fiscal FIFO ──────────────────────────────────────────────────
+    def _dialog_fifo_report(self):
+        from datetime import date
+        current_year = date.today().year
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Rapport fiscal — Plus/moins-values FIFO")
+        dlg.setMinimumSize(860, 560)
+        dlg.setStyleSheet("background:#1e2023; color:#c8cdd4;")
+
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(14)
+
+        # Sélecteur d'année + bouton exporter
+        top_row = QHBoxLayout()
+        top_row.setSpacing(10)
+        lbl_yr = QLabel("Année fiscale :")
+        lbl_yr.setStyleSheet("font-size:12px; color:#7a8494;")
+        top_row.addWidget(lbl_yr)
+
+        year_spin = QSpinBox()
+        year_spin.setRange(2015, current_year)
+        year_spin.setValue(current_year - 1 if date.today().month < 6 else current_year)
+        year_spin.setFixedWidth(90)
+        year_spin.setFixedHeight(34)
+        top_row.addWidget(year_spin)
+
+        btn_calc = QPushButton("Calculer")
+        btn_calc.setFixedHeight(34)
+        btn_calc.setStyleSheet(
+            "background:#3b82f6; color:#fff; border:none; border-radius:8px;"
+            "font-weight:700; padding:0 16px; text-align:center;"
+        )
+        top_row.addWidget(btn_calc)
+
+        btn_export_fifo = QPushButton("Exporter CSV")
+        btn_export_fifo.setFixedHeight(34)
+        btn_export_fifo.setStyleSheet(
+            "background:#26292e; color:#c8cdd4; border:1px solid #3a3f47;"
+            "border-radius:8px; padding:0 14px; text-align:center;"
+        )
+        btn_export_fifo.setEnabled(False)
+        top_row.addWidget(btn_export_fifo)
+        top_row.addStretch()
+        vl.addLayout(top_row)
+
+        # Barre résumé
+        summary_bar = QWidget()
+        summary_bar.setStyleSheet(
+            "background:#26292e; border-radius:10px; border:1px solid #3a3f47;"
+        )
+        summary_bar.setFixedHeight(60)
+        sbl = QHBoxLayout(summary_bar)
+        sbl.setContentsMargins(20, 0, 20, 0)
+        sbl.setSpacing(40)
+
+        def _summary_cell(title):
+            col = QVBoxLayout()
+            t = QLabel(title)
+            t.setStyleSheet("font-size:10px; color:#5a6472; font-weight:600; background:transparent; border:none;")
+            v = QLabel("—")
+            v.setStyleSheet("font-size:15px; font-weight:700; color:#c8cdd4; background:transparent; border:none;")
+            col.addWidget(t); col.addWidget(v)
+            return col, v
+
+        c1, lbl_gains   = _summary_cell("PLUS-VALUES")
+        c2, lbl_losses  = _summary_cell("MOINS-VALUES")
+        c3, lbl_net     = _summary_cell("NET IMPOSABLE")
+        c4, lbl_nb_ops  = _summary_cell("OPÉRATIONS")
+        for c in [c1, c2, c3, c4]:
+            sbl.addLayout(c)
+        sbl.addStretch()
+        vl.addWidget(summary_bar)
+
+        # Tableau des lots
+        table = QTableWidget(0, 8)
+        table.setHorizontalHeaderLabels([
+            "Crypto", "Qté vendue", "Date achat", "Prix achat unit.",
+            "Date vente", "Prix vente unit.", "Coût total", "Gain / Perte"
+        ])
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectRows)
+        table.setShowGrid(False)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(38)
+        hdr = table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
+        for col_, w_ in [(1,100),(2,100),(3,130),(4,100),(5,130),(6,110),(7,110)]:
+            hdr.setSectionResizeMode(col_, QHeaderView.Fixed)
+            table.setColumnWidth(col_, w_)
+        table.setStyleSheet("""
+            QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
+            QTableWidget::item { border-bottom:1px solid #292d32; padding:0 6px; }
+            QHeaderView::section { background:#26292e; color:#7a8494; border:none;
+                border-bottom:1px solid #3a3f47; padding:5px 6px; font-size:11px; }
+        """)
+        vl.addWidget(table, 1)
+
+        # Avertissement légal
+        disclaimer = QLabel(
+            "Avertissement : ce rapport est fourni à titre indicatif. "
+            "Consultez un conseiller fiscal pour votre déclaration officielle."
+        )
+        disclaimer.setStyleSheet("font-size:10px; color:#5a6472; font-style:italic;")
+        disclaimer.setWordWrap(True)
+        vl.addWidget(disclaimer)
+
+        _report_data = [None]  # stockage pour l'export
+
+        def _run_calc():
+            year = year_spin.value()
+            report = compute_fifo_report(year)
+            _report_data[0] = report
+
+            lots = report["lots"]
+            table.setRowCount(0)
+            for lot in lots:
+                r = table.rowCount()
+                table.insertRow(r)
+
+                crypto_item = QTableWidgetItem(f"{lot['name']} ({lot['symbol']})")
+                table.setItem(r, 0, crypto_item)
+
+                qty_item = QTableWidgetItem(f"{lot['qty']:.6f}")
+                qty_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                table.setItem(r, 1, qty_item)
+
+                buy_date_txt = lot["buy_date"].strftime("%d/%m/%Y") if lot["buy_date"] else "—"
+                table.setItem(r, 2, QTableWidgetItem(buy_date_txt))
+
+                buy_p_item = QTableWidgetItem(f"{lot['buy_price']:.4f} €")
+                buy_p_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                table.setItem(r, 3, buy_p_item)
+
+                sell_date_txt = lot["sell_date"].strftime("%d/%m/%Y") if lot["sell_date"] else "—"
+                table.setItem(r, 4, QTableWidgetItem(sell_date_txt))
+
+                sell_p_item = QTableWidgetItem(f"{lot['sell_price']:.4f} €")
+                sell_p_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                table.setItem(r, 5, sell_p_item)
+
+                cost_item = QTableWidgetItem(f"{lot['buy_total']:.2f} €")
+                cost_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                table.setItem(r, 6, cost_item)
+
+                gain = lot["gain"]
+                gain_item = QTableWidgetItem(
+                    f"{'+'if gain>=0 else ''}{gain:.2f} €"
+                )
+                gain_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                gain_item.setForeground(
+                    QColor("#22c55e") if gain >= 0 else QColor("#ef4444")
+                )
+                table.setItem(r, 7, gain_item)
+
+            g = report["total_gains"]
+            lo = report["total_losses"]
+            net = report["net"]
+            lbl_gains.setText(f"+{g:.2f} €")
+            lbl_gains.setStyleSheet(
+                "font-size:15px; font-weight:700; color:#22c55e; background:transparent; border:none;"
+            )
+            lbl_losses.setText(f"{lo:.2f} €")
+            lbl_losses.setStyleSheet(
+                "font-size:15px; font-weight:700; color:#ef4444; background:transparent; border:none;"
+            )
+            net_color = "#22c55e" if net >= 0 else "#ef4444"
+            lbl_net.setText(f"{'+'if net>=0 else ''}{net:.2f} €")
+            lbl_net.setStyleSheet(
+                f"font-size:15px; font-weight:700; color:{net_color}; background:transparent; border:none;"
+            )
+            lbl_nb_ops.setText(str(len(lots)))
+            lbl_nb_ops.setStyleSheet(
+                "font-size:15px; font-weight:700; color:#c8cdd4; background:transparent; border:none;"
+            )
+            btn_export_fifo.setEnabled(bool(lots))
+
+        def _export_fifo_csv():
+            if not _report_data[0]:
+                return
+            from PySide6.QtWidgets import QFileDialog
+            import csv
+            year = year_spin.value()
+            path, _ = QFileDialog.getSaveFileName(
+                dlg, "Exporter le rapport fiscal",
+                f"rapport_fiscal_{year}.csv",
+                "CSV (*.csv)"
+            )
+            if not path:
+                return
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                w = csv.writer(f, delimiter=";")
+                w.writerow([
+                    "Crypto", "Quantité vendue", "Date achat", "Prix achat unit. (€)",
+                    "Date vente", "Prix vente unit. (€)",
+                    "Coût d'achat total (€)", "Produit de vente (€)", "Gain / Perte (€)"
+                ])
+                for lot in _report_data[0]["lots"]:
+                    w.writerow([
+                        f"{lot['name']} ({lot['symbol']})",
+                        f"{lot['qty']:.8f}",
+                        lot["buy_date"].strftime("%d/%m/%Y") if lot["buy_date"] else "",
+                        f"{lot['buy_price']:.4f}",
+                        lot["sell_date"].strftime("%d/%m/%Y") if lot["sell_date"] else "",
+                        f"{lot['sell_price']:.4f}",
+                        f"{lot['buy_total']:.2f}",
+                        f"{lot['sell_total']:.2f}",
+                        f"{lot['gain']:.2f}",
+                    ])
+                r = _report_data[0]
+                w.writerow([])
+                w.writerow(["", "", "", "", "", "", "PLUS-VALUES", "", f"{r['total_gains']:.2f}"])
+                w.writerow(["", "", "", "", "", "", "MOINS-VALUES", "", f"{r['total_losses']:.2f}"])
+                w.writerow(["", "", "", "", "", "", "NET IMPOSABLE", "", f"{r['net']:.2f}"])
+            Toast(self, f"Rapport exporté : {path}", "success").show()
+
+        btn_calc.clicked.connect(_run_calc)
+        btn_export_fifo.clicked.connect(_export_fifo_csv)
+        _run_calc()  # calcul immédiat sur l'année sélectionnée
         dlg.exec()
 
     # ── Export CSV ───────────────────────────────────────────────────────────

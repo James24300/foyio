@@ -258,3 +258,16 @@ class WatchlistItem(Base):
     name          = Column(String(100),  nullable=False)
     added_at      = Column(DateTime,     nullable=False)
     note          = Column(String(500),  nullable=True)
+
+
+class CryptoDCA(Base):
+    """Plan DCA récurrent : investissement automatique mensuel sur une crypto."""
+    __tablename__ = "crypto_dca"
+
+    id             = Column(Integer,      primary_key=True)
+    holding_id     = Column(Integer,      ForeignKey("crypto_holdings.id"), nullable=False)
+    amount_eur     = Column(Float,        nullable=False)   # montant à investir en €
+    day_of_month   = Column(Integer,      nullable=False, default=1)   # 1-28
+    active         = Column(Boolean,      default=True)
+    last_executed  = Column(Date,         nullable=True)    # date de la dernière exécution
+    note           = Column(String(200),  nullable=True)
