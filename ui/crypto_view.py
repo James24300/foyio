@@ -415,9 +415,13 @@ class CryptoView(QWidget):
         self._alert_holding_combo.setMinimumWidth(150)
 
         self._alert_type_combo = QComboBox()
-        self._alert_type_combo.addItem("Au-dessus de", "above")
-        self._alert_type_combo.addItem("En-dessous de", "below")
+        self._alert_type_combo.addItem("Prix au-dessus de", "above")
+        self._alert_type_combo.addItem("Prix en-dessous de", "below")
+        self._alert_type_combo.addItem("Hausse 24h ≥ +X%", "pct_up")
+        self._alert_type_combo.addItem("Baisse 24h ≥ -X%", "pct_down")
         self._alert_type_combo.setMinimumHeight(34)
+        self._alert_type_combo.setMinimumWidth(160)
+        self._alert_type_combo.currentIndexChanged.connect(self._on_alert_type_changed)
 
         self._alert_price = QDoubleSpinBox()
         self._alert_price.setRange(0.000001, 9_999_999)
@@ -426,20 +430,30 @@ class CryptoView(QWidget):
         self._alert_price.setMinimumHeight(34)
         self._alert_price.setMinimumWidth(130)
 
-        btn_add_alert = QPushButton("  Ajouter l'alerte")
+        btn_add_alert = QPushButton("Ajouter l'alerte")
         btn_add_alert.setMinimumHeight(34)
-        btn_add_alert.setStyleSheet("background:#f59e0b; color:#000; border:none; border-radius:8px; font-weight:700; padding:0 12px;")
+        btn_add_alert.setStyleSheet(
+            "background:#f59e0b; color:#000; border:none; border-radius:8px;"
+            "font-weight:700; padding:0 12px; text-align:center;"
+        )
         btn_add_alert.clicked.connect(self._add_alert)
 
+        self._alert_price_lbl = QLabel("Prix cible :")
+        self._alert_price_lbl.setStyleSheet("font-size:11px; color:#7a8494;")
+
         for lbl_txt, widget in [("Crypto :", self._alert_holding_combo),
-                                 ("Condition :", self._alert_type_combo),
-                                 ("Prix cible :", self._alert_price)]:
+                                 ("Condition :", self._alert_type_combo)]:
             col = QVBoxLayout()
             lbl = QLabel(lbl_txt)
             lbl.setStyleSheet("font-size:11px; color:#7a8494;")
             col.addWidget(lbl)
             col.addWidget(widget)
             form_row.addLayout(col)
+
+        price_col = QVBoxLayout()
+        price_col.addWidget(self._alert_price_lbl)
+        price_col.addWidget(self._alert_price)
+        form_row.addLayout(price_col)
 
         form_row.addWidget(btn_add_alert)
         form_row.addStretch()
@@ -618,17 +632,28 @@ class CryptoView(QWidget):
         for h in self._holdings:
             self._alert_holding_combo.addItem(f"{h.name} ({h.symbol})", h.id)
 
+        _cond_labels = {
+            "above":    "▲ Prix ≥",
+            "below":    "▼ Prix ≤",
+            "pct_up":   "📈 Hausse ≥ +",
+            "pct_down": "📉 Baisse ≥ -",
+        }
         for i, a in enumerate(alerts):
             h = holdings_map.get(a.holding_id)
             name = f"{h.name} ({h.symbol})" if h else "—"
-            cond = "▲ Au-dessus de" if a.alert_type == "above" else "▼ En-dessous de"
+            cond = _cond_labels.get(a.alert_type, a.alert_type)
             price_info = self._prices.get(h.coingecko_id if h else "", {})
             current    = price_info.get("price", 0)
+            change_24h = price_info.get("change_24h", 0) or 0
+
+            is_pct = a.alert_type in ("pct_up", "pct_down")
+            target_str  = f"{a.target_price:.1f}%" if is_pct else f"{a.target_price:,.2f} €"
+            current_str = (f"{change_24h:+.1f}%" if is_pct else f"{current:,.2f} €") if current else "—"
 
             self._alerts_table.setItem(i, 0, QTableWidgetItem(name))
             self._alerts_table.setItem(i, 1, QTableWidgetItem(cond))
-            self._alerts_table.setItem(i, 2, QTableWidgetItem(f"{a.target_price:,.2f} €"))
-            self._alerts_table.setItem(i, 3, QTableWidgetItem(f"{current:,.2f} €" if current else "—"))
+            self._alerts_table.setItem(i, 2, QTableWidgetItem(target_str))
+            self._alerts_table.setItem(i, 3, QTableWidgetItem(current_str))
 
             btn_del = QPushButton("Supprimer")
             btn_del.setFixedHeight(28)
@@ -869,6 +894,20 @@ class CryptoView(QWidget):
         if msg.clickedButton() == btn_yes:
             delete_holding(h.id); self.load()
             Toast.show(self, f"✓  {h.name} supprimé", kind="success")
+
+    def _on_alert_type_changed(self):
+        atype = self._alert_type_combo.currentData()
+        is_pct = atype in ("pct_up", "pct_down")
+        if is_pct:
+            self._alert_price.setSuffix(" %")
+            self._alert_price.setRange(0.1, 100)
+            self._alert_price.setDecimals(1)
+            self._alert_price_lbl.setText("Seuil (%) :")
+        else:
+            self._alert_price.setSuffix(" €")
+            self._alert_price.setRange(0.000001, 9_999_999)
+            self._alert_price.setDecimals(2)
+            self._alert_price_lbl.setText("Prix cible :")
 
     def _add_alert(self):
         hid = self._alert_holding_combo.currentData()
@@ -1636,9 +1675,19 @@ class CryptoView(QWidget):
     def _check_alerts_now(self):
         triggered = check_alerts(self._prices)
         for t in triggered:
-            direction = "au-dessus" if t["alert_type"] == "above" else "en-dessous"
-            msg = (f"{t['name']} ({t['symbol']}) est passé {direction} de "
-                   f"{t['target_price']:,.2f} €\nPrix actuel : {t['current_price']:,.2f} €")
+            atype = t["alert_type"]
+            if atype == "above":
+                msg = (f"{t['name']} ({t['symbol']}) a dépassé {t['target_price']:,.2f} €"
+                       f"\nPrix actuel : {t['current_price']:,.2f} €")
+            elif atype == "below":
+                msg = (f"{t['name']} ({t['symbol']}) est passé sous {t['target_price']:,.2f} €"
+                       f"\nPrix actuel : {t['current_price']:,.2f} €")
+            elif atype == "pct_up":
+                msg = (f"{t['name']} ({t['symbol']}) a progressé de "
+                       f"+{t['change_24h']:.1f}% en 24h (seuil : +{t['target_price']:.1f}%)")
+            else:  # pct_down
+                msg = (f"{t['name']} ({t['symbol']}) a chuté de "
+                       f"{t['change_24h']:.1f}% en 24h (seuil : -{t['target_price']:.1f}%)")
             Toast.show(self, f"🔔  {msg}", kind="info")
             self._show_tray_msg(f"🔔 Alerte Crypto — {t['name']}", msg)
         if triggered:
