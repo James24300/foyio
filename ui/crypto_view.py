@@ -11,10 +11,11 @@ from PySide6.QtWidgets import (
     QProgressBar, QCheckBox
 )
 from PySide6.QtCharts import (
-    QChart, QChartView, QLineSeries, QPieSeries, QValueAxis, QAreaSeries
+    QChart, QChartView, QLineSeries, QPieSeries, QValueAxis, QAreaSeries,
+    QDateTimeAxis
 )
-from PySide6.QtCore import Qt, QTimer, QThread, Signal
-from PySide6.QtGui import QColor, QPainter, QFont
+from PySide6.QtCore import Qt, QTimer, QThread, Signal, QDateTime
+from PySide6.QtGui import QColor, QPainter, QFont, QPen
 
 from utils.formatters import format_money
 from utils.icons import get_icon
@@ -42,6 +43,27 @@ class _PriceFetcher(QThread):
             self.done.emit(prices)
         except Exception:
             self.done.emit({})
+
+
+class _EvoFetcher(QThread):
+    """Charge l'historique de prix de tous les holdings en arrière-plan."""
+    done = Signal(dict)   # {coingecko_id: [(ts_ms, price)]}
+
+    def __init__(self, holdings, days: int):
+        super().__init__()
+        self._holdings = holdings
+        self._days = days
+
+    def run(self):
+        result = {}
+        try:
+            for h in self._holdings:
+                hist = get_price_history(h.coingecko_id, self._days)
+                if hist:
+                    result[h.coingecko_id] = (h.quantity, hist)
+        except Exception:
+            pass
+        self.done.emit(result)
 
 
 class CryptoView(QWidget):
@@ -189,10 +211,42 @@ class CryptoView(QWidget):
         # Graphique camembert
         self._pie_chart_view = QChartView()
         self._pie_chart_view.setRenderHint(QPainter.Antialiasing)
-        self._pie_chart_view.setMinimumHeight(200)
-        self._pie_chart_view.setMaximumHeight(220)
+        self._pie_chart_view.setMinimumHeight(180)
+        self._pie_chart_view.setMaximumHeight(200)
         self._pie_chart_view.setStyleSheet("background:transparent; border:none;")
         vl.addWidget(self._pie_chart_view)
+
+        # ── Évolution de la valeur totale ──
+        evo_header = QHBoxLayout()
+        evo_lbl = QLabel("Évolution du portefeuille")
+        evo_lbl.setStyleSheet("font-size:12px; font-weight:600; color:#7a8494;")
+        evo_header.addWidget(evo_lbl)
+        evo_header.addStretch()
+
+        self._evo_period = 30
+        self._evo_btns = {}
+        for label, days in [("7J", 7), ("30J", 30), ("90J", 90), ("1AN", 365)]:
+            btn = QPushButton(label)
+            btn.setFixedSize(44, 26)
+            btn.setCheckable(True)
+            btn.setChecked(days == 30)
+            btn.setStyleSheet("""
+                QPushButton { background:#26292e; color:#7a8494; border:1px solid #3a3f47;
+                    border-radius:6px; font-size:11px; font-weight:600; }
+                QPushButton:hover { color:#c8cdd4; }
+                QPushButton:checked { background:#3b82f6; color:#fff; border:none; }
+            """)
+            btn.clicked.connect(lambda checked, d=days: self._set_evo_period(d))
+            evo_header.addWidget(btn)
+            self._evo_btns[days] = btn
+
+        vl.addLayout(evo_header)
+
+        self._evo_chart_view = QChartView()
+        self._evo_chart_view.setRenderHint(QPainter.Antialiasing)
+        self._evo_chart_view.setFixedHeight(180)
+        self._evo_chart_view.setStyleSheet("background:transparent; border:none;")
+        vl.addWidget(self._evo_chart_view)
         return w
 
     # ── Onglet Transactions ───────────────────────────────────────────────────
@@ -398,6 +452,8 @@ class CryptoView(QWidget):
         self._load_portfolio()
         self._update_summary()
         self._check_alerts_now()
+        if self._holdings:
+            self._fetch_evolution()
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
@@ -723,6 +779,72 @@ class CryptoView(QWidget):
         delete_alert(alert_id)
         self._load_alerts()
         Toast.show(self, "✓  Alerte supprimée", kind="success")
+
+    # ── Évolution portefeuille ────────────────────────────────────────────────
+    def _set_evo_period(self, days: int):
+        self._evo_period = days
+        for d, btn in self._evo_btns.items():
+            btn.setChecked(d == days)
+        if self._holdings:
+            self._fetch_evolution()
+
+    def _fetch_evolution(self):
+        self._evo_fetcher = _EvoFetcher(self._holdings, self._evo_period)
+        self._evo_fetcher.done.connect(self._on_evo_received)
+        self._evo_fetcher.start()
+
+    def _on_evo_received(self, data: dict):
+        """Reconstruit le graphique d'évolution à partir des historiques reçus."""
+        if not data:
+            return
+
+        # Agréger la valeur totale par jour
+        daily: dict[int, float] = {}
+        for cg_id, (qty, history) in data.items():
+            for ts_ms, price in history:
+                day = (ts_ms // 86_400_000) * 86_400_000
+                daily[day] = daily.get(day, 0.0) + qty * price
+
+        if len(daily) < 2:
+            return
+
+        points = sorted(daily.items())
+        min_v = min(v for _, v in points)
+        max_v = max(v for _, v in points)
+
+        self._evo_series = QLineSeries()
+        pen = QPen(QColor("#3b82f6"))
+        pen.setWidth(2)
+        self._evo_series.setPen(pen)
+        for ts_ms, value in points:
+            self._evo_series.append(ts_ms, value)
+
+        chart = QChart()
+        chart.addSeries(self._evo_series)
+        chart.setBackgroundBrush(QColor("#1e2023"))
+        chart.setBackgroundRoundness(0)
+        chart.legend().hide()
+        chart.setContentsMargins(0, 0, 0, 0)
+        chart.layout().setContentsMargins(0, 0, 0, 0)
+
+        axis_x = QDateTimeAxis()
+        axis_x.setFormat("dd/MM" if self._evo_period <= 90 else "MMM yy")
+        axis_x.setLabelsColor(QColor("#7a8494"))
+        axis_x.setGridLineColor(QColor("#2e3238"))
+        axis_x.setTickCount(min(6, len(points)))
+        chart.addAxis(axis_x, Qt.AlignBottom)
+        self._evo_series.attachAxis(axis_x)
+
+        axis_y = QValueAxis()
+        axis_y.setRange(min_v * 0.98, max_v * 1.02)
+        axis_y.setLabelsColor(QColor("#7a8494"))
+        axis_y.setGridLineColor(QColor("#2e3238"))
+        axis_y.setLabelFormat("%.0f €")
+        axis_y.setTickCount(4)
+        chart.addAxis(axis_y, Qt.AlignLeft)
+        self._evo_series.attachAxis(axis_y)
+
+        self._evo_chart_view.setChart(chart)
 
     def _check_alerts_now(self):
         triggered = check_alerts(self._prices)
