@@ -361,3 +361,20 @@ def migrate_database():
                 )"""))
             conn.commit()
         logger.info("Migration v6.4 : table watchlist créée")
+
+    # v6.5 : table crypto_dca (plans DCA récurrents)
+    inspector = inspect(engine)
+    if not _table_exists(inspector, "crypto_dca"):
+        with engine.connect() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS crypto_dca (
+                    id INTEGER PRIMARY KEY,
+                    holding_id INTEGER NOT NULL REFERENCES crypto_holdings(id),
+                    amount_eur FLOAT NOT NULL,
+                    day_of_month INTEGER NOT NULL DEFAULT 1,
+                    active BOOLEAN DEFAULT 1,
+                    last_executed DATE,
+                    note VARCHAR(200)
+                )"""))
+            conn.commit()
+        logger.info("Migration v6.5 : table crypto_dca créée")
