@@ -915,14 +915,14 @@ class CryptoView(QWidget):
         self._wl_table.setSelectionBehavior(QTableWidget.SelectRows)
         self._wl_table.setShowGrid(False)
         self._wl_table.verticalHeader().setVisible(False)
-        self._wl_table.verticalHeader().setDefaultSectionSize(42)
+        self._wl_table.verticalHeader().setDefaultSectionSize(46)
         hdr = self._wl_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
         hdr.setSectionResizeMode(1, QHeaderView.Fixed); self._wl_table.setColumnWidth(1, 130)
         hdr.setSectionResizeMode(2, QHeaderView.Fixed); self._wl_table.setColumnWidth(2, 90)
         hdr.setSectionResizeMode(3, QHeaderView.Fixed); self._wl_table.setColumnWidth(3, 160)
         hdr.setSectionResizeMode(4, QHeaderView.Fixed); self._wl_table.setColumnWidth(4, 100)
-        hdr.setSectionResizeMode(5, QHeaderView.Fixed); self._wl_table.setColumnWidth(5, 110)
+        hdr.setSectionResizeMode(5, QHeaderView.Fixed); self._wl_table.setColumnWidth(5, 170)
         self._wl_table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
             QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }
@@ -961,24 +961,26 @@ class CryptoView(QWidget):
 
             btn_row = QHBoxLayout()
             btn_buy = QPushButton("Acheter")
-            btn_buy.setFixedHeight(28)
+            btn_buy.setMinimumWidth(72)
+            btn_buy.setFixedHeight(30)
             btn_buy.setStyleSheet(
                 "background:#22c55e; color:#000; border:none; border-radius:6px;"
-                "font-size:11px; font-weight:700;"
+                "font-size:12px; font-weight:700; text-align:center;"
             )
             btn_buy.clicked.connect(lambda _, it=item: self._buy_from_watchlist(it))
 
             btn_del = QPushButton("Retirer")
-            btn_del.setFixedHeight(28)
+            btn_del.setMinimumWidth(66)
+            btn_del.setFixedHeight(30)
             btn_del.setStyleSheet(
                 "background:#2e2020; color:#e89090; border:1px solid #503030;"
-                "border-radius:6px; font-size:11px;"
+                "border-radius:6px; font-size:12px; text-align:center;"
             )
             btn_del.clicked.connect(lambda _, it=item: self._remove_watchlist(it))
 
             cell_w = QWidget()
             hl = QHBoxLayout(cell_w)
-            hl.setContentsMargins(4, 4, 4, 4)
+            hl.setContentsMargins(4, 6, 4, 6)
             hl.setSpacing(4)
             hl.addWidget(btn_buy)
             hl.addWidget(btn_del)
