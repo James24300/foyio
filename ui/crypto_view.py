@@ -21,7 +21,7 @@ from utils.formatters import format_money
 from utils.icons import get_icon
 from ui.toast import Toast
 from services.crypto_service import (
-    get_holdings, add_holding, sell_holding, delete_holding,
+    get_holdings, add_holding, sell_holding, delete_holding, update_holding,
     get_transactions, get_prices, get_portfolio_summary,
     add_alert, get_alerts, delete_alert, check_alerts,
     simulate_dca, simulate_what_if, get_top_coins, search_coins,
@@ -169,6 +169,12 @@ class CryptoView(QWidget):
         self._btn_sell.setStyleSheet("background:#ef4444; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
         self._btn_sell.clicked.connect(self._dialog_sell)
 
+        self._btn_edit = QPushButton("  Modifier")
+        self._btn_edit.setMinimumHeight(36)
+        self._btn_edit.setEnabled(False)
+        self._btn_edit.setStyleSheet("background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 16px;")
+        self._btn_edit.clicked.connect(self._dialog_edit)
+
         self._btn_del = QPushButton("  Supprimer")
         self._btn_del.setMinimumHeight(36)
         self._btn_del.setEnabled(False)
@@ -177,6 +183,7 @@ class CryptoView(QWidget):
 
         btn_row.addWidget(btn_add)
         btn_row.addWidget(self._btn_sell)
+        btn_row.addWidget(self._btn_edit)
         btn_row.addWidget(self._btn_del)
         btn_row.addStretch()
         vl.addLayout(btn_row)
@@ -210,7 +217,9 @@ class CryptoView(QWidget):
         """)
         self._portfolio_table.itemSelectionChanged.connect(self._on_portfolio_selection)
         self._portfolio_table.cellDoubleClicked.connect(self._on_portfolio_double_click)
-        vl.addWidget(self._portfolio_table, 1)
+        self._portfolio_table.setMinimumHeight(120)
+        self._portfolio_table.setMaximumHeight(320)
+        vl.addWidget(self._portfolio_table)
 
         # Graphique camembert
         self._pie_chart_view = QChartView()
@@ -590,6 +599,7 @@ class CryptoView(QWidget):
     def _on_portfolio_selection(self):
         has_sel = bool(self._portfolio_table.selectedItems())
         self._btn_sell.setEnabled(has_sel)
+        self._btn_edit.setEnabled(has_sel)
         self._btn_del.setEnabled(has_sel)
 
     def _selected_holding(self):
@@ -751,6 +761,59 @@ class CryptoView(QWidget):
             Toast.show(self, f"✓  Vente enregistrée", kind="success")
 
         btn_ok.clicked.connect(_do_sell)
+        dlg.exec()
+
+    def _dialog_edit(self):
+        h = self._selected_holding()
+        if not h:
+            return
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Modifier — {h.name}")
+        dlg.setMinimumWidth(360)
+        dlg.setStyleSheet("background:#1e2124; color:#c8cdd4;")
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(10)
+
+        def lbl(t):
+            l = QLabel(t); l.setStyleSheet("font-size:11px; color:#7a8494;"); return l
+
+        qty_spin = QDoubleSpinBox()
+        qty_spin.setRange(0.000001, 999999)
+        qty_spin.setDecimals(8)
+        qty_spin.setValue(h.quantity)
+        qty_spin.setMinimumHeight(34)
+
+        price_spin = QDoubleSpinBox()
+        price_spin.setRange(0.000001, 9_999_999)
+        price_spin.setDecimals(2)
+        price_spin.setSuffix(" €")
+        price_spin.setValue(h.avg_buy_price)
+        price_spin.setMinimumHeight(34)
+
+        vl.addWidget(lbl(f"Crypto : {h.name} ({h.symbol})"))
+        vl.addSpacing(4)
+        vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
+        vl.addWidget(lbl("Prix moyen d'achat :")); vl.addWidget(price_spin)
+
+        btn_row = QHBoxLayout()
+        btn_ok = QPushButton("  Enregistrer")
+        btn_ok.setMinimumHeight(36)
+        btn_ok.setStyleSheet("background:#3b82f6; color:#fff; border:none; border-radius:8px; font-weight:700;")
+        btn_cancel = QPushButton("Annuler")
+        btn_cancel.setMinimumHeight(36)
+        btn_row.addWidget(btn_ok); btn_row.addWidget(btn_cancel)
+        vl.addLayout(btn_row)
+        btn_cancel.clicked.connect(dlg.reject)
+
+        def _do_edit():
+            update_holding(h.id, qty_spin.value(), price_spin.value())
+            dlg.accept()
+            self.load()
+            Toast.show(self, f"✓  {h.name} mis à jour", kind="success")
+
+        btn_ok.clicked.connect(_do_edit)
         dlg.exec()
 
     def _delete_holding(self):
