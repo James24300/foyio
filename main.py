@@ -58,6 +58,7 @@ from ui.about_view import AboutView
 from ui.features_view import FeaturesView
 from ui.settings_view import SettingsView
 from ui.loans_view import LoansView
+from ui.crypto_view import CryptoView
 from services.update_service import get_current_version
 from ui.password_dialog import PasswordDialog
 
@@ -173,6 +174,7 @@ class MainWindow(QWidget):
             ("btn_settings",     " Paramètres",      "other.png"),
             ("btn_features",     " Fonctionnalités","reports.png"),
             ("btn_about",        " À propos",        "other.png"),
+            ("btn_crypto",       " Crypto",           "money.png"),
         ]
 
         self._nav_buttons = []
@@ -408,6 +410,7 @@ class MainWindow(QWidget):
         self.accounts     = AccountsView(self)
         self.savings      = SavingsView()
         self.loans        = LoansView()
+        self.crypto       = CryptoView()
         self.tools        = ToolsView()
         self.about        = AboutView()
         self.settings_v   = SettingsView()
@@ -417,7 +420,8 @@ class MainWindow(QWidget):
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
             self.savings, self.accounts, self.loans,
-            self.tools, self.settings_v, self.features_v, self.about
+            self.tools, self.settings_v, self.features_v, self.about,
+            self.crypto
         ]:
             self.stack.addTab(view, "")
 
@@ -450,6 +454,7 @@ class MainWindow(QWidget):
         self.btn_settings.clicked.connect(lambda: self.set_active(10))
         self.btn_features.clicked.connect(lambda: self.set_active(11))
         self.btn_about.clicked.connect(lambda: self.set_active(12))
+        self.btn_crypto.clicked.connect(lambda: self.set_active(13))
 
         content_layout = QVBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -497,7 +502,6 @@ class MainWindow(QWidget):
             ("Ctrl+7",     lambda: self.set_active(6)),
             ("Ctrl+8",     lambda: self.set_active(7)),
             ("Ctrl+9",     lambda: self.set_active(8)),
-            ("Ctrl+F",     self._focus_search),
             ("Ctrl+Left",  self._go_prev),
             ("Ctrl+Right", self._go_next),
             ("Ctrl+T",     self._go_today),
@@ -723,157 +727,6 @@ class MainWindow(QWidget):
             )
             self._calculator.show()
 
-    def _focus_search(self):
-        self._search_input.setFocus()
-        self._search_input.selectAll()
-
-    def _global_search(self):
-        query = self._search_input.text().strip()
-        if len(query) < 2:
-            return
-        from services.transaction_service import search_all_periods
-        from utils.formatters import format_money
-        from PySide6.QtWidgets import (
-            QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-            QTableWidgetItem, QHeaderView, QPushButton, QComboBox,
-            QLineEdit, QFrame
-        )
-        from PySide6.QtGui import QColor, QDoubleValidator
-        from PySide6.QtCore import Qt
-        from db import Session
-        from models import Category
-
-        with Session() as session:
-            cats = {c.id: c.name for c in session.query(Category).all()}
-
-        all_results = search_all_periods(query)
-        self._search_input.clear()
-
-        dlg = QDialog(self)
-        dlg.setWindowTitle(f"Recherche : {query!r}")
-        dlg.setMinimumSize(820, 560)
-        vl = QVBoxLayout(dlg)
-        vl.setContentsMargins(16, 16, 16, 16)
-        vl.setSpacing(10)
-
-        # ── Filtres ──
-        filter_row = QHBoxLayout()
-        filter_row.setSpacing(8)
-
-        type_combo = QComboBox()
-        type_combo.addItems(["Tous", "Revenus", "Dépenses"])
-        type_combo.setMinimumHeight(32)
-        type_combo.setFixedWidth(110)
-
-        cat_filter = QComboBox()
-        cat_filter.setMinimumHeight(32)
-        cat_filter.setFixedWidth(140)
-        cat_filter.addItem("Toutes catégories", None)
-        for cid, cname in sorted(cats.items(), key=lambda x: x[1]):
-            cat_filter.addItem(cname, cid)
-
-        min_input = QLineEdit()
-        min_input.setPlaceholderText("Montant min (€)")
-        min_input.setValidator(QDoubleValidator(0, 9999999, 2))
-        min_input.setMinimumHeight(32)
-        min_input.setFixedWidth(130)
-
-        max_input = QLineEdit()
-        max_input.setPlaceholderText("Montant max (€)")
-        max_input.setValidator(QDoubleValidator(0, 9999999, 2))
-        max_input.setMinimumHeight(32)
-        max_input.setFixedWidth(130)
-
-        self._sr_count = QLabel()
-        self._sr_count.setStyleSheet("font-size:12px; color:#848c94;")
-
-        btn_filter = QPushButton("  Filtrer")
-        btn_filter.setMinimumHeight(32)
-        btn_filter.setFixedWidth(90)
-
-        filter_row.addWidget(QLabel("Type :"))
-        filter_row.addWidget(type_combo)
-        filter_row.addWidget(cat_filter)
-        filter_row.addWidget(min_input)
-        filter_row.addWidget(max_input)
-        filter_row.addWidget(btn_filter)
-        filter_row.addStretch()
-        filter_row.addWidget(self._sr_count)
-        vl.addLayout(filter_row)
-
-        sep = QFrame(); sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background:#2e3238; max-height:1px; border:none;")
-        vl.addWidget(sep)
-
-        # ── Tableau ──
-        tbl = QTableWidget(0, 5)
-        tbl.setHorizontalHeaderLabels(["Date", "Type", "Montant", "Catégorie", "Description"])
-        tbl.verticalHeader().setVisible(False)
-        tbl.setShowGrid(False)
-        tbl.setEditTriggers(QTableWidget.NoEditTriggers)
-        tbl.setAlternatingRowColors(True)
-        tbl.setSelectionBehavior(QTableWidget.SelectRows)
-        tbl.verticalHeader().setDefaultSectionSize(34)
-        hdr = tbl.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.Fixed); tbl.setColumnWidth(0, 100)
-        hdr.setSectionResizeMode(1, QHeaderView.Fixed); tbl.setColumnWidth(1, 90)
-        hdr.setSectionResizeMode(2, QHeaderView.Fixed); tbl.setColumnWidth(2, 110)
-        hdr.setSectionResizeMode(3, QHeaderView.Fixed); tbl.setColumnWidth(3, 150)
-        hdr.setSectionResizeMode(4, QHeaderView.Stretch)
-        tbl.setStyleSheet(
-            "QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }"
-            "QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }"
-            "QTableWidget::item:alternate { background:#202428; }"
-            "QHeaderView::section { background:#292d32; color:#7a8494; border:none; "
-            "border-bottom:1px solid #3a3f47; padding:6px 8px; }"
-        )
-        vl.addWidget(tbl, 1)
-
-        def _populate(results):
-            tbl.setRowCount(len(results))
-            for i, t in enumerate(results):
-                color = QColor("#22c55e") if t.type == "income" else QColor("#ef4444")
-                sign  = "+" if t.type == "income" else "-"
-                ttype = "Revenu" if t.type == "income" else "Dépense"
-                tbl.setItem(i, 0, QTableWidgetItem(t.date.strftime("%d/%m/%Y")))
-                ti = QTableWidgetItem(ttype); ti.setForeground(color)
-                tbl.setItem(i, 1, ti)
-                ai = QTableWidgetItem(f"{sign}{format_money(t.amount)}")
-                ai.setForeground(color); ai.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
-                tbl.setItem(i, 2, ai)
-                tbl.setItem(i, 3, QTableWidgetItem(cats.get(t.category_id, "—")))
-                ni = QTableWidgetItem(t.note or ""); ni.setForeground(QColor("#7a8494"))
-                tbl.setItem(i, 4, ni)
-            self._sr_count.setText(f"{len(results)} résultat(s)")
-
-        def _apply_filters():
-            filtered = list(all_results)
-            ttype = type_combo.currentText()
-            if ttype == "Revenus":
-                filtered = [t for t in filtered if t.type == "income"]
-            elif ttype == "Dépenses":
-                filtered = [t for t in filtered if t.type == "expense"]
-            try:
-                mn = float(min_input.text().replace(",", "."))
-                filtered = [t for t in filtered if t.amount >= mn]
-            except ValueError:
-                pass
-            try:
-                mx = float(max_input.text().replace(",", "."))
-                filtered = [t for t in filtered if t.amount <= mx]
-            except ValueError:
-                pass
-            _populate(filtered)
-
-        btn_filter.clicked.connect(_apply_filters)
-        _populate(all_results)
-
-        btn_close = QPushButton("Fermer")
-        btn_close.setMinimumHeight(34)
-        btn_close.clicked.connect(dlg.accept)
-        vl.addWidget(btn_close)
-        dlg.exec()
-
     def _restart_lock_timer(self):
         """Relit le délai dans les paramètres et (re)démarre le timer."""
         from services.settings_service import load_settings
@@ -1055,10 +908,11 @@ class MainWindow(QWidget):
     def toggle_sidebar(self):
         expanded = self.sidebar_expanded
         end_width = 60 if expanded else 220
-        labels = ["", "", "", "", "", "", "", "", "", "", ""] if expanded else [
+        labels = ["", "", "", "", "", "", "", "", "", "", "", "", "", ""] if expanded else [
             " Accueil", " Transactions", " Budgets",
             " Catégories", " Statistiques", " Récurrentes",
-            " Épargne", " Comptes", " Outils", " Paramètres", " À propos"
+            " Épargne", " Comptes", " Prêts", " Outils",
+            " Paramètres", " Fonctionnalités", " À propos", " Crypto",
         ]
         for btn, label in zip(self._nav_buttons, labels):
             btn.setText(label)
@@ -1090,6 +944,7 @@ class MainWindow(QWidget):
             ("other.png",        "Paramètres"),
             ("other.png",        "Fonctionnalités"),
             ("other.png",        "À propos"),
+            ("money.png",        "Crypto-monnaies"),
         ]
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(i == index)
@@ -1165,6 +1020,7 @@ class MainWindow(QWidget):
         if hasattr(self, "stats"):        self.stats.refresh()
         if hasattr(self, "budget"):       self.budget.refresh()
         if hasattr(self, "recurring"):    self.recurring.load()
+        if hasattr(self, "crypto"):       self.crypto.refresh()
 
 
 
