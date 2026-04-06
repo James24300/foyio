@@ -73,6 +73,37 @@ class _EvoFetcher(QThread):
         self.done.emit(result)
 
 
+class _CompFetcher(QThread):
+    """Charge l'historique de BTC, ETH et du portefeuille pour la comparaison."""
+    done = Signal(dict)  # {"btc": [...], "eth": [...], "portfolio": [(ts, value)]}
+
+    def __init__(self, holdings, days: int):
+        super().__init__()
+        self._holdings = holdings
+        self._days = days
+
+    def run(self):
+        import time as _time
+        result = {}
+        try:
+            result["btc"] = get_price_history("bitcoin", self._days)
+            _time.sleep(1.2)
+            result["eth"] = get_price_history("ethereum", self._days)
+            # Portfolio : agréger valeur totale par jour
+            daily: dict[int, float] = {}
+            for i, h in enumerate(self._holdings):
+                if i > 0:
+                    _time.sleep(1.2)
+                hist = get_price_history(h.coingecko_id, self._days)
+                for ts_ms, price in hist:
+                    day = (ts_ms // 86_400_000) * 86_400_000
+                    daily[day] = daily.get(day, 0.0) + h.quantity * price
+            result["portfolio"] = sorted(daily.items())
+        except Exception:
+            pass
+        self.done.emit(result)
+
+
 class _TopFetcher(QThread):
     done = Signal(list)
 
@@ -393,6 +424,58 @@ class CryptoView(QWidget):
         self._wi_chart = QChartView(); self._wi_chart.setRenderHint(QPainter.Antialiasing); self._wi_chart.setMinimumHeight(200); self._wi_chart.setVisible(False)
         cl_wi.addWidget(self._wi_chart)
         vl.addWidget(card_wi)
+        # ── Carte Comparaison ──
+        card_cmp, cl_cmp = _card("Comparaison — Portfolio vs Bitcoin vs Ethereum")
+
+        cmp_bar = QHBoxLayout()
+        cmp_bar.addStretch()
+        self._cmp_period = 30
+        self._cmp_btns: dict[int, QPushButton] = {}
+        for label, days in [("7J", 7), ("30J", 30), ("90J", 90), ("1AN", 365)]:
+            b = QPushButton(label)
+            b.setFixedSize(52, 26)
+            b.setCheckable(True)
+            b.setChecked(days == 30)
+            b.setStyleSheet("""
+                QPushButton { background:#1e2023; color:#7a8494; border:1px solid #3a3f47;
+                    border-radius:6px; font-size:11px; font-weight:600; }
+                QPushButton:checked { background:#3b82f6; color:#fff; border:none; }
+                QPushButton:hover { color:#c8cdd4; }
+            """)
+            b.clicked.connect(lambda _, d=days: self._run_comparison(d))
+            cmp_bar.addWidget(b)
+            self._cmp_btns[days] = b
+
+        btn_run_cmp = QPushButton("Comparer")
+        btn_run_cmp.setFixedHeight(26)
+        btn_run_cmp.setStyleSheet(
+            "background:#6366f1; color:#fff; border:none; border-radius:6px;"
+            "font-size:11px; font-weight:700; padding:0 12px; margin-left:6px;"
+        )
+        btn_run_cmp.clicked.connect(lambda: self._run_comparison(self._cmp_period))
+        cmp_bar.addWidget(btn_run_cmp)
+        cl_cmp.addLayout(cmp_bar)
+
+        # Légende
+        legend_row = QHBoxLayout()
+        for color, label in [("#3b82f6", "● Portfolio"), ("#f7931a", "● Bitcoin"), ("#627eea", "● Ethereum")]:
+            lbl = QLabel(label)
+            lbl.setStyleSheet(f"color:{color}; font-size:11px; background:transparent; border:none;")
+            legend_row.addWidget(lbl)
+        legend_row.addStretch()
+        cl_cmp.addLayout(legend_row)
+
+        self._cmp_chart = QChartView()
+        self._cmp_chart.setRenderHint(QPainter.Antialiasing)
+        self._cmp_chart.setFixedHeight(260)
+        self._cmp_chart.setStyleSheet("background:transparent; border:none;")
+        cl_cmp.addWidget(self._cmp_chart)
+
+        self._cmp_status = QLabel("Sélectionnez une période et cliquez sur Comparer.")
+        self._cmp_status.setStyleSheet("color:#7a8494; font-size:11px; background:transparent; border:none;")
+        cl_cmp.addWidget(self._cmp_status)
+
+        vl.addWidget(card_cmp)
         vl.addStretch()
 
         scroll.setWidget(inner)
@@ -1694,6 +1777,92 @@ class CryptoView(QWidget):
             self._load_alerts()
 
     # ── Simulateur DCA ────────────────────────────────────────────────────────
+    # ── Comparaison Portfolio vs BTC vs ETH ───────────────────────────────────
+    def _run_comparison(self, days: int):
+        self._cmp_period = days
+        for d, b in self._cmp_btns.items():
+            b.setChecked(d == days)
+        if not self._holdings:
+            self._cmp_status.setText("Aucune crypto dans le portefeuille.")
+            return
+        self._cmp_status.setText("Chargement des données…")
+        self._comp_fetcher = _CompFetcher(self._holdings, days)
+        self._comp_fetcher.done.connect(self._on_comp_received)
+        self._comp_fetcher.start()
+
+    def _on_comp_received(self, data: dict):
+        def _normalize(series_data):
+            """Ramène la première valeur à 100 (base 100)."""
+            if not series_data:
+                return []
+            first = series_data[0][1]
+            if first == 0:
+                return []
+            return [(ts, val / first * 100) for ts, val in series_data]
+
+        btc_norm  = _normalize(data.get("btc", []))
+        eth_norm  = _normalize(data.get("eth", []))
+        port_norm = _normalize(data.get("portfolio", []))
+
+        if not any([btc_norm, eth_norm, port_norm]):
+            self._cmp_status.setText("Données insuffisantes.")
+            return
+
+        chart = QChart()
+        chart.setBackgroundBrush(QColor("#26292e"))
+        chart.setBackgroundRoundness(0)
+        chart.legend().hide()
+        chart.layout().setContentsMargins(0, 0, 0, 0)
+
+        def _make_series(points, color_hex, width=2):
+            s = QLineSeries()
+            pen = QPen(QColor(color_hex))
+            pen.setWidth(width)
+            s.setPen(pen)
+            for ts, val in points:
+                s.append(ts, val)
+            return s
+
+        all_vals = []
+        series_list = []
+        for points, color in [(port_norm, "#3b82f6"), (btc_norm, "#f7931a"), (eth_norm, "#627eea")]:
+            if points:
+                s = _make_series(points, color)
+                chart.addSeries(s)
+                series_list.append(s)
+                all_vals.extend(v for _, v in points)
+
+        ax = QDateTimeAxis()
+        fmt = "dd/MM" if self._cmp_period <= 90 else "MMM yy"
+        ax.setFormat(fmt)
+        ax.setLabelsColor(QColor("#7a8494"))
+        ax.setGridLineColor(QColor("#2e3238"))
+        ax.setTickCount(6)
+        chart.addAxis(ax, Qt.AlignBottom)
+
+        mn, mx = min(all_vals) * 0.97, max(all_vals) * 1.03
+        ay = QValueAxis()
+        ay.setRange(mn, mx)
+        ay.setLabelFormat("%.0f")
+        ay.setLabelsColor(QColor("#7a8494"))
+        ay.setGridLineColor(QColor("#2e3238"))
+        ay.setTickCount(5)
+        chart.addAxis(ay, Qt.AlignLeft)
+
+        for s in series_list:
+            s.attachAxis(ax)
+            s.attachAxis(ay)
+
+        # Stocker pour éviter le GC
+        self._cmp_series_list = series_list
+        self._cmp_chart.setChart(chart)
+
+        labels = []
+        if port_norm: labels.append(f"Portfolio {port_norm[-1][1]-100:+.1f}%")
+        if btc_norm:  labels.append(f"BTC {btc_norm[-1][1]-100:+.1f}%")
+        if eth_norm:  labels.append(f"ETH {eth_norm[-1][1]-100:+.1f}%")
+        self._cmp_status.setText("  ·  ".join(labels))
+
     def _run_dca(self):
         monthly = self._dca_monthly.value()
         months  = self._dca_months.value()
