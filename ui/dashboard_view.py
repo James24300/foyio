@@ -4,9 +4,9 @@ from PySide6.QtWidgets import (
     QProgressBar, QSizePolicy, QScrollArea,
     QFrame, QGraphicsTextItem, QLayout
 )
-from PySide6.QtCore import Qt, QRect, QSize, QMargins
+from PySide6.QtCore import Qt, QRect, QSize, QMargins, QThread, QDateTime
+from PySide6.QtCore import Signal
 from PySide6.QtCharts import QLineSeries, QAreaSeries, QValueAxis, QChart, QChartView
-from PySide6.QtCore import QDateTime
 from PySide6.QtGui import QColor, QFont
 
 from utils.formatters import format_money
@@ -26,6 +26,22 @@ DONUT_COLORS = [
     "#8b5cf6", "#06b6d4", "#f97316", "#ec4899",
     "#14b8a6", "#6366f1", "#84cc16", "#a855f7",
 ]
+
+
+class _CryptoPriceFetcher(QThread):
+    """Récupère les prix crypto en arrière-plan pour le dashboard."""
+    done = Signal(dict)
+
+    def __init__(self, ids):
+        super().__init__()
+        self._ids = ids
+
+    def run(self):
+        try:
+            from services.crypto_service import get_prices
+            self.done.emit(get_prices(self._ids))
+        except Exception:
+            self.done.emit({})
 
 
 class _FlowLayout(QLayout):
@@ -1248,23 +1264,38 @@ class DashboardView(QWidget):
         self._refresh_crypto_widget()
 
     def _refresh_crypto_widget(self):
-        """Met à jour le mini-widget crypto depuis le cache de prix (sans appel API)."""
+        """Met à jour le mini-widget crypto. Lance un fetch si le cache est vide."""
         try:
-            from services.crypto_service import get_holdings, get_portfolio_summary, _price_cache
+            from services.crypto_service import get_holdings, _price_cache
             holdings = get_holdings()
             if not holdings:
                 self._crypto_widget.setVisible(False)
                 return
 
-            # Utilise uniquement le cache — pas d'appel réseau depuis le dashboard
-            prices = {
-                cg_id: entry
-                for cg_id, entry in _price_cache.items()
-            }
+            self._crypto_widget.setVisible(True)
+            ids = [h.coingecko_id for h in holdings]
 
+            # Si le cache contient les prix → affichage immédiat
+            if all(cg in _price_cache for cg in ids):
+                self._apply_crypto_prices(holdings, _price_cache)
+            else:
+                # Cache vide → afficher les valeurs d'achat en attendant + lancer fetch
+                self._apply_crypto_prices(holdings, {})
+                self._crypto_fetcher = _CryptoPriceFetcher(ids)
+                self._crypto_fetcher.done.connect(
+                    lambda prices: self._apply_crypto_prices(holdings, prices)
+                )
+                self._crypto_fetcher.start()
+        except Exception:
+            self._crypto_widget.setVisible(False)
+
+    def _apply_crypto_prices(self, holdings, prices: dict):
+        """Calcule et affiche les métriques crypto dans le widget dashboard."""
+        try:
             total_value  = 0.0
             total_invest = 0.0
-            chg_weighted = 0.0  # variation 24h pondérée par valeur
+            chg_weighted = 0.0
+            has_live = bool(prices)
 
             for h in holdings:
                 entry = prices.get(h.coingecko_id)
@@ -1285,18 +1316,25 @@ class DashboardView(QWidget):
             chg_color = "#22c55e" if chg24 >= 0 else "#ef4444"
 
             self._crypto_val_lbl.setText(format_money(total_value))
-            self._crypto_pnl_lbl.setText(
-                f'<span style="color:{pnl_color}">'
-                f'{pnl_sign}{format_money(pnl)} ({pnl_sign}{pnl_pct:.1f}%)</span>'
-            )
-            self._crypto_pnl_lbl.setTextFormat(Qt.RichText)
-            self._crypto_chg_lbl.setText(
-                f'<span style="color:{chg_color}">24h : {chg_sign}{chg24:.2f}%</span>'
-            )
-            self._crypto_chg_lbl.setTextFormat(Qt.RichText)
-            self._crypto_widget.setVisible(True)
+
+            if has_live:
+                self._crypto_pnl_lbl.setText(
+                    f'<span style="color:{pnl_color}">'
+                    f'{pnl_sign}{format_money(pnl)} ({pnl_sign}{pnl_pct:.1f}%)</span>'
+                )
+                self._crypto_pnl_lbl.setTextFormat(Qt.RichText)
+                self._crypto_chg_lbl.setText(
+                    f'<span style="color:{chg_color}">24h : {chg_sign}{chg24:.2f}%</span>'
+                )
+                self._crypto_chg_lbl.setTextFormat(Qt.RichText)
+            else:
+                self._crypto_pnl_lbl.setText("Chargement des prix…")
+                self._crypto_pnl_lbl.setStyleSheet(
+                    "font-size:11px; color:#5a6472; background:transparent; border:none;"
+                )
+                self._crypto_chg_lbl.setText("")
         except Exception:
-            self._crypto_widget.setVisible(False)
+            pass
 
     def _update_analysis(self, income, expense, balance):
         from datetime import date
