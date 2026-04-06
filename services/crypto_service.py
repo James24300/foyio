@@ -21,6 +21,8 @@ _CACHE_TTL = 120                 # secondes
 _history_cache: dict = {}        # {(coingecko_id, days): {"data": list, "ts": float}}
 _HISTORY_CACHE_TTL = 1800        # 30 minutes
 
+_image_url_cache: dict = {}  # {coingecko_id: image_url}
+
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
 # ── Rate limiter global ───────────────────────────────────────────────────────
@@ -96,6 +98,21 @@ def get_prices(coingecko_ids: list[str]) -> dict:
         for cid in coingecko_ids
         if cid in _price_cache
     }
+
+
+def get_coin_image_urls(coingecko_ids: list[str]) -> dict[str, str]:
+    """Retourne {id: image_url} depuis coins/markets (batch, mis en cache)."""
+    to_fetch = [i for i in coingecko_ids if i not in _image_url_cache]
+    if not to_fetch:
+        return {cid: _image_url_cache[cid] for cid in coingecko_ids if cid in _image_url_cache}
+    ids_param = ",".join(to_fetch)
+    url = (f"{COINGECKO_BASE}/coins/markets"
+           f"?vs_currency=eur&ids={ids_param}&per_page=250&page=1")
+    data = _get(url)
+    if data:
+        for coin in data:
+            _image_url_cache[coin["id"]] = coin.get("image", "")
+    return {cid: _image_url_cache[cid] for cid in coingecko_ids if cid in _image_url_cache}
 
 
 def search_coins(query: str) -> list[dict]:
@@ -520,6 +537,16 @@ def toggle_dca_plan(plan_id: int) -> bool:
             plan.active = not plan.active
             return plan.active
         return False
+
+
+def update_dca_plan(plan_id: int, amount_eur: float, day_of_month: int, note: str = ""):
+    """Met à jour un plan DCA existant."""
+    with safe_session() as session:
+        plan = session.query(CryptoDCA).filter_by(id=plan_id).first()
+        if plan:
+            plan.amount_eur   = amount_eur
+            plan.day_of_month = max(1, min(28, day_of_month))
+            plan.note         = note or None
 
 
 def get_due_dca_plans() -> list:

@@ -28,11 +28,17 @@ from services.crypto_service import (
     get_price_history, link_to_transaction,
     get_dca_plans, add_dca_plan, delete_dca_plan, toggle_dca_plan,
     get_due_dca_plans, execute_dca, compute_fifo_report,
+    get_coin_image_urls, update_dca_plan,
 )
 from services.watchlist_service import (
     get_watchlist, add_to_watchlist, remove_from_watchlist,
     is_in_watchlist, get_watchlist_ids,
 )
+
+
+import urllib.request as _urllib_req
+import time as _time
+_pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 
 # ── Thread de rafraîchissement des prix ──────────────────────────────────────
@@ -106,6 +112,28 @@ class _TopFetcher(QThread):
             self.done.emit(get_top_coins(50))
         except Exception:
             self.done.emit([])
+
+
+class _LogoFetcher(QThread):
+    """Télécharge les logos crypto depuis CoinGecko CDN en arrière-plan."""
+    logo_ready = Signal(str, bytes)  # (coingecko_id, raw_bytes)
+
+    def __init__(self, id_url_pairs: list):
+        super().__init__()
+        self._pairs = id_url_pairs
+
+    def run(self):
+        for cg_id, url in self._pairs:
+            if not url or cg_id in _pixmap_cache:
+                continue
+            try:
+                req = _urllib_req.Request(url, headers={"User-Agent": "Foyio/1.0"})
+                with _urllib_req.urlopen(req, timeout=5) as resp:
+                    data = resp.read()
+                self.logo_ready.emit(cg_id, data)
+                _time.sleep(0.05)
+            except Exception:
+                pass
 
 
 class CryptoView(QWidget):
@@ -686,7 +714,7 @@ class CryptoView(QWidget):
         self._dca_table.verticalHeader().setDefaultSectionSize(48)
         hdr = self._dca_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
-        for col, w_ in [(1, 110), (2, 80), (3, 120), (4, 100), (5, 90), (6, 260)]:
+        for col, w_ in [(1, 110), (2, 80), (3, 120), (4, 100), (5, 90), (6, 340)]:
             hdr.setSectionResizeMode(col, QHeaderView.Fixed)
             self._dca_table.setColumnWidth(col, w_)
         self._dca_table.setStyleSheet("""
@@ -774,9 +802,15 @@ class CryptoView(QWidget):
 
             _btn_s = "border:none; border-radius:6px; font-size:11px; font-weight:600; text-align:center; padding:0 8px;"
 
+            btn_edit = QPushButton("Modifier")
+            btn_edit.setFixedHeight(28)
+            btn_edit.setFixedWidth(70)
+            btn_edit.setStyleSheet(f"background:#6366f1; color:#fff; {_btn_s}")
+            btn_edit.clicked.connect(lambda checked, pid=plan.id: self._edit_dca(pid))
+
             btn_exec = QPushButton("Exécuter")
             btn_exec.setFixedHeight(28)
-            btn_exec.setFixedWidth(74)
+            btn_exec.setFixedWidth(70)
             btn_exec.setEnabled(plan.active)
             btn_exec.setStyleSheet(f"background:#3b82f6; color:#fff; {_btn_s}")
             btn_exec.clicked.connect(lambda checked, pid=plan.id: self._execute_dca(pid))
@@ -789,10 +823,11 @@ class CryptoView(QWidget):
 
             btn_del = QPushButton("Suppr.")
             btn_del.setFixedHeight(28)
-            btn_del.setFixedWidth(60)
+            btn_del.setFixedWidth(56)
             btn_del.setStyleSheet(f"background:#ef4444; color:#fff; {_btn_s}")
             btn_del.clicked.connect(lambda checked, pid=plan.id: self._delete_dca(pid))
 
+            hl.addWidget(btn_edit)
             hl.addWidget(btn_exec)
             hl.addWidget(btn_toggle)
             hl.addWidget(btn_del)
@@ -873,6 +908,77 @@ class CryptoView(QWidget):
         self._load_dca()
         Toast.show(self, f"Plan {'activé' if new_state else 'désactivé'}.", "success")
 
+    def _edit_dca(self, plan_id: int):
+        from services.crypto_service import get_dca_plans
+        plans = get_dca_plans()
+        plan = next((p for p in plans if p.id == plan_id), None)
+        if not plan:
+            return
+
+        holding = next((h for h in self._holdings if h.id == plan.holding_id), None)
+        holding_name = f"{holding.name} ({holding.symbol.upper()})" if holding else f"ID {plan.holding_id}"
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Modifier le plan DCA")
+        dlg.setMinimumWidth(360)
+        dlg.setStyleSheet("background:#1e2023; color:#c8cdd4;")
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(12)
+
+        title = QLabel(f"Modifier — {holding_name}")
+        title.setStyleSheet("font-size:13px; font-weight:700; color:#c8cdd4;")
+        vl.addWidget(title)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        def _lbl(t):
+            l = QLabel(t)
+            l.setStyleSheet("font-size:11px; color:#7a8494;")
+            return l
+
+        amt_spin = QDoubleSpinBox()
+        amt_spin.setRange(1, 99_999)
+        amt_spin.setDecimals(2)
+        amt_spin.setSuffix(" €")
+        amt_spin.setValue(plan.amount_eur)
+        amt_spin.setMinimumHeight(34)
+        form.addRow(_lbl("Montant :"), amt_spin)
+
+        day_spin = QSpinBox()
+        day_spin.setRange(1, 28)
+        day_spin.setSuffix("e du mois")
+        day_spin.setValue(plan.day_of_month)
+        day_spin.setMinimumHeight(34)
+        form.addRow(_lbl("Jour du mois :"), day_spin)
+
+        note_edit = QLineEdit()
+        note_edit.setText(plan.note or "")
+        note_edit.setPlaceholderText("Note optionnelle")
+        note_edit.setMinimumHeight(34)
+        form.addRow(_lbl("Note :"), note_edit)
+
+        vl.addLayout(form)
+
+        row = QHBoxLayout()
+        btn_cancel = QPushButton("Annuler")
+        btn_cancel.setFixedHeight(34)
+        btn_cancel.setStyleSheet("background:#2e3238; color:#7a8494; border:none; border-radius:8px; padding:0 14px;")
+        btn_cancel.clicked.connect(dlg.reject)
+        btn_ok = QPushButton("Enregistrer")
+        btn_ok.setFixedHeight(34)
+        btn_ok.setStyleSheet("background:#6366f1; color:#fff; border:none; border-radius:8px; font-weight:700; padding:0 14px; text-align:center;")
+        btn_ok.clicked.connect(dlg.accept)
+        row.addWidget(btn_cancel)
+        row.addWidget(btn_ok)
+        vl.addLayout(row)
+
+        if dlg.exec() == QDialog.Accepted:
+            update_dca_plan(plan_id, amt_spin.value(), day_spin.value(), note_edit.text().strip())
+            self._load_dca()
+            Toast.show(self, "Plan DCA modifié.", "success")
+
     def _delete_dca(self, plan_id: int):
         msg = QMessageBox(self)
         msg.setWindowTitle("Supprimer le plan DCA")
@@ -901,6 +1007,72 @@ class CryptoView(QWidget):
             )
             self._show_tray_msg("DCA récurrent", msg)
 
+    # ── Logos crypto ─────────────────────────────────────────────────────────
+    def _fetch_logos(self):
+        """Charge les logos manquants depuis CoinGecko CDN."""
+        ids = [h.coingecko_id for h in self._holdings]
+        if not ids:
+            return
+        urls = get_coin_image_urls(ids)
+        pairs = [(cid, url) for cid, url in urls.items() if cid not in _pixmap_cache]
+        if not pairs:
+            self._apply_logos()
+            return
+        fetcher = _LogoFetcher(pairs)
+        fetcher.logo_ready.connect(self._on_logo_ready)
+        fetcher.finished.connect(self._apply_logos)
+        self._start_thread(fetcher)
+
+    def _on_logo_ready(self, cg_id: str, raw: bytes):
+        from PySide6.QtGui import QPixmap
+        px = QPixmap()
+        if px.loadFromData(raw):
+            _pixmap_cache[cg_id] = px.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+    def _apply_logos(self):
+        """Met à jour les cellules icône dans le tableau portefeuille et DCA."""
+        from PySide6.QtGui import QPixmap
+        # Portefeuille : col 0
+        for i, h in enumerate(self._holdings):
+            px = _pixmap_cache.get(h.coingecko_id)
+            if px:
+                lbl = QLabel()
+                lbl.setPixmap(px)
+                lbl.setAlignment(Qt.AlignCenter)
+                lbl.setStyleSheet("background:transparent; border:none;")
+                self._portfolio_table.setCellWidget(i, 0, lbl)
+        # DCA : col 0 (widget nom+logo)
+        self._refresh_dca_logos()
+
+    def _refresh_dca_logos(self):
+        """Met à jour les logos dans le tableau DCA."""
+        from PySide6.QtGui import QPixmap
+        holdings_map = {h.id: h for h in self._holdings}
+        for row in range(self._dca_table.rowCount()):
+            item = self._dca_table.item(row, 0)
+            if not item:
+                continue
+            # Chercher le holding correspondant
+            for h in self._holdings:
+                if f"{h.name} ({h.symbol.upper()})" == item.text():
+                    px = _pixmap_cache.get(h.coingecko_id)
+                    if px:
+                        cell = QWidget()
+                        cell.setStyleSheet("background:transparent;")
+                        hl = QHBoxLayout(cell)
+                        hl.setContentsMargins(4, 2, 4, 2)
+                        hl.setSpacing(6)
+                        logo = QLabel()
+                        logo.setPixmap(px)
+                        logo.setStyleSheet("background:transparent; border:none;")
+                        name_lbl = QLabel(item.text())
+                        name_lbl.setStyleSheet("background:transparent; border:none; color:#c8cdd4; font-size:12px;")
+                        hl.addWidget(logo)
+                        hl.addWidget(name_lbl)
+                        hl.addStretch()
+                        self._dca_table.setCellWidget(row, 0, cell)
+                    break
+
     # ── Chargement données ────────────────────────────────────────────────────
     def load(self):
         self._holdings = get_holdings()
@@ -910,6 +1082,7 @@ class CryptoView(QWidget):
         self._load_watchlist()
         self._load_dca()
         self._fetch_prices()
+        self._fetch_logos()
         self._check_due_dca()
 
     def refresh(self):
