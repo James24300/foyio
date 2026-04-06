@@ -240,7 +240,7 @@ class CryptoView(QWidget):
         self._evo_btns = {}
         for label, days in [("7J", 7), ("30J", 30), ("90J", 90), ("1AN", 365)]:
             btn = QPushButton(label)
-            btn.setFixedSize(44, 26)
+            btn.setFixedSize(52, 26)
             btn.setCheckable(True)
             btn.setChecked(days == 30)
             btn.setStyleSheet("""
@@ -1014,7 +1014,7 @@ class CryptoView(QWidget):
 
         for label, days in [("7J", 7), ("30J", 30), ("90J", 90), ("1AN", 365)]:
             btn = QPushButton(label)
-            btn.setFixedSize(48, 26)
+            btn.setFixedSize(52, 26)
             btn.setCheckable(True)
             btn.setChecked(days == 30)
             btn.setStyleSheet("""
