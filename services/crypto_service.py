@@ -303,8 +303,13 @@ def check_alerts(current_prices: dict) -> list[dict]:
             price = price_info.get("price", 0)
             if price == 0:
                 continue
-            hit = (alert.alert_type == "above" and price >= alert.target_price) or \
-                  (alert.alert_type == "below" and price <= alert.target_price)
+            change_24h = price_info.get("change_24h", 0) or 0
+            hit = (
+                (alert.alert_type == "above"   and price      >= alert.target_price) or
+                (alert.alert_type == "below"   and price      <= alert.target_price) or
+                (alert.alert_type == "pct_up"  and change_24h >= alert.target_price) or
+                (alert.alert_type == "pct_down" and change_24h <= -abs(alert.target_price))
+            )
             if hit:
                 alert.triggered = True
                 triggered.append({
@@ -313,6 +318,7 @@ def check_alerts(current_prices: dict) -> list[dict]:
                     "alert_type":   alert.alert_type,
                     "target_price": alert.target_price,
                     "current_price": price,
+                    "change_24h":   change_24h,
                 })
     return triggered
 
