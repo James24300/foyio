@@ -160,6 +160,11 @@ class DashboardView(QWidget):
         self._savings_widget = self._build_savings_widget()
         main_layout.addWidget(self._savings_widget)
 
+        # ── Mini-widget crypto ──
+        self._crypto_widget = self._build_crypto_widget()
+        self._crypto_widget.setVisible(False)  # masqué si aucun holding
+        main_layout.addWidget(self._crypto_widget)
+
         # ── Projection des revenus ──
         self._income_proj_widget = self._build_income_projection_widget()
         main_layout.addWidget(self._income_proj_widget)
@@ -817,6 +822,76 @@ class DashboardView(QWidget):
         if hasattr(main, 'set_active'):
             main.set_active(6)  # index Épargne
 
+    def _go_to_crypto(self):
+        """Navigue vers la vue Crypto."""
+        main = self.window()
+        if hasattr(main, 'set_active'):
+            main.set_active(13)  # index Crypto
+
+    def _build_crypto_widget(self) -> QWidget:
+        """Mini-widget résumé portefeuille crypto pour le dashboard."""
+        w = QWidget()
+        w.setCursor(Qt.PointingHandCursor)
+        w.setStyleSheet("""
+            QWidget {
+                background:#292d32; border-radius:12px; border:1px solid #3d4248;
+            }
+            QWidget:hover {
+                background:#2e3238; border:1px solid #5a6068;
+            }
+        """)
+        w.mousePressEvent = lambda e: self._go_to_crypto()
+        layout = QHBoxLayout(w)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(16)
+
+        icon_lbl = QLabel("₿")
+        icon_lbl.setStyleSheet(
+            "font-size:22px; color:#f59e0b; background:transparent; border:none;"
+        )
+
+        title_lbl = QLabel("CRYPTO")
+        title_lbl.setStyleSheet(
+            "font-size:11px; font-weight:600; color:#848c94; "
+            "letter-spacing:1px; background:transparent; border:none;"
+        )
+
+        self._crypto_val_lbl = QLabel("—")
+        self._crypto_val_lbl.setStyleSheet(
+            "font-size:18px; font-weight:700; color:#f59e0b; "
+            "background:transparent; border:none;"
+        )
+
+        self._crypto_pnl_lbl = QLabel("")
+        self._crypto_pnl_lbl.setStyleSheet(
+            "font-size:11px; color:#7a8494; background:transparent; border:none;"
+        )
+
+        self._crypto_chg_lbl = QLabel("")
+        self._crypto_chg_lbl.setStyleSheet(
+            "font-size:11px; color:#7a8494; background:transparent; border:none;"
+        )
+
+        left = QVBoxLayout()
+        left.setSpacing(2)
+        left.addWidget(title_lbl)
+        left.addWidget(self._crypto_val_lbl)
+
+        right = QVBoxLayout()
+        right.setSpacing(2)
+        right.setAlignment(Qt.AlignRight)
+        right.addWidget(self._crypto_pnl_lbl)
+        right.addWidget(self._crypto_chg_lbl)
+
+        row = QHBoxLayout()
+        row.addWidget(icon_lbl)
+        row.addLayout(left)
+        row.addStretch()
+        row.addLayout(right)
+        layout.addLayout(row)
+
+        return w
+
     def _build_savings_widget(self) -> QWidget:
         """Mini-widget résumé épargne pour le dashboard."""
         w = QWidget()
@@ -1170,6 +1245,58 @@ class DashboardView(QWidget):
         self._refresh_income_projection()
 
         self._update_analysis(income, expense, balance)
+        self._refresh_crypto_widget()
+
+    def _refresh_crypto_widget(self):
+        """Met à jour le mini-widget crypto depuis le cache de prix (sans appel API)."""
+        try:
+            from services.crypto_service import get_holdings, get_portfolio_summary, _price_cache
+            holdings = get_holdings()
+            if not holdings:
+                self._crypto_widget.setVisible(False)
+                return
+
+            # Utilise uniquement le cache — pas d'appel réseau depuis le dashboard
+            prices = {
+                cg_id: entry
+                for cg_id, entry in _price_cache.items()
+            }
+
+            total_value  = 0.0
+            total_invest = 0.0
+            chg_weighted = 0.0  # variation 24h pondérée par valeur
+
+            for h in holdings:
+                entry = prices.get(h.coingecko_id)
+                price = entry["price"] if entry else h.avg_buy_price
+                chg   = entry.get("change_24h", 0.0) if entry else 0.0
+                value = h.quantity * price
+                total_value  += value
+                total_invest += h.quantity * h.avg_buy_price
+                chg_weighted += value * chg
+
+            pnl     = total_value - total_invest
+            pnl_pct = (pnl / total_invest * 100) if total_invest > 0 else 0
+            chg24   = (chg_weighted / total_value) if total_value > 0 else 0
+
+            pnl_sign  = "+" if pnl  >= 0 else ""
+            chg_sign  = "+" if chg24 >= 0 else ""
+            pnl_color = "#22c55e" if pnl  >= 0 else "#ef4444"
+            chg_color = "#22c55e" if chg24 >= 0 else "#ef4444"
+
+            self._crypto_val_lbl.setText(format_money(total_value))
+            self._crypto_pnl_lbl.setText(
+                f'<span style="color:{pnl_color}">'
+                f'{pnl_sign}{format_money(pnl)} ({pnl_sign}{pnl_pct:.1f}%)</span>'
+            )
+            self._crypto_pnl_lbl.setTextFormat(Qt.RichText)
+            self._crypto_chg_lbl.setText(
+                f'<span style="color:{chg_color}">24h : {chg_sign}{chg24:.2f}%</span>'
+            )
+            self._crypto_chg_lbl.setTextFormat(Qt.RichText)
+            self._crypto_widget.setVisible(True)
+        except Exception:
+            self._crypto_widget.setVisible(False)
 
     def _update_analysis(self, income, expense, balance):
         from datetime import date
