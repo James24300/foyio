@@ -308,8 +308,8 @@ class CryptoView(QWidget):
         self._pie_chart_view = QChartView()
         self._pie_chart_view.setRenderHint(QPainter.Antialiasing)
         self._pie_chart_view.setFixedHeight(240)
-        self._pie_chart_view.setStyleSheet("background:transparent; border:none;")
-        _ep = QChart(); _ep.setBackgroundBrush(QColor("#1e2023")); _ep.setBackgroundRoundness(0); _ep.legend().hide(); _ep.layout().setContentsMargins(0,0,0,0); self._pie_chart_view.setChart(_ep)
+        self._pie_chart_view.setStyleSheet("border:none;")
+        self._pie_chart_view.setBackgroundBrush(QColor("#1e2023"))
         vl.addWidget(self._pie_chart_view)
 
         # ── Évolution de la valeur totale ──
@@ -341,8 +341,8 @@ class CryptoView(QWidget):
         self._evo_chart_view = QChartView()
         self._evo_chart_view.setRenderHint(QPainter.Antialiasing)
         self._evo_chart_view.setFixedHeight(180)
-        self._evo_chart_view.setStyleSheet("background:transparent; border:none;")
-        _ee = QChart(); _ee.setBackgroundBrush(QColor("#1e2023")); _ee.setBackgroundRoundness(0); _ee.legend().hide(); _ee.layout().setContentsMargins(0,0,0,0); self._evo_chart_view.setChart(_ee)
+        self._evo_chart_view.setStyleSheet("border:none;")
+        self._evo_chart_view.setBackgroundBrush(QColor("#1e2023"))
         vl.addWidget(self._evo_chart_view)
         return w
 
@@ -432,7 +432,8 @@ class CryptoView(QWidget):
         self._dca_chart = QChartView()
         self._dca_chart.setRenderHint(QPainter.Antialiasing)
         self._dca_chart.setMinimumHeight(200)
-        self._dca_chart.setStyleSheet("background:transparent; border:none;")
+        self._dca_chart.setStyleSheet("border:none;")
+        self._dca_chart.setBackgroundBrush(QColor("#26292e"))
         self._dca_chart.setVisible(False)
         cl_dca.addWidget(self._dca_chart)
         vl.addWidget(card_dca)
@@ -459,7 +460,8 @@ class CryptoView(QWidget):
         self._wi_chart = QChartView()
         self._wi_chart.setRenderHint(QPainter.Antialiasing)
         self._wi_chart.setMinimumHeight(200)
-        self._wi_chart.setStyleSheet("background:transparent; border:none;")
+        self._wi_chart.setStyleSheet("border:none;")
+        self._wi_chart.setBackgroundBrush(QColor("#26292e"))
         self._wi_chart.setVisible(False)
         cl_wi.addWidget(self._wi_chart)
         vl.addWidget(card_wi)
@@ -485,13 +487,14 @@ class CryptoView(QWidget):
             cmp_bar.addWidget(b)
             self._cmp_btns[days] = b
 
-        btn_run_cmp = QPushButton("Comparer")
-        btn_run_cmp.setFixedHeight(26)
-        btn_run_cmp.setStyleSheet(
+        self._btn_run_cmp = QPushButton("Comparer")
+        self._btn_run_cmp.setFixedHeight(26)
+        self._btn_run_cmp.setStyleSheet(
             "background:#6366f1; color:#fff; border:none; border-radius:6px;"
             "font-size:11px; font-weight:700; padding:0 12px; margin-left:6px;"
         )
-        btn_run_cmp.clicked.connect(lambda: self._run_comparison(self._cmp_period))
+        self._btn_run_cmp.clicked.connect(lambda: self._run_comparison(self._cmp_period))
+        btn_run_cmp = self._btn_run_cmp
         cmp_bar.addWidget(btn_run_cmp)
         cl_cmp.addLayout(cmp_bar)
 
@@ -507,7 +510,8 @@ class CryptoView(QWidget):
         self._cmp_chart = QChartView()
         self._cmp_chart.setRenderHint(QPainter.Antialiasing)
         self._cmp_chart.setFixedHeight(260)
-        self._cmp_chart.setStyleSheet("background:transparent; border:none;")
+        self._cmp_chart.setStyleSheet("border:none;")
+        self._cmp_chart.setBackgroundBrush(QColor("#26292e"))
         self._cmp_chart.setVisible(False)
         cl_cmp.addWidget(self._cmp_chart)
 
@@ -1196,8 +1200,7 @@ class CryptoView(QWidget):
 
         chart = QChart()
         chart.addSeries(pie)
-        chart.setBackgroundBrush(QColor("#1e2023"))
-        chart.setBackgroundRoundness(0)
+        chart.setBackgroundVisible(False)
         chart.layout().setContentsMargins(0, 0, 0, 0)
         legend = chart.legend()
         legend.setVisible(True)
@@ -2532,7 +2535,9 @@ class CryptoView(QWidget):
         if not self._holdings:
             self._cmp_status.setText("Aucune crypto dans le portefeuille.")
             return
-        self._cmp_status.setText("Chargement des données…")
+        self._btn_run_cmp.setEnabled(False)
+        self._btn_run_cmp.setText("Chargement…")
+        self._cmp_status.setText("Récupération des historiques en cours (peut prendre quelques secondes)…")
         self._comp_fetcher = _CompFetcher(self._holdings, days)
         self._comp_fetcher.done.connect(self._on_comp_received)
         self._start_thread(self._comp_fetcher)
@@ -2552,6 +2557,8 @@ class CryptoView(QWidget):
         port_norm = _normalize(data.get("portfolio", []))
 
         if not any([btc_norm, eth_norm, port_norm]):
+            self._btn_run_cmp.setEnabled(True)
+            self._btn_run_cmp.setText("Comparer")
             self._cmp_status.setText("Données insuffisantes.")
             return
 
@@ -2609,6 +2616,8 @@ class CryptoView(QWidget):
         if port_norm: labels.append(f"Portfolio {port_norm[-1][1]-100:+.1f}%")
         if btc_norm:  labels.append(f"BTC {btc_norm[-1][1]-100:+.1f}%")
         if eth_norm:  labels.append(f"ETH {eth_norm[-1][1]-100:+.1f}%")
+        self._btn_run_cmp.setEnabled(True)
+        self._btn_run_cmp.setText("Comparer")
         self._cmp_status.setText("  ·  ".join(labels))
 
     def _run_dca(self):
