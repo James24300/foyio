@@ -62,7 +62,7 @@ def get_tags_for_transactions(transaction_ids):
     return dict(result)
 
 
-def add_transaction(amount, type, category_id, note=None, date=None, tags=None):
+def add_transaction(amount, type, category_id, note=None, date=None, tags=None, crypto_holding_id=None):
     if date is None:
         date = datetime.now()
 
@@ -97,7 +97,8 @@ def add_transaction(amount, type, category_id, note=None, date=None, tags=None):
         t = Transaction(
             date=date, amount=float(amount),
             type=type, note=note_clean, category_id=category_id,
-            account_id=account_state.get_id()
+            account_id=account_state.get_id(),
+            crypto_holding_id=crypto_holding_id,
         )
         session.add(t)
         session.flush()  # obtenir t.id pour les tags
