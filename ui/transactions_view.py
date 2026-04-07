@@ -958,7 +958,7 @@ class Transactions(QWidget):
             data = get_transactions_for_period(self.page_size, 0)
 
         self.table.clearContents()
-        self.table.setSpan(0, 0, 1, 1)  # reset le span "Aucune transaction" éventuel
+        self.table.clearSpans()  # reset le span "Aucune transaction" éventuel
         self.table.setRowCount(len(data))
 
         if not data:
@@ -1574,7 +1574,7 @@ class Transactions(QWidget):
         self.table.setUpdatesEnabled(False)
         data = get_transactions(limit=10000, offset=0)
         self.table.clearContents()
-        self.table.setSpan(0, 0, 1, 1)  # reset le span "Aucune transaction" éventuel
+        self.table.clearSpans()  # reset le span "Aucune transaction" éventuel
         self.table.setRowCount(len(data))
 
         if not data:
