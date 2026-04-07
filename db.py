@@ -388,3 +388,14 @@ def migrate_database():
                 "ALTER TABLE savings_goals ADD COLUMN payment_day INTEGER"))
             conn.commit()
         logger.info("Migration v6.6 : payment_day ajouté sur savings_goals")
+
+    # v6.7 : crypto_holding_id sur transactions (lien entre tx financière et position crypto)
+    inspector = inspect(engine)
+    if _table_exists(inspector, "transactions") and \
+       not _col_exists(inspector, "transactions", "crypto_holding_id"):
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE transactions ADD COLUMN crypto_holding_id "
+                "INTEGER REFERENCES crypto_holdings(id)"))
+            conn.commit()
+        logger.info("Migration v6.7 : crypto_holding_id ajouté sur transactions")

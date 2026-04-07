@@ -1369,11 +1369,12 @@ class CryptoView(QWidget):
             price = price_spin.value()
             if qty <= 0 or price <= 0:
                 Toast.show(self, "✕  Quantité et prix doivent être > 0", kind="error"); return
-            add_holding(coin["symbol"], coin["name"], coin["id"], qty, price)
+            h = add_holding(coin["symbol"], coin["name"], coin["id"], qty, price)
             if chk_link.isChecked():
                 link_to_transaction(
                     qty * price, "expense",
-                    f"Achat {qty} {coin['symbol']} à {price:.2f} €"
+                    f"Achat {qty} {coin['symbol']} à {price:.2f} €",
+                    holding_id=h.id,
                 )
             dlg.accept()
             self.load()
@@ -1429,7 +1430,8 @@ class CryptoView(QWidget):
             if chk_link_sell.isChecked():
                 link_to_transaction(
                     qty * sp, "income",
-                    f"Vente {qty} {h.symbol} à {sp:.2f} €"
+                    f"Vente {qty} {h.symbol} à {sp:.2f} €",
+                    holding_id=h.id,
                 )
             dlg.accept(); self.load()
             Toast.show(self, f"✓  Vente enregistrée", kind="success")
@@ -1948,10 +1950,11 @@ class CryptoView(QWidget):
 
         def _do():
             qty = qty_spin.value(); price = price_spin.value()
-            add_holding(coin["symbol"], coin["name"], coin["id"], qty, price)
+            h = add_holding(coin["symbol"], coin["name"], coin["id"], qty, price)
             if chk_link.isChecked():
                 link_to_transaction(qty * price, "expense",
-                                    f"Achat {qty} {coin['symbol']} à {price:.2f} €")
+                                    f"Achat {qty} {coin['symbol']} à {price:.2f} €",
+                                    holding_id=h.id)
             dlg.accept(); self.load()
             Toast.show(self, f"✓  {coin['name']} ajouté au portefeuille", kind="success")
 

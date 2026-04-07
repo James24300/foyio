@@ -9,7 +9,7 @@ import urllib.request
 import json
 from datetime import datetime, date as _date
 from db import Session, safe_session
-from models import CryptoHolding, CryptoTransaction, CryptoAlert, Category, CryptoDCA
+from models import CryptoHolding, CryptoTransaction, CryptoAlert, Category, CryptoDCA, Transaction
 import account_state
 
 logger = logging.getLogger(__name__)
@@ -285,6 +285,8 @@ def delete_holding(holding_id: int):
         session.query(CryptoTransaction).filter_by(holding_id=holding_id).delete()
         session.query(CryptoAlert).filter_by(holding_id=holding_id).delete()
         session.query(CryptoDCA).filter_by(holding_id=holding_id).delete()
+        # Transactions financières liées (créées via "Lier à une transaction financière")
+        session.query(Transaction).filter_by(crypto_holding_id=holding_id).delete()
         h = session.query(CryptoHolding).filter_by(id=holding_id).first()
         if h:
             session.delete(h)
@@ -493,10 +495,11 @@ def _get_or_create_crypto_category() -> int:
         return cat.id
 
 
-def link_to_transaction(amount: float, tx_type: str, note: str):
+def link_to_transaction(amount: float, tx_type: str, note: str, holding_id: int = None):
     """
     Crée une transaction financière liée à une opération crypto.
     tx_type : 'expense' (achat) ou 'income' (vente).
+    holding_id : id du CryptoHolding associé (pour suppression en cascade).
     """
     from services.transaction_service import add_transaction
     cat_id = _get_or_create_crypto_category()
@@ -506,6 +509,7 @@ def link_to_transaction(amount: float, tx_type: str, note: str):
         category_id=cat_id,
         note=note,
         date=datetime.now(),
+        crypto_holding_id=holding_id,
     )
 
 
@@ -654,6 +658,7 @@ def execute_dca(plan_id: int, link_financial: bool = False) -> dict | None:
             amount=amount_eur,
             tx_type="expense",
             note=f"DCA {name} ({symbol.upper()}) — {today.strftime('%d/%m/%Y')}",
+            holding_id=holding_id,
         )
 
     return {
