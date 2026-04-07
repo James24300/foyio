@@ -63,14 +63,15 @@ class Transaction(Base):
         Index("ix_transactions_date",         "date"),
     )
 
-    id           = Column(Integer, primary_key=True)
-    date         = Column(Date,        nullable=False)
-    amount       = Column(Float,       nullable=False)
-    type         = Column(String(10),  nullable=False)
-    note         = Column(String(255))
-    category_id  = Column(Integer, ForeignKey("categories.id"))
-    recurring_id = Column(Integer, ForeignKey("recurring_transactions.id"), nullable=True)
-    account_id   = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    id                = Column(Integer, primary_key=True)
+    date              = Column(Date,        nullable=False)
+    amount            = Column(Float,       nullable=False)
+    type              = Column(String(10),  nullable=False)
+    note              = Column(String(255))
+    category_id       = Column(Integer, ForeignKey("categories.id"))
+    recurring_id      = Column(Integer, ForeignKey("recurring_transactions.id"), nullable=True)
+    account_id        = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    crypto_holding_id = Column(Integer, ForeignKey("crypto_holdings.id"), nullable=True)
 
 
 class Budget(Base):
