@@ -279,22 +279,29 @@ def update_holding(holding_id: int, quantity: float, avg_buy_price: float):
 
 
 def delete_holding(holding_id: int):
-    """Supprime (désactive) une position."""
+    """Supprime définitivement une position et toutes ses données associées."""
     with safe_session() as session:
+        # Suppression en cascade
+        session.query(CryptoTransaction).filter_by(holding_id=holding_id).delete()
+        session.query(CryptoAlert).filter_by(holding_id=holding_id).delete()
+        session.query(CryptoDCA).filter_by(holding_id=holding_id).delete()
         h = session.query(CryptoHolding).filter_by(id=holding_id).first()
         if h:
-            h.active = False
+            session.delete(h)
 
 
 def get_transactions(holding_id: int = None) -> list:
-    """Retourne l'historique des transactions crypto."""
+    """Retourne l'historique des transactions crypto (holdings actifs uniquement)."""
     acc_id = account_state.get_id()
     with Session() as session:
-        q = session.query(CryptoTransaction)
+        # Jointure pour n'inclure que les transactions des holdings actifs
+        q = (session.query(CryptoTransaction)
+             .join(CryptoHolding, CryptoTransaction.holding_id == CryptoHolding.id)
+             .filter(CryptoHolding.active == True))
         if holding_id:
-            q = q.filter_by(holding_id=holding_id)
+            q = q.filter(CryptoTransaction.holding_id == holding_id)
         elif acc_id is not None:
-            q = q.filter_by(account_id=acc_id)
+            q = q.filter(CryptoTransaction.account_id == acc_id)
         txs = q.order_by(CryptoTransaction.date.desc()).limit(500).all()
         session.expunge_all()
         return txs
