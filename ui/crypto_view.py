@@ -1143,6 +1143,8 @@ class CryptoView(QWidget):
         self._check_alerts_now()
         self._refresh_watchlist_prices()
         self._fetch_logos()  # URLs déjà dans _image_url_cache grâce à coins/markets
+        if self._holdings:
+            self._fetch_evolution()  # charge le graphique d'évolution au premier refresh
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
@@ -2527,16 +2529,19 @@ class CryptoView(QWidget):
         for ts_ms, value in points:
             self._evo_series.append(ts_ms, value)
 
+        _bg = QColor("#1e2023")
+        _axis_font = QFont("Segoe UI", 8)
+
         chart = QChart()
         chart.addSeries(self._evo_series)
-        chart.setBackgroundVisible(False)
-        chart.setPlotAreaBackgroundVisible(False)
+        # Le chart peint lui-même son fond sombre — fiable sur Windows
+        chart.setBackgroundBrush(_bg)
+        chart.setBackgroundVisible(True)
+        chart.setDropShadowEnabled(False)
         chart.setBackgroundRoundness(0)
         chart.legend().hide()
         chart.setContentsMargins(0, 0, 0, 0)
         chart.layout().setContentsMargins(0, 0, 0, 0)
-
-        _axis_font = QFont("Arial", 8)
 
         axis_x = QDateTimeAxis()
         axis_x.setFormat("dd/MM" if self._evo_period <= 90 else "MMM yy")
@@ -2552,15 +2557,18 @@ class CryptoView(QWidget):
         axis_y.setLabelsColor(QColor("#7a8494"))
         axis_y.setLabelsFont(_axis_font)
         axis_y.setGridLineColor(QColor("#2e3238"))
-        axis_y.setLabelFormat("%.0f \u20ac")   # \u20ac = €, évite l'encodage source
+        axis_y.setLabelFormat("%.0f")  # pas de signe € : printf Windows tronque l'UTF-8
+        axis_y.setTitleText("\u20ac")
+        axis_y.setTitleBrush(QColor("#7a8494"))
+        axis_y.setTitleFont(_axis_font)
         axis_y.setTickCount(4)
         chart.addAxis(axis_y, Qt.AlignLeft)
         self._evo_series.attachAxis(axis_y)
 
         self._evo_chart_view.setChart(chart)
-        self._evo_chart_view.setBackgroundBrush(QColor("#1e2023"))
-        # Forcer le repaint immédiat (setChart() ne rafraîchit pas si la vue n'est pas encore visible)
-        QTimer.singleShot(0, self._evo_chart_view.repaint)
+        # setChart() peut réinitialiser le brush de la vue — on le force après
+        self._evo_chart_view.setBackgroundBrush(_bg)
+        self._evo_chart_view.viewport().update()
 
     def _show_tray_msg(self, title: str, message: str):
         """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
