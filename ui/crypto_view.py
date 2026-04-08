@@ -2529,15 +2529,19 @@ class CryptoView(QWidget):
 
         chart = QChart()
         chart.addSeries(self._evo_series)
-        chart.setBackgroundBrush(QColor("#1e2023"))
+        chart.setBackgroundVisible(False)
+        chart.setPlotAreaBackgroundVisible(False)
         chart.setBackgroundRoundness(0)
         chart.legend().hide()
         chart.setContentsMargins(0, 0, 0, 0)
         chart.layout().setContentsMargins(0, 0, 0, 0)
 
+        _axis_font = QFont("Arial", 8)
+
         axis_x = QDateTimeAxis()
         axis_x.setFormat("dd/MM" if self._evo_period <= 90 else "MMM yy")
         axis_x.setLabelsColor(QColor("#7a8494"))
+        axis_x.setLabelsFont(_axis_font)
         axis_x.setGridLineColor(QColor("#2e3238"))
         axis_x.setTickCount(min(6, len(points)))
         chart.addAxis(axis_x, Qt.AlignBottom)
@@ -2546,14 +2550,17 @@ class CryptoView(QWidget):
         axis_y = QValueAxis()
         axis_y.setRange(min_v * 0.98, max_v * 1.02)
         axis_y.setLabelsColor(QColor("#7a8494"))
+        axis_y.setLabelsFont(_axis_font)
         axis_y.setGridLineColor(QColor("#2e3238"))
-        axis_y.setLabelFormat("%.0f €")
+        axis_y.setLabelFormat("%.0f \u20ac")   # \u20ac = €, évite l'encodage source
         axis_y.setTickCount(4)
         chart.addAxis(axis_y, Qt.AlignLeft)
         self._evo_series.attachAxis(axis_y)
 
         self._evo_chart_view.setChart(chart)
         self._evo_chart_view.setBackgroundBrush(QColor("#1e2023"))
+        # Forcer le repaint immédiat (setChart() ne rafraîchit pas si la vue n'est pas encore visible)
+        QTimer.singleShot(0, self._evo_chart_view.repaint)
 
     def _show_tray_msg(self, title: str, message: str):
         """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
