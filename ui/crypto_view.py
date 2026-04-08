@@ -2553,6 +2553,7 @@ class CryptoView(QWidget):
         self._evo_series.attachAxis(axis_y)
 
         self._evo_chart_view.setChart(chart)
+        self._evo_chart_view.setBackgroundBrush(QColor("#1e2023"))
 
     def _show_tray_msg(self, title: str, message: str):
         """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
