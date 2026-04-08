@@ -19,7 +19,7 @@ _price_cache: dict = {}          # {coingecko_id: {"price": float, "change_24h":
 _CACHE_TTL = 300                 # secondes (5 min — réduit les appels API)
 
 _history_cache: dict = {}        # {(coingecko_id, days): {"data": list, "ts": float}}
-_HISTORY_CACHE_TTL = 1800        # 30 minutes
+_HISTORY_CACHE_TTL = 7200        # 2 heures — évite les 429 sur les re-fetch fréquents
 
 _image_url_cache: dict = {}  # {coingecko_id: image_url}
 

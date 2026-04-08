@@ -355,6 +355,13 @@ class CryptoView(QWidget):
 
         vl.addLayout(evo_header)
 
+        self._evo_loading = QLabel("Chargement du graphique…")
+        self._evo_loading.setAlignment(Qt.AlignCenter)
+        self._evo_loading.setStyleSheet("color:#5a6472; font-size:12px; background:transparent;")
+        self._evo_loading.setFixedHeight(180)
+        self._evo_loading.hide()
+        vl.addWidget(self._evo_loading)
+
         self._evo_chart_view = QChartView()
         self._evo_chart_view.setRenderHint(QPainter.Antialiasing)
         self._evo_chart_view.setFixedHeight(180)
@@ -1108,6 +1115,7 @@ class CryptoView(QWidget):
     # ── Chargement données ────────────────────────────────────────────────────
     def load(self):
         self._holdings = get_holdings()
+        self._evo_loaded = False   # reset : on rechargera l'évolution une fois les prix reçus
         self._load_portfolio()
         self._load_transactions()
         self._load_alerts()
@@ -1143,8 +1151,9 @@ class CryptoView(QWidget):
         self._check_alerts_now()
         self._refresh_watchlist_prices()
         self._fetch_logos()  # URLs déjà dans _image_url_cache grâce à coins/markets
-        if self._holdings:
-            self._fetch_evolution()  # charge le graphique d'évolution au premier refresh
+        # Évolution : seulement au 1er refresh (pas à chaque timer 6 min)
+        if self._holdings and not getattr(self, '_evo_loaded', False):
+            self._fetch_evolution()
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
@@ -2499,11 +2508,16 @@ class CryptoView(QWidget):
             self._fetch_evolution()
 
     def _fetch_evolution(self):
+        self._evo_chart_view.hide()
+        self._evo_loading.show()
         self._evo_fetcher = _EvoFetcher(self._holdings, self._evo_period)
         self._evo_fetcher.done.connect(self._on_evo_received)
         self._start_thread(self._evo_fetcher)
 
     def _on_evo_received(self, data: dict):
+        self._evo_loading.hide()
+        self._evo_chart_view.show()
+        self._evo_loaded = True   # ne pas re-fetcher au prochain refresh de prix
         """Reconstruit le graphique d'évolution à partir des historiques reçus."""
         if not data:
             return
@@ -2558,9 +2572,10 @@ class CryptoView(QWidget):
         axis_y.setLabelsFont(_axis_font)
         axis_y.setGridLineColor(QColor("#2e3238"))
         axis_y.setLabelFormat("%.0f")  # pas de signe € : printf Windows tronque l'UTF-8
-        axis_y.setTitleText("\u20ac")
-        axis_y.setTitleBrush(QColor("#7a8494"))
-        axis_y.setTitleFont(_axis_font)
+        axis_y.setTitleText("\u20ac")   # € vertical (titre de l'axe Y)
+        axis_y.setTitleVisible(True)
+        axis_y.setTitleBrush(QColor("#c8cdd4"))
+        axis_y.setTitleFont(QFont("Segoe UI", 11, QFont.Bold))
         axis_y.setTickCount(4)
         chart.addAxis(axis_y, Qt.AlignLeft)
         self._evo_series.attachAxis(axis_y)
