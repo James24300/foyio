@@ -2022,13 +2022,14 @@ class CryptoView(QWidget):
         # Barre résumé
         summary_bar = QWidget()
         summary_bar.setObjectName("fifoSummaryBar")
-        summary_bar.setFixedHeight(60)
+        summary_bar.setFixedHeight(72)
         sbl = QHBoxLayout(summary_bar)
-        sbl.setContentsMargins(20, 0, 20, 0)
+        sbl.setContentsMargins(20, 10, 20, 10)
         sbl.setSpacing(40)
 
         def _summary_cell(title):
             col = QVBoxLayout()
+            col.setSpacing(3)
             t = QLabel(title)
             t.setStyleSheet("font-size:10px; color:#5a6472; font-weight:600; background:transparent; border:none;")
             v = QLabel("—")
