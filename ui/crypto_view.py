@@ -1969,7 +1969,18 @@ class CryptoView(QWidget):
         dlg = QDialog(self)
         dlg.setWindowTitle("Rapport fiscal — Plus/moins-values FIFO")
         dlg.setMinimumSize(860, 560)
-        dlg.setStyleSheet("background:#1e2023; color:#c8cdd4;")
+        dlg.setStyleSheet("""
+            QDialog { background:#1e2023; color:#c8cdd4; }
+            #fifoSummaryBar { background:#26292e; border-radius:10px; border:1px solid #3a3f47; }
+            QSpinBox {
+                background:#26292e; color:#c8cdd4;
+                border:1px solid #3a3f47; border-radius:6px;
+                padding:2px 8px; min-width:110px;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                width:16px; background:#3a3f47; border-radius:3px;
+            }
+        """)
 
         vl = QVBoxLayout(dlg)
         vl.setContentsMargins(20, 20, 20, 20)
@@ -1985,7 +1996,7 @@ class CryptoView(QWidget):
         year_spin = QSpinBox()
         year_spin.setRange(2015, current_year)
         year_spin.setValue(current_year - 1 if date.today().month < 6 else current_year)
-        year_spin.setFixedWidth(90)
+        year_spin.setFixedWidth(110)
         year_spin.setFixedHeight(34)
         top_row.addWidget(year_spin)
 
@@ -2010,9 +2021,7 @@ class CryptoView(QWidget):
 
         # Barre résumé
         summary_bar = QWidget()
-        summary_bar.setStyleSheet(
-            "background:#26292e; border-radius:10px; border:1px solid #3a3f47;"
-        )
+        summary_bar.setObjectName("fifoSummaryBar")
         summary_bar.setFixedHeight(60)
         sbl = QHBoxLayout(summary_bar)
         sbl.setContentsMargins(20, 0, 20, 0)
