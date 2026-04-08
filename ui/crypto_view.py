@@ -2529,7 +2529,8 @@ class CryptoView(QWidget):
 
         chart = QChart()
         chart.addSeries(self._evo_series)
-        chart.setBackgroundBrush(QColor("#1e2023"))
+        chart.setBackgroundVisible(False)
+        chart.setPlotAreaBackgroundVisible(False)
         chart.setBackgroundRoundness(0)
         chart.legend().hide()
         chart.setContentsMargins(0, 0, 0, 0)
