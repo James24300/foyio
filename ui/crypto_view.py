@@ -1968,7 +1968,7 @@ class CryptoView(QWidget):
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Rapport fiscal — Plus/moins-values FIFO")
-        dlg.setMinimumSize(860, 560)
+        dlg.setMinimumSize(980, 580)
         dlg.setStyleSheet("""
             QDialog { background:#1e2023; color:#c8cdd4; }
             #fifoSummaryBar { background:#26292e; border-radius:10px; border:1px solid #3a3f47; }
@@ -2059,8 +2059,9 @@ class CryptoView(QWidget):
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(38)
         hdr = table.horizontalHeader()
+        hdr.setMinimumSectionSize(100)
         hdr.setSectionResizeMode(0, QHeaderView.Stretch)
-        for col_, w_ in [(1,100),(2,100),(3,130),(4,100),(5,130),(6,110),(7,110)]:
+        for col_, w_ in [(1,100),(2,100),(3,120),(4,100),(5,120),(6,100),(7,100)]:
             hdr.setSectionResizeMode(col_, QHeaderView.Fixed)
             table.setColumnWidth(col_, w_)
         table.setStyleSheet("""
