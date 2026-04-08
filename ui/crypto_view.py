@@ -2055,6 +2055,7 @@ class CryptoView(QWidget):
         table.setEditTriggers(QTableWidget.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.setShowGrid(False)
+        table.setFrameShape(QFrame.NoFrame)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(38)
         hdr = table.horizontalHeader()
@@ -2066,7 +2067,7 @@ class CryptoView(QWidget):
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
             QTableWidget::item { border-bottom:1px solid #292d32; padding:0 6px; }
             QHeaderView::section { background:#26292e; color:#7a8494; border:none;
-                border-bottom:1px solid #3a3f47; padding:5px 6px; font-size:11px; }
+                border-bottom:1px solid #3a3f47; padding:5px 8px; font-size:11px; }
         """)
         vl.addWidget(table, 1)
 
