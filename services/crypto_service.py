@@ -205,8 +205,9 @@ def get_holdings(account_id: int = None) -> list:
 
 
 def add_holding(symbol: str, name: str, coingecko_id: str,
-                quantity: float, buy_price: float) -> CryptoHolding:
-    """Ajoute une nouvelle position (ou met à jour si la crypto existe déjà)."""
+                quantity: float, buy_price: float) -> int:
+    """Ajoute une nouvelle position (ou met à jour si la crypto existe déjà).
+    Retourne l'id du CryptoHolding créé ou mis à jour."""
     acc_id = account_state.get_id()
     with safe_session() as session:
         existing = (session.query(CryptoHolding)
@@ -229,9 +230,10 @@ def add_holding(symbol: str, name: str, coingecko_id: str,
             )
             session.add(holding)
         session.flush()
+        holding_id = holding.id  # lire l'id pendant que la session est ouverte
         # Enregistrer la transaction d'achat
         tx = CryptoTransaction(
-            holding_id=holding.id,
+            holding_id=holding_id,
             type="buy",
             quantity=round(quantity, 8),
             price_eur=round(buy_price, 2),
@@ -240,7 +242,7 @@ def add_holding(symbol: str, name: str, coingecko_id: str,
             account_id=acc_id,
         )
         session.add(tx)
-    return holding
+    return holding_id
 
 
 def sell_holding(holding_id: int, quantity: float, sell_price: float, note: str = "") -> bool:
