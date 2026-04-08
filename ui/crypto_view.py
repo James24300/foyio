@@ -1115,6 +1115,7 @@ class CryptoView(QWidget):
     # ── Chargement données ────────────────────────────────────────────────────
     def load(self):
         self._holdings = get_holdings()
+        self._evo_loaded = False   # reset : on rechargera l'évolution une fois les prix reçus
         self._load_portfolio()
         self._load_transactions()
         self._load_alerts()
@@ -1150,8 +1151,9 @@ class CryptoView(QWidget):
         self._check_alerts_now()
         self._refresh_watchlist_prices()
         self._fetch_logos()  # URLs déjà dans _image_url_cache grâce à coins/markets
-        if self._holdings:
-            self._fetch_evolution()  # charge le graphique d'évolution au premier refresh
+        # Évolution : seulement au 1er refresh (pas à chaque timer 6 min)
+        if self._holdings and not getattr(self, '_evo_loaded', False):
+            self._fetch_evolution()
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
@@ -2515,6 +2517,7 @@ class CryptoView(QWidget):
     def _on_evo_received(self, data: dict):
         self._evo_loading.hide()
         self._evo_chart_view.show()
+        self._evo_loaded = True   # ne pas re-fetcher au prochain refresh de prix
         """Reconstruit le graphique d'évolution à partir des historiques reçus."""
         if not data:
             return
