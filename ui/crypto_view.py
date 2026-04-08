@@ -1097,6 +1097,8 @@ class CryptoView(QWidget):
         self._load_watchlist()
         self._load_dca()
         self._fetch_prices()
+        if not self._holdings:
+            self._update_summary()  # aucun holding → remettre la barre à zéro sans attendre les prix
         self._check_due_dca()
 
     def refresh(self):
@@ -1111,6 +1113,7 @@ class CryptoView(QWidget):
     def _fetch_prices(self):
         ids = list({h.coingecko_id for h in self._holdings} | set(get_watchlist_ids()))
         if not ids:
+            self._update_summary()  # portefeuille vide : remettre à zéro
             return
         self._fetcher = _PriceFetcher(ids)
         self._fetcher.done.connect(self._on_prices_received)
