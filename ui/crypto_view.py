@@ -41,6 +41,23 @@ import time as _time
 _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 
+# ── Thread de recherche de cryptos ───────────────────────────────────────────
+class _SearchThread(QThread):
+    done = Signal(list)
+
+    def __init__(self, query: str):
+        super().__init__()
+        self._query = query
+
+    def run(self):
+        try:
+            from services.crypto_service import search_coins
+            results = search_coins(self._query)
+            self.done.emit(results)
+        except Exception:
+            self.done.emit([])
+
+
 # ── Thread de rafraîchissement des prix ──────────────────────────────────────
 class _PriceFetcher(QThread):
     done = Signal(dict)
@@ -1338,15 +1355,30 @@ class CryptoView(QWidget):
 
         result_combo.currentIndexChanged.connect(_on_coin_selected)
 
+        _search_thread = [None]
+
+        def _on_search_done(results):
+            btn_search.setEnabled(True)
+            btn_search.setText("Rechercher")
+            result_combo.clear()
+            if not results:
+                result_combo.addItem("Aucun résultat")
+                return
+            for r in results:
+                result_combo.addItem(f"{r['name']} ({r['symbol']})", r["id"])
+            result_combo.setProperty("_results", results)
+
         def _do_search():
             q = search_edit.text().strip()
             if not q:
                 return
-            results = search_coins(q)
+            btn_search.setEnabled(False)
+            btn_search.setText("Recherche…")
             result_combo.clear()
-            for r in results:
-                result_combo.addItem(f"{r['name']} ({r['symbol']})", r["id"])
-            result_combo.setProperty("_results", results)
+            t = _SearchThread(q)
+            _search_thread[0] = t
+            t.done.connect(_on_search_done)
+            t.start()
 
         btn_search.clicked.connect(_do_search)
         search_edit.returnPressed.connect(_do_search)
@@ -1691,13 +1723,29 @@ class CryptoView(QWidget):
         note_edit.setMinimumHeight(34)
         vl.addWidget(lbl("Note :")); vl.addWidget(note_edit)
 
-        def _do_search():
-            q = search_edit.text().strip()
-            if not q: return
-            results = search_coins(q)
+        _wl_search_thread = [None]
+
+        def _on_wl_search_done(results):
+            btn_search.setEnabled(True)
+            btn_search.setText("Rechercher")
             result_combo.clear()
+            if not results:
+                result_combo.addItem("Aucun résultat")
+                return
             for r in results:
                 result_combo.addItem(f"{r['name']} ({r['symbol']})", r)
+
+        def _do_search():
+            q = search_edit.text().strip()
+            if not q:
+                return
+            btn_search.setEnabled(False)
+            btn_search.setText("Recherche…")
+            result_combo.clear()
+            t = _SearchThread(q)
+            _wl_search_thread[0] = t
+            t.done.connect(_on_wl_search_done)
+            t.start()
 
         btn_search.clicked.connect(_do_search)
         search_edit.returnPressed.connect(_do_search)
