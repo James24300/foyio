@@ -321,10 +321,13 @@ class IdeasView(QWidget):
         hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
         hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)
         hdr.setSectionResizeMode(2, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(3, QHeaderView.Fixed)
+        hdr.setSectionResizeMode(4, QHeaderView.Fixed)
         hdr.setSectionResizeMode(5, QHeaderView.Stretch)
-        hdr.setSectionResizeMode(6, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(6, QHeaderView.Fixed)
+        self._table.setColumnWidth(3, 110)   # Statut
+        self._table.setColumnWidth(4, 110)   # Répondre
+        self._table.setColumnWidth(6, 110)   # Supprimer
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setSelectionMode(QTableWidget.NoSelection)
