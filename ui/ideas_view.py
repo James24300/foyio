@@ -5,11 +5,12 @@ Permet aux utilisateurs de soumettre des suggestions, et aux admins de les consu
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QTextEdit, QTableWidget, QTableWidgetItem,
-    QHeaderView, QInputDialog, QLineEdit as QLE, QFrame, QScrollArea
+    QHeaderView, QInputDialog, QLineEdit as QLE, QFrame, QScrollArea,
+    QDialog, QComboBox, QSizePolicy, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from services.ideas_service import submit_idea, get_ideas, mark_read, delete_idea, get_unread_count
+from services.ideas_service import submit_idea, get_ideas, mark_read, delete_idea, get_unread_count, set_status
 from services.settings_service import get as get_setting
 from ui.toast import Toast
 
@@ -70,6 +71,18 @@ _STYLE_BTN_SUCCESS = """
     QPushButton:hover  { background: #166534; color: #bbf7d0; }
     QPushButton:pressed { background: #15803d; }
 """
+
+# ── Statuts disponibles ──────────────────────────────────────────────────────
+_STATUTS = [
+    ("en_attente",  "En attente",  "#6b7280", "#374151"),
+    ("en_cours",    "En cours",    "#3b82f6", "#1e3a5f"),
+    ("acceptee",    "Acceptée",    "#22c55e", "#14532d"),
+    ("planifiee",   "Planifiée",   "#a855f7", "#3b1f5f"),
+    ("refusee",     "Refusée",     "#ef4444", "#7f1d1d"),
+]
+_STATUT_LABEL  = {k: lbl  for k, lbl, _fg, _bg in _STATUTS}
+_STATUT_FG     = {k: fg   for k, _lbl, fg, _bg in _STATUTS}
+_STATUT_BG     = {k: bg   for k, _lbl, _fg, bg in _STATUTS}
 
 _STYLE_INPUT = """
     QLineEdit, QTextEdit {
@@ -189,9 +202,10 @@ class IdeasView(QWidget):
         # ── Admin toggle button ──
         admin_row = QHBoxLayout()
         admin_row.setAlignment(Qt.AlignLeft)
-        self._btn_admin_toggle = QPushButton("  Vue Admin")
+        self._btn_admin_toggle = QPushButton("Vue Admin")
         self._btn_admin_toggle.setStyleSheet(_STYLE_BTN_SECONDARY)
         self._btn_admin_toggle.setFixedHeight(36)
+        self._btn_admin_toggle.setMinimumWidth(140)
         self._btn_admin_toggle.setCursor(Qt.PointingHandCursor)
         self._btn_admin_toggle.clicked.connect(self._on_admin_toggle)
         admin_row.addWidget(self._btn_admin_toggle)
@@ -286,25 +300,31 @@ class IdeasView(QWidget):
         top_bar.addWidget(self._lbl_unread)
         top_bar.addStretch()
 
-        btn_mark_all = QPushButton("  Tout marquer comme lu")
+        btn_mark_all = QPushButton("Tout marquer comme lu")
         btn_mark_all.setStyleSheet(_STYLE_BTN_SECONDARY)
         btn_mark_all.setFixedHeight(32)
+        btn_mark_all.setMinimumWidth(200)
         btn_mark_all.setCursor(Qt.PointingHandCursor)
         btn_mark_all.clicked.connect(self._on_mark_all_read)
         top_bar.addWidget(btn_mark_all)
 
         vlayout.addLayout(top_bar)
 
-        # Table
+        # Table  cols: Date | Auteur | Idée | Statut | Répondre | Réponse | Supprimer
         self._table = QTableWidget()
         self._table.setStyleSheet(_STYLE_TABLE)
-        self._table.setColumnCount(5)
-        self._table.setHorizontalHeaderLabels(["Date", "Auteur", "Idée", "Lu", "Supprimer"])
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self._table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self._table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self._table.setColumnCount(7)
+        self._table.setHorizontalHeaderLabels(
+            ["Date", "Auteur", "Idée", "Statut", "Répondre", "Réponse", "Supprimer"]
+        )
+        hdr = self._table.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(2, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(5, QHeaderView.Stretch)
+        hdr.setSectionResizeMode(6, QHeaderView.ResizeToContents)
         self._table.verticalHeader().setVisible(False)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setSelectionMode(QTableWidget.NoSelection)
@@ -359,29 +379,51 @@ class IdeasView(QWidget):
             content_item.setToolTip(idea.content or "")
             self._table.setItem(row, 2, content_item)
 
-            # "Mark read" button (col 3)
-            btn_read = QPushButton("✓ Marquer lu" if not idea.read else "Lu")
-            btn_read.setStyleSheet(
-                _STYLE_BTN_SUCCESS if not idea.read else """
-                QPushButton {
-                    background: transparent; color: #5a6472;
-                    border: 1px solid #3d4248; border-radius: 8px;
-                    padding: 5px 12px; font-size: 12px; font-weight: 600;
-                }
-            """
-            )
-            btn_read.setEnabled(not idea.read)
-            btn_read.setCursor(Qt.PointingHandCursor)
             idea_id = idea.id
-            btn_read.clicked.connect(lambda checked=False, iid=idea_id: self._on_mark_read(iid))
-            self._table.setCellWidget(row, 3, btn_read)
+            status  = getattr(idea, "status", None) or "en_attente"
 
-            # "Delete" button (col 4)
-            btn_del = QPushButton("🗑 Supprimer")
+            # Statut badge (col 3)
+            statut_lbl = QLabel(_STATUT_LABEL.get(status, status))
+            statut_lbl.setAlignment(Qt.AlignCenter)
+            statut_lbl.setStyleSheet(
+                f"color: {_STATUT_FG.get(status, '#c8cdd4')};"
+                f"background: {_STATUT_BG.get(status, '#374151')};"
+                "border-radius: 6px; padding: 3px 8px;"
+                "font-size: 11px; font-weight: 700;"
+            )
+            cell_w = QWidget()
+            cell_l = QHBoxLayout(cell_w)
+            cell_l.setContentsMargins(4, 2, 4, 2)
+            cell_l.addWidget(statut_lbl)
+            self._table.setCellWidget(row, 3, cell_w)
+
+            # "Répondre" button (col 4)
+            btn_reply = QPushButton("Répondre")
+            btn_reply.setStyleSheet(_STYLE_BTN_SECONDARY)
+            btn_reply.setFixedHeight(28)
+            btn_reply.setMinimumWidth(90)
+            btn_reply.setCursor(Qt.PointingHandCursor)
+            btn_reply.clicked.connect(
+                lambda checked=False, iid=idea_id, st=status: self._on_reply(iid, st)
+            )
+            self._table.setCellWidget(row, 4, btn_reply)
+
+            # Réponse texte (col 5)
+            resp_text = getattr(idea, "response", None) or ""
+            resp_item = QTableWidgetItem(resp_text)
+            resp_item.setBackground(row_bg)
+            resp_item.setForeground(QColor("#7a8494"))
+            resp_item.setToolTip(resp_text)
+            self._table.setItem(row, 5, resp_item)
+
+            # "Delete" button (col 6)
+            btn_del = QPushButton("Supprimer")
             btn_del.setStyleSheet(_STYLE_BTN_DANGER)
+            btn_del.setFixedHeight(28)
+            btn_del.setMinimumWidth(90)
             btn_del.setCursor(Qt.PointingHandCursor)
             btn_del.clicked.connect(lambda checked=False, iid=idea_id: self._on_delete(iid))
-            self._table.setCellWidget(row, 4, btn_del)
+            self._table.setCellWidget(row, 6, btn_del)
 
         self._table.resizeRowsToContents()
 
@@ -423,7 +465,7 @@ class IdeasView(QWidget):
             visible = self._admin_panel.isVisible()
             self._admin_panel.setVisible(not visible)
             self._btn_admin_toggle.setText(
-                "  Masquer Admin" if not visible else "  Vue Admin"
+                "Masquer Admin" if not visible else "Vue Admin"
             )
             return
 
@@ -446,7 +488,7 @@ class IdeasView(QWidget):
 
         # Unlock admin
         self._admin_unlocked = True
-        self._btn_admin_toggle.setText("  Masquer Admin")
+        self._btn_admin_toggle.setText("Masquer Admin")
 
         # Build admin panel once and replace placeholder
         if self._admin_panel is None:
@@ -459,6 +501,64 @@ class IdeasView(QWidget):
 
         self._admin_panel.setVisible(True)
         self._populate_table()
+
+    def _on_reply(self, idea_id: int, current_status: str):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Répondre à l'idée")
+        dlg.setMinimumWidth(420)
+        dlg.setStyleSheet("""
+            QDialog { background: #1e2023; color: #c8cdd4; }
+            QLabel  { color: #c8cdd4; background: transparent; }
+        """)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(12)
+        lay.setContentsMargins(20, 20, 20, 20)
+
+        lay.addWidget(QLabel("Statut :"))
+        combo = QComboBox()
+        combo.setStyleSheet("""
+            QComboBox {
+                background: #26292e; color: #c8cdd4;
+                border: 1px solid #3d4248; border-radius: 6px;
+                padding: 6px 10px; font-size: 13px;
+            }
+            QComboBox QAbstractItemView {
+                background: #26292e; color: #c8cdd4;
+                selection-background-color: #3b82f6;
+            }
+        """)
+        for key, label, _fg, _bg in _STATUTS:
+            combo.addItem(label, key)
+        # Pre-select current status
+        idx = next((i for i, (k, *_) in enumerate(_STATUTS) if k == current_status), 0)
+        combo.setCurrentIndex(idx)
+        lay.addWidget(combo)
+
+        lay.addWidget(QLabel("Réponse (optionnelle) :"))
+        inp_resp = QTextEdit()
+        inp_resp.setStyleSheet(_STYLE_INPUT)
+        inp_resp.setMinimumHeight(90)
+        lay.addWidget(inp_resp)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.button(QDialogButtonBox.Ok).setText("Enregistrer")
+        btns.button(QDialogButtonBox.Cancel).setText("Annuler")
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        lay.addWidget(btns)
+
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        chosen_status = combo.currentData()
+        response_text = inp_resp.toPlainText().strip()
+        try:
+            set_status(idea_id, chosen_status, response_text or None)
+        except Exception as exc:
+            Toast.show(self, f"Erreur : {exc}", kind="error")
+            return
+        self._populate_table()
+        Toast.show(self, "Statut mis à jour.", kind="success")
 
     def _on_mark_read(self, idea_id: int):
         try:
