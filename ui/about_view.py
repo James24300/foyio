@@ -3,13 +3,23 @@ Page À propos de Foyio.
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame, QScrollArea
+    QPushButton, QFrame, QScrollArea, QProgressDialog, QMessageBox, QApplication
 )
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import Qt, QUrl, QThread, Signal
 from PySide6.QtGui import QDesktopServices, QFont, QPixmap
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+class _DownloadThread(QThread):
+    progress = Signal(int)
+    finished = Signal(bool, str)
+
+    def run(self):
+        from services.update_service import download_and_install_update
+        success, message = download_and_install_update(self.progress.emit)
+        self.finished.emit(success, message)
 
 
 class AboutView(QWidget):
@@ -292,18 +302,13 @@ class AboutView(QWidget):
 
     def _check_update(self):
         """Vérifie et installe la mise à jour."""
-        from PySide6.QtWidgets import QProgressDialog, QMessageBox
-        from PySide6.QtCore import Qt
         from services.update_service import (
             check_for_update, is_update_available,
             get_latest_version, get_release_notes,
-            download_and_install_update
         )
 
-        # Vérification en ligne
         self._update_btn.setText("  Vérification...")
         self._update_btn.setEnabled(False)
-        from PySide6.QtWidgets import QApplication
         QApplication.processEvents()
 
         check_for_update()
@@ -329,27 +334,30 @@ class AboutView(QWidget):
             self._update_btn.setText(f"  Mettre à jour vers v{latest}")
             return
 
-        # Téléchargement avec barre de progression
-        progress = QProgressDialog("Téléchargement en cours...", "Annuler", 0, 100, self)
+        # ── Téléchargement en arrière-plan ──
+        progress = QProgressDialog("Téléchargement en cours...", None, 0, 100, self)
         progress.setWindowTitle("Mise à jour Foyio")
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
+        progress.setCancelButton(None)
         progress.setValue(0)
+        progress.show()
+        QApplication.processEvents()
 
-        def on_progress(pct):
-            progress.setValue(pct)
-            QApplication.processEvents()
+        self._dl_thread = _DownloadThread()
+        self._dl_thread.progress.connect(progress.setValue)
 
-        success, message = download_and_install_update(on_progress)
-        progress.close()
+        def on_done(success, message):
+            progress.close()
+            self._update_btn.setEnabled(True)
+            self._update_btn.setText("  Vérifier les mises à jour")
+            if success:
+                QMessageBox.information(self, "Mise à jour", message)
+            else:
+                QMessageBox.warning(self, "Erreur", message)
 
-        if success:
-            QMessageBox.information(self, "Mise à jour terminée", message)
-        else:
-            QMessageBox.warning(self, "Erreur", message)
-
-        self._update_btn.setEnabled(True)
-        self._update_btn.setText("  Vérifier les mises à jour")
+        self._dl_thread.finished.connect(on_done)
+        self._dl_thread.start()
 
     def _sep(self):
         s = QFrame()
