@@ -140,11 +140,16 @@ def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
     except Exception:
         dest = os.path.join(tempfile.gettempdir(), filename)
 
+    releases_page = f"https://github.com/James24300/foyio/releases/tag/v{latest}"
+
     try:
         if progress_callback:
             progress_callback(5)
 
-        with urllib.request.urlopen(url, timeout=60) as resp:
+        req = urllib.request.Request(url, headers={"User-Agent": "Foyio-Updater"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            if resp.status != 200:
+                raise ValueError(f"HTTP {resp.status}")
             total = int(resp.headers.get("Content-Length", 0))
             downloaded = 0
             with open(dest, "wb") as f:
@@ -169,4 +174,14 @@ def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
         )
 
     except Exception as e:
-        return False, f"Erreur lors du téléchargement : {e}"
+        # Fallback : ouvrir la page de release dans le navigateur
+        logger.warning("Téléchargement automatique échoué (%s) — ouverture navigateur", e)
+        try:
+            import webbrowser
+            webbrowser.open(releases_page)
+        except Exception:
+            pass
+        return False, (
+            f"Téléchargement automatique impossible ({e}).\n\n"
+            f"La page de téléchargement s'est ouverte dans votre navigateur :\n{releases_page}"
+        )
