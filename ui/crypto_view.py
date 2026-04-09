@@ -42,30 +42,28 @@ _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 
 # ── Label vertical (texte pivoté 90°) ────────────────────────────────────────
-class _VertLabel(QLabel):
-    """QLabel dont le texte est affiché pivoté -90° (lecture bas → haut)."""
+class _VertLabel(QWidget):
+    """Widget affichant un texte pivoté -90° (lecture bas → haut)."""
+    def __init__(self, text="", parent=None):
+        super().__init__(parent)
+        self._text = text
+
+    def setText(self, text):
+        self._text = text
+        self.update()
+
+    def text(self):
+        return self._text
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setPen(QColor("#c8cdd4"))
         p.setFont(self.font())
-        # Translater au coin bas-gauche puis pivoter -90° :
-        # l'axe X pointe maintenant vers le haut, l'axe Y vers la droite.
-        # Le "papier" disponible est height() × width().
         p.translate(0, self.height())
         p.rotate(-90)
-        p.drawText(0, 0, self.height(), self.width(), Qt.AlignCenter, self.text())
+        p.drawText(0, 0, self.height(), self.width(), Qt.AlignCenter, self._text)
         p.end()
-
-    def sizeHint(self):
-        sh = super().sizeHint()
-        from PySide6.QtCore import QSize
-        return QSize(sh.height() + 4, sh.width() + 4)
-
-    def minimumSizeHint(self):
-        sh = super().minimumSizeHint()
-        from PySide6.QtCore import QSize
-        return QSize(sh.height() + 4, sh.width() + 4)
 
 
 # ── Thread de recherche de cryptos ───────────────────────────────────────────
