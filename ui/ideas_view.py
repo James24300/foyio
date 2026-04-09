@@ -84,6 +84,34 @@ _STATUT_LABEL  = {k: lbl  for k, lbl, _fg, _bg in _STATUTS}
 _STATUT_FG     = {k: fg   for k, _lbl, fg, _bg in _STATUTS}
 _STATUT_BG     = {k: bg   for k, _lbl, _fg, bg in _STATUTS}
 
+_STYLE_BTN_CELL = """
+    QPushButton {
+        background: #292d32;
+        color: #c8cdd4;
+        border: 1px solid #3d4248;
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    QPushButton:hover  { background: #2e3238; color: #e0e4ea; }
+    QPushButton:pressed { background: #26292e; }
+"""
+
+_STYLE_BTN_CELL_DANGER = """
+    QPushButton {
+        background: #3b1f1f;
+        color: #fca5a5;
+        border: 1px solid #7f1d1d;
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    QPushButton:hover  { background: #7f1d1d; color: #fecaca; }
+    QPushButton:pressed { background: #991b1b; }
+"""
+
 _STYLE_INPUT = """
     QLineEdit, QTextEdit {
         background: #191c20;
@@ -403,9 +431,7 @@ class IdeasView(QWidget):
 
             # "Répondre" button (col 4)
             btn_reply = QPushButton("Répondre")
-            btn_reply.setStyleSheet(_STYLE_BTN_SECONDARY)
-            btn_reply.setFixedHeight(28)
-            btn_reply.setMinimumWidth(90)
+            btn_reply.setStyleSheet(_STYLE_BTN_CELL)
             btn_reply.setCursor(Qt.PointingHandCursor)
             btn_reply.clicked.connect(
                 lambda checked=False, iid=idea_id, st=status: self._on_reply(iid, st)
@@ -422,9 +448,7 @@ class IdeasView(QWidget):
 
             # "Delete" button (col 6)
             btn_del = QPushButton("Supprimer")
-            btn_del.setStyleSheet(_STYLE_BTN_DANGER)
-            btn_del.setFixedHeight(28)
-            btn_del.setMinimumWidth(90)
+            btn_del.setStyleSheet(_STYLE_BTN_CELL_DANGER)
             btn_del.setCursor(Qt.PointingHandCursor)
             btn_del.clicked.connect(lambda checked=False, iid=idea_id: self._on_delete(iid))
             self._table.setCellWidget(row, 6, btn_del)
