@@ -329,6 +329,7 @@ class IdeasView(QWidget):
         self._table.setColumnWidth(4, 110)   # Répondre
         self._table.setColumnWidth(6, 110)   # Supprimer
         self._table.verticalHeader().setVisible(False)
+        self._table.verticalHeader().setDefaultSectionSize(40)
         self._table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._table.setSelectionMode(QTableWidget.NoSelection)
         self._table.setAlternatingRowColors(False)
@@ -428,7 +429,7 @@ class IdeasView(QWidget):
             btn_del.clicked.connect(lambda checked=False, iid=idea_id: self._on_delete(iid))
             self._table.setCellWidget(row, 6, btn_del)
 
-        self._table.resizeRowsToContents()
+        # row height fixed via defaultSectionSize(40) — no resizeRowsToContents
 
     # ──────────────────────────────────────────────────────────────
     # Slots
