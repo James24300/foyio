@@ -111,18 +111,27 @@ def set_github_url(username: str, repo: str):
     )
 
 
-# ── URL de l'installateur GitHub releases ──────────────────────
+# ── URLs GitHub ────────────────────────────────────────────────
 RELEASE_BASE_URL = "https://github.com/James24300/foyio/releases/download"
+RELEASE_ZIP_URL  = "https://github.com/James24300/foyio/archive/refs/heads/main.zip"
 
 
 def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
     """
-    Télécharge FoyioSetup-{version}.exe depuis GitHub Releases dans le
-    dossier Téléchargements de l'utilisateur, puis le lance.
-    L'UAC Windows gère l'élévation de privilèges.
+    Met à jour Foyio selon la plateforme :
+    - Windows : télécharge FoyioSetup-{version}.exe et le lance (UAC)
+    - Linux/macOS : télécharge le ZIP source et remplace les fichiers .py
     Retourne (succès, message).
-    progress_callback(pct) : appelé de 0 à 100.
     """
+    import sys
+    if sys.platform == "win32":
+        return _update_windows(progress_callback)
+    else:
+        return _update_source(progress_callback)
+
+
+def _update_windows(progress_callback=None) -> tuple[bool, str]:
+    """Télécharge et lance l'installateur Windows depuis GitHub Releases."""
     import urllib.request
     import subprocess
     import tempfile
@@ -130,17 +139,17 @@ def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
     latest = _latest_version or get_current_version()
     filename = f"FoyioSetup-{latest}.exe"
     url = f"{RELEASE_BASE_URL}/v{latest}/{filename}"
+    releases_page = f"https://github.com/James24300/foyio/releases/tag/v{latest}"
 
-    # Sauvegarder dans %USERPROFILE%\Downloads ou dans le dossier temp
     try:
         downloads = os.path.join(os.path.expanduser("~"), "Downloads")
         if not os.path.isdir(downloads):
-            downloads = tempfile.gettempdir()
+            import tempfile as _tmp
+            downloads = _tmp.gettempdir()
         dest = os.path.join(downloads, filename)
     except Exception:
-        dest = os.path.join(tempfile.gettempdir(), filename)
-
-    releases_page = f"https://github.com/James24300/foyio/releases/tag/v{latest}"
+        import tempfile as _tmp
+        dest = os.path.join(_tmp.gettempdir(), filename)
 
     try:
         if progress_callback:
@@ -148,8 +157,6 @@ def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
 
         req = urllib.request.Request(url, headers={"User-Agent": "Foyio-Updater"})
         with urllib.request.urlopen(req, timeout=60) as resp:
-            if resp.status != 200:
-                raise ValueError(f"HTTP {resp.status}")
             total = int(resp.headers.get("Content-Length", 0))
             downloaded = 0
             with open(dest, "wb") as f:
@@ -165,17 +172,14 @@ def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
         if progress_callback:
             progress_callback(100)
 
-        # Lancer l'installateur (UAC demandera l'élévation)
         subprocess.Popen([dest], shell=True)
-
         return True, (
             f"Installateur téléchargé dans :\n{dest}\n\n"
             "L'installation va démarrer. Fermez Foyio pour finaliser la mise à jour."
         )
 
     except Exception as e:
-        # Fallback : ouvrir la page de release dans le navigateur
-        logger.warning("Téléchargement automatique échoué (%s) — ouverture navigateur", e)
+        logger.warning("Téléchargement Windows échoué (%s) — ouverture navigateur", e)
         try:
             import webbrowser
             webbrowser.open(releases_page)
@@ -185,3 +189,76 @@ def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
             f"Téléchargement automatique impossible ({e}).\n\n"
             f"La page de téléchargement s'est ouverte dans votre navigateur :\n{releases_page}"
         )
+
+
+def _update_source(progress_callback=None) -> tuple[bool, str]:
+    """Télécharge le ZIP source et met à jour les fichiers .py (Linux/macOS)."""
+    import urllib.request
+    import zipfile
+    import shutil
+    import tempfile
+
+    try:
+        if progress_callback:
+            progress_callback(5)
+
+        tmp_zip = os.path.join(tempfile.gettempdir(), "foyio_update.zip")
+        req = urllib.request.Request(
+            RELEASE_ZIP_URL, headers={"User-Agent": "Foyio-Updater"}
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            total = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            with open(tmp_zip, "wb") as f:
+                while True:
+                    chunk = resp.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total and progress_callback:
+                        progress_callback(5 + int(downloaded / total * 60))
+
+        if progress_callback:
+            progress_callback(65)
+
+        tmp_dir = os.path.join(tempfile.gettempdir(), "foyio_update_extracted")
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+        with zipfile.ZipFile(tmp_zip, "r") as z:
+            z.extractall(tmp_dir)
+
+        if progress_callback:
+            progress_callback(75)
+
+        extracted = [d for d in os.listdir(tmp_dir)
+                     if os.path.isdir(os.path.join(tmp_dir, d))]
+        if not extracted:
+            return False, "Archive vide ou corrompue."
+        src = os.path.join(tmp_dir, extracted[0])
+
+        EXCLUDE = {"finance.db", "settings.json", "backups", "__pycache__", ".git"}
+        copied = 0
+        for root, dirs, files in os.walk(src):
+            dirs[:] = [d for d in dirs if d not in EXCLUDE]
+            for fname in files:
+                if fname.endswith((".py", ".json", ".svg", ".png")):
+                    rel = os.path.relpath(os.path.join(root, fname), src)
+                    dest_file = os.path.join(BASE_DIR, rel)
+                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+                    shutil.copy2(os.path.join(root, fname), dest_file)
+                    copied += 1
+
+        if progress_callback:
+            progress_callback(95)
+
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        os.remove(tmp_zip)
+
+        if progress_callback:
+            progress_callback(100)
+
+        return True, f"{copied} fichier(s) mis à jour.\nRedémarrez Foyio pour appliquer la mise à jour."
+
+    except Exception as e:
+        return False, f"Erreur lors de la mise à jour : {e}"
