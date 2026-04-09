@@ -41,6 +41,32 @@ import time as _time
 _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 
+# ── Label vertical (texte pivoté 90°) ────────────────────────────────────────
+class _VertLabel(QLabel):
+    """QLabel dont le texte est affiché pivoté à 90° (pour les unités d'axe Y)."""
+    def paintEvent(self, event):
+        from PySide6.QtGui import QPainter
+        p = QPainter(self)
+        p.setPen(self.palette().color(self.foregroundRole()))
+        p.setFont(self.font())
+        p.translate(self.width() / 2, self.height() / 2)
+        p.rotate(-90)
+        fm = p.fontMetrics()
+        w = fm.horizontalAdvance(self.text())
+        p.drawText(-w // 2, fm.ascent() // 2, self.text())
+        p.end()
+
+    def sizeHint(self):
+        sh = super().sizeHint()
+        from PySide6.QtCore import QSize
+        return QSize(sh.height() + 4, sh.width() + 4)
+
+    def minimumSizeHint(self):
+        sh = super().minimumSizeHint()
+        from PySide6.QtCore import QSize
+        return QSize(sh.height() + 4, sh.width() + 4)
+
+
 # ── Thread de recherche de cryptos ───────────────────────────────────────────
 class _SearchThread(QThread):
     done = Signal(list)
@@ -355,19 +381,37 @@ class CryptoView(QWidget):
 
         vl.addLayout(evo_header)
 
+        # Ligne : label € vertical + graphique (ou message chargement)
+        evo_row = QHBoxLayout()
+        evo_row.setSpacing(2)
+        evo_row.setContentsMargins(0, 0, 0, 0)
+
+        self._evo_unit_lbl = _VertLabel("\u20ac")
+        self._evo_unit_lbl.setFont(QFont("Segoe UI", 10))
+        self._evo_unit_lbl.setStyleSheet("color:#7a8494; background:transparent;")
+        self._evo_unit_lbl.setFixedWidth(18)
+        evo_row.addWidget(self._evo_unit_lbl)
+
+        evo_right = QVBoxLayout()
+        evo_right.setSpacing(0)
+        evo_right.setContentsMargins(0, 0, 0, 0)
+
         self._evo_loading = QLabel("Chargement du graphique…")
         self._evo_loading.setAlignment(Qt.AlignCenter)
         self._evo_loading.setStyleSheet("color:#5a6472; font-size:12px; background:transparent;")
         self._evo_loading.setFixedHeight(180)
         self._evo_loading.hide()
-        vl.addWidget(self._evo_loading)
+        evo_right.addWidget(self._evo_loading)
 
         self._evo_chart_view = QChartView()
         self._evo_chart_view.setRenderHint(QPainter.Antialiasing)
         self._evo_chart_view.setFixedHeight(180)
         self._evo_chart_view.setStyleSheet("border:none;")
         self._evo_chart_view.setBackgroundBrush(QColor("#1e2023"))
-        vl.addWidget(self._evo_chart_view)
+        evo_right.addWidget(self._evo_chart_view)
+
+        evo_row.addLayout(evo_right)
+        vl.addLayout(evo_row)
         return w
 
     # ── Onglet Transactions ───────────────────────────────────────────────────
@@ -2571,11 +2615,7 @@ class CryptoView(QWidget):
         axis_y.setLabelsColor(QColor("#7a8494"))
         axis_y.setLabelsFont(_axis_font)
         axis_y.setGridLineColor(QColor("#2e3238"))
-        axis_y.setLabelFormat("%.0f")  # pas de signe € : printf Windows tronque l'UTF-8
-        axis_y.setTitleText("\u20ac")   # € vertical (titre de l'axe Y)
-        axis_y.setTitleVisible(True)
-        axis_y.setTitleBrush(QColor("#c8cdd4"))
-        axis_y.setTitleFont(QFont("Segoe UI", 11, QFont.Bold))
+        axis_y.setLabelFormat("%.0f")  # unité € affichée via _evo_unit_lbl (label vertical)
         axis_y.setTickCount(4)
         chart.addAxis(axis_y, Qt.AlignLeft)
         self._evo_series.attachAxis(axis_y)
