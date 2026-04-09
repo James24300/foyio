@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
-  "release_date": "2026-04-04",
-  "notes": "Fix transactions masquées après ajout, bouton Modifier dans Prêts, crash simulateur Épargne"
+  "version": "1.1.0",
+  "release_date": "2026-04-09",
+  "notes": "Crypto : suppression en cascade des transactions liées, recherche en arrière-plan, graphique d'évolution avec indicateur de chargement, boutons de période (7J/30J/90J/1AN), auto-échelle de l'axe Y, label € vertical. Rapport FIFO : affichage corrigé (barre de résumé, colonnes, sélecteur d'année). Boîte à idées : boutons corrigés, statuts de réponse (En attente / En cours / Acceptée / Planifiée / Refusée) avec champ de réponse admin. Corrections diverses : avertissements QTableView, erreur DetachedInstance."
 }
