@@ -111,85 +111,62 @@ def set_github_url(username: str, repo: str):
     )
 
 
-# ── URL du ZIP de la dernière release ──────────────────────────
-RELEASE_ZIP_URL = "https://github.com/James24300/foyio/archive/refs/heads/main.zip"
+# ── URL de l'installateur GitHub releases ──────────────────────
+RELEASE_BASE_URL = "https://github.com/James24300/foyio/releases/download"
 
 
 def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
     """
-    Télécharge et installe la mise à jour depuis GitHub.
+    Télécharge FoyioSetup-{version}.exe depuis GitHub Releases dans le
+    dossier Téléchargements de l'utilisateur, puis le lance.
+    L'UAC Windows gère l'élévation de privilèges.
     Retourne (succès, message).
     progress_callback(pct) : appelé de 0 à 100.
     """
     import urllib.request
-    import zipfile
-    import shutil
+    import subprocess
     import tempfile
 
+    latest = _latest_version or get_current_version()
+    filename = f"FoyioSetup-{latest}.exe"
+    url = f"{RELEASE_BASE_URL}/v{latest}/{filename}"
+
+    # Sauvegarder dans %USERPROFILE%\Downloads ou dans le dossier temp
     try:
-        # 1. Télécharger le ZIP
+        downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+        if not os.path.isdir(downloads):
+            downloads = tempfile.gettempdir()
+        dest = os.path.join(downloads, filename)
+    except Exception:
+        dest = os.path.join(tempfile.gettempdir(), filename)
+
+    try:
         if progress_callback:
             progress_callback(5)
 
-        tmp_zip = os.path.join(tempfile.gettempdir(), "foyio_update.zip")
-        with urllib.request.urlopen(RELEASE_ZIP_URL, timeout=30) as resp:
+        with urllib.request.urlopen(url, timeout=60) as resp:
             total = int(resp.headers.get("Content-Length", 0))
             downloaded = 0
-            with open(tmp_zip, "wb") as f:
+            with open(dest, "wb") as f:
                 while True:
-                    chunk = resp.read(8192)
+                    chunk = resp.read(65536)
                     if not chunk:
                         break
                     f.write(chunk)
                     downloaded += len(chunk)
                     if total and progress_callback:
-                        progress_callback(5 + int(downloaded / total * 60))
-
-        if progress_callback:
-            progress_callback(65)
-
-        # 2. Extraire le ZIP
-        tmp_dir = os.path.join(tempfile.gettempdir(), "foyio_update_extracted")
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-        with zipfile.ZipFile(tmp_zip, "r") as z:
-            z.extractall(tmp_dir)
-
-        if progress_callback:
-            progress_callback(75)
-
-        # 3. Trouver le dossier extrait (foyio-main/)
-        extracted = [d for d in os.listdir(tmp_dir)
-                     if os.path.isdir(os.path.join(tmp_dir, d))]
-        if not extracted:
-            return False, "Archive vide ou corrompue."
-        src = os.path.join(tmp_dir, extracted[0])
-
-        # 4. Copier les fichiers Python (sans écraser la DB et les paramètres)
-        EXCLUDE = {"finance.db", "settings.json", "backups", "__pycache__", ".git"}
-        dst = BASE_DIR
-        copied = 0
-        for root, dirs, files in os.walk(src):
-            dirs[:] = [d for d in dirs if d not in EXCLUDE]
-            for fname in files:
-                if fname.endswith((".py", ".json", ".svg", ".png", ".md")):
-                    rel = os.path.relpath(os.path.join(root, fname), src)
-                    dest_file = os.path.join(dst, rel)
-                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                    shutil.copy2(os.path.join(root, fname), dest_file)
-                    copied += 1
-
-        if progress_callback:
-            progress_callback(95)
-
-        # 5. Nettoyer
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-        os.remove(tmp_zip)
+                        progress_callback(5 + int(downloaded / total * 90))
 
         if progress_callback:
             progress_callback(100)
 
-        return True, f"{copied} fichier(s) mis à jour. Redémarrez Foyio."
+        # Lancer l'installateur (UAC demandera l'élévation)
+        subprocess.Popen([dest], shell=True)
+
+        return True, (
+            f"Installateur téléchargé dans :\n{dest}\n\n"
+            "L'installation va démarrer. Fermez Foyio pour finaliser la mise à jour."
+        )
 
     except Exception as e:
-        return False, f"Erreur lors de la mise à jour : {e}"
+        return False, f"Erreur lors du téléchargement : {e}"
