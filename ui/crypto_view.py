@@ -43,17 +43,18 @@ _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 # ── Label vertical (texte pivoté 90°) ────────────────────────────────────────
 class _VertLabel(QLabel):
-    """QLabel dont le texte est affiché pivoté à 90° (pour les unités d'axe Y)."""
+    """QLabel dont le texte est affiché pivoté -90° (lecture bas → haut)."""
     def paintEvent(self, event):
-        from PySide6.QtGui import QPainter
         p = QPainter(self)
-        p.setPen(self.palette().color(self.foregroundRole()))
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QColor("#c8cdd4"))
         p.setFont(self.font())
-        p.translate(self.width() / 2, self.height() / 2)
+        # Translater au coin bas-gauche puis pivoter -90° :
+        # l'axe X pointe maintenant vers le haut, l'axe Y vers la droite.
+        # Le "papier" disponible est height() × width().
+        p.translate(0, self.height())
         p.rotate(-90)
-        fm = p.fontMetrics()
-        w = fm.horizontalAdvance(self.text())
-        p.drawText(-w // 2, fm.ascent() // 2, self.text())
+        p.drawText(0, 0, self.height(), self.width(), Qt.AlignCenter, self.text())
         p.end()
 
     def sizeHint(self):
