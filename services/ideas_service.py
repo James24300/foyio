@@ -43,3 +43,14 @@ def delete_idea(idea_id: int):
 def get_unread_count() -> int:
     with Session() as session:
         return session.query(Idea).filter_by(read=False).count()
+
+
+def set_status(idea_id: int, status: str, response: str = None):
+    """Met à jour le statut (et optionnellement la réponse) d'une idée."""
+    with safe_session() as session:
+        idea = session.query(Idea).filter_by(id=idea_id).first()
+        if idea:
+            idea.status = status
+            if response is not None:
+                idea.response = response.strip() or None
+            idea.read = True

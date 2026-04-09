@@ -248,6 +248,8 @@ class Idea(Base):
     submitted_at = Column(DateTime,     nullable=False)
     read         = Column(Boolean,      default=False)
     account_id   = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    status       = Column(String(30),   default="en_attente")
+    response     = Column(String(2000), nullable=True)
 
 
 class WatchlistItem(Base):
