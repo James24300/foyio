@@ -387,9 +387,9 @@ class CryptoView(QWidget):
         evo_row.setContentsMargins(0, 0, 0, 0)
 
         self._evo_unit_lbl = _VertLabel("\u20ac")
-        self._evo_unit_lbl.setFont(QFont("Segoe UI", 10))
-        self._evo_unit_lbl.setStyleSheet("color:#7a8494; background:transparent;")
-        self._evo_unit_lbl.setFixedWidth(18)
+        self._evo_unit_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self._evo_unit_lbl.setStyleSheet("color:#c8cdd4; background:transparent;")
+        self._evo_unit_lbl.setFixedWidth(22)
         evo_row.addWidget(self._evo_unit_lbl)
 
         evo_right = QVBoxLayout()
@@ -2580,12 +2580,26 @@ class CryptoView(QWidget):
         min_v = min(v for _, v in points)
         max_v = max(v for _, v in points)
 
+        # Choisir l'échelle selon l'ordre de grandeur
+        if max_v >= 1_000_000:
+            scale, unit_lbl, fmt = 1_000_000, "M\u20ac", "%.2f"
+        elif max_v >= 10_000:
+            scale, unit_lbl, fmt = 1_000,     "k\u20ac", "%.1f"
+        else:
+            scale, unit_lbl, fmt = 1,          "\u20ac",  "%.0f"
+
+        points_sc = [(ts, v / scale) for ts, v in points]
+        min_sc, max_sc = min_v / scale, max_v / scale
+
         self._evo_series = QLineSeries()
         pen = QPen(QColor("#3b82f6"))
         pen.setWidth(2)
         self._evo_series.setPen(pen)
-        for ts_ms, value in points:
+        for ts_ms, value in points_sc:
             self._evo_series.append(ts_ms, value)
+
+        # Mettre à jour le label vertical avec la bonne unité
+        self._evo_unit_lbl.setText(unit_lbl)
 
         _bg = QColor("#1e2023")
         _axis_font = QFont("Segoe UI", 8)
@@ -2611,11 +2625,11 @@ class CryptoView(QWidget):
         self._evo_series.attachAxis(axis_x)
 
         axis_y = QValueAxis()
-        axis_y.setRange(min_v * 0.98, max_v * 1.02)
+        axis_y.setRange(min_sc * 0.98, max_sc * 1.02)
         axis_y.setLabelsColor(QColor("#7a8494"))
         axis_y.setLabelsFont(_axis_font)
         axis_y.setGridLineColor(QColor("#2e3238"))
-        axis_y.setLabelFormat("%.0f")  # unité € affichée via _evo_unit_lbl (label vertical)
+        axis_y.setLabelFormat(fmt)   # unité dans _evo_unit_lbl (k€/M€/€)
         axis_y.setTickCount(4)
         chart.addAxis(axis_y, Qt.AlignLeft)
         self._evo_series.attachAxis(axis_y)
