@@ -399,3 +399,19 @@ def migrate_database():
                 "INTEGER REFERENCES crypto_holdings(id)"))
             conn.commit()
         logger.info("Migration v6.7 : crypto_holding_id ajouté sur transactions")
+
+    # v6.8 : status + response sur ideas
+    inspector = inspect(engine)
+    if _table_exists(inspector, "ideas"):
+        if not _col_exists(inspector, "ideas", "status"):
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE ideas ADD COLUMN status VARCHAR(30) DEFAULT 'en_attente'"))
+                conn.commit()
+            logger.info("Migration v6.8a : status ajouté sur ideas")
+        if not _col_exists(inspector, "ideas", "response"):
+            with engine.connect() as conn:
+                conn.execute(text(
+                    "ALTER TABLE ideas ADD COLUMN response VARCHAR(2000)"))
+                conn.commit()
+            logger.info("Migration v6.8b : response ajouté sur ideas")
