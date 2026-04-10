@@ -1200,18 +1200,18 @@ class CryptoView(QWidget):
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
-        self._lbl_total.setText(f"{format_money(summary['total_value'])} €")
-        self._lbl_invest.setText(f"{format_money(summary['total_invested'])} €")
+        self._lbl_total.setText(format_money(summary['total_value']))
+        self._lbl_invest.setText(format_money(summary['total_invested']))
         pnl = summary['pnl']
         pct = summary['pnl_pct']
         color = "#22c55e" if pnl >= 0 else "#ef4444"
         sign  = "+" if pnl >= 0 else ""
-        self._lbl_pnl.setText(f"{sign}{format_money(pnl)} €")
+        self._lbl_pnl.setText(f"{sign}{format_money(pnl)}")
         self._lbl_pnl.setStyleSheet(f"font-size:15px; font-weight:700; color:{color}; background:transparent; border:none;")
         chg = summary['change_24h_eur']
         sign2 = "+" if chg >= 0 else ""
         color2 = "#22c55e" if chg >= 0 else "#ef4444"
-        self._lbl_chg24.setText(f"{sign2}{format_money(chg)} €")
+        self._lbl_chg24.setText(f"{sign2}{format_money(chg)}")
         self._lbl_chg24.setStyleSheet(f"font-size:15px; font-weight:700; color:{color2}; background:transparent; border:none;")
 
     def _load_portfolio(self):
