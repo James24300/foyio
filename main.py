@@ -803,36 +803,20 @@ class MainWindow(QWidget):
         self._restart_lock_timer()
 
     def _do_update_check(self):
-        """Vérifie directement si une mise à jour est disponible."""
-        try:
-            import urllib.request
-            import json as _json
-            url = "https://raw.githubusercontent.com/James24300/foyio/main/version.json"
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                data = _json.loads(resp.read())
-            latest = data.get("version", "")
-            notes = data.get("notes", "")
-            current = get_current_version()
-            # Comparer les versions
-            def _vt(v):
-                try:
-                    return tuple(int(x) for x in v.strip().split("."))
-                except Exception:
-                    return (0, 0, 0)
-            if _vt(latest) <= _vt(current):
+        """Vérifie les mises à jour en arrière-plan et notifie via Toast."""
+        from services.update_service import check_async
+
+        def _on_result(available, latest, notes):
+            if not available:
                 return
-            from PySide6.QtWidgets import QMessageBox
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Mise à jour disponible")
-            msg.setText(f"Une nouvelle version de Foyio est disponible : v{latest}")
-            msg.setInformativeText(
-                f"{notes}\n\nRendez-vous sur la page À propos pour mettre à jour."
+            from ui.toast import Toast
+            Toast.show(
+                self,
+                f"Mise à jour disponible : v{latest} — rendez-vous dans À propos",
+                kind="info",
             )
-            msg.setIcon(QMessageBox.Information)
-            msg.setStandardButtons(QMessageBox.Ok)
-            msg.exec()
-        except Exception:
-            pass  # Pas de connexion → on ignore silencieusement
+
+        check_async(callback=_on_result)
 
     def _notify_upcoming_recurring(self):
         """Affiche une notification Windows pour chaque récurrente proche."""
