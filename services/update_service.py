@@ -113,7 +113,7 @@ def set_github_url(username: str, repo: str):
 
 # ── URLs GitHub ────────────────────────────────────────────────
 RELEASE_BASE_URL = "https://github.com/James24300/foyio/releases/download"
-RELEASE_ZIP_URL  = "https://github.com/James24300/foyio/archive/refs/heads/main.zip"
+RELEASE_ZIP_URL  = "https://github.com/James24300/foyio/archive/refs/tags/v{version}.zip"
 
 
 def download_and_install_update(progress_callback=None) -> tuple[bool, str]:
@@ -192,11 +192,14 @@ def _update_windows(progress_callback=None) -> tuple[bool, str]:
 
 
 def _update_source(progress_callback=None) -> tuple[bool, str]:
-    """Télécharge le ZIP source et met à jour les fichiers .py (Linux/macOS)."""
+    """Télécharge le ZIP de la release taguée et met à jour les fichiers .py (Linux/macOS)."""
     import urllib.request
     import zipfile
     import shutil
     import tempfile
+
+    latest = _latest_version or get_current_version()
+    zip_url = RELEASE_ZIP_URL.format(version=latest)
 
     try:
         if progress_callback:
@@ -204,7 +207,7 @@ def _update_source(progress_callback=None) -> tuple[bool, str]:
 
         tmp_zip = os.path.join(tempfile.gettempdir(), "foyio_update.zip")
         req = urllib.request.Request(
-            RELEASE_ZIP_URL, headers={"User-Agent": "Foyio-Updater"}
+            zip_url, headers={"User-Agent": "Foyio-Updater"}
         )
         with urllib.request.urlopen(req, timeout=60) as resp:
             total = int(resp.headers.get("Content-Length", 0))
