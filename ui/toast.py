@@ -20,7 +20,7 @@ class Toast(QLabel):
         "info":    ("background:#3e4550; color:#c8cdd4; border:1px solid #7a8494;"),
     }
 
-    def __init__(self, parent, message: str, kind: str = "success"):
+    def __init__(self, parent, message: str, kind: str = "success", duration: int = 2300):
         super().__init__(message, parent)
 
         self.setAlignment(Qt.AlignCenter)
@@ -79,8 +79,8 @@ class Toast(QLabel):
         self._in_group.addAnimation(self._fade_in_anim)
         self._in_group.start()
 
-        # Timer : 2s d'affichage puis fondu sortant sur 400ms
-        QTimer.singleShot(2300, self._fade_out)
+        # Timer : affichage puis fondu sortant sur 400ms
+        QTimer.singleShot(duration, self._fade_out)
 
     def _fade_out(self):
         self._anim = QPropertyAnimation(self._effect, b"opacity")
@@ -103,10 +103,10 @@ class Toast(QLabel):
             self.move(x, y)
 
     @staticmethod
-    def show(parent, message: str, kind: str = "success"):
+    def show(parent, message: str, kind: str = "success", duration: int = 2300):
         """Méthode statique de commodité."""
         # Remonter jusqu'à la fenêtre principale pour un positionnement correct
         root = parent
         while root.parent():
             root = root.parent()
-        Toast(root, message, kind)
+        Toast(root, message, kind, duration)

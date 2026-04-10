@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QScrollArea, QTabWidget, QComboBox
 )
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal, QMetaObject, Q_ARG
 from PySide6.QtGui import QIcon
 
 from db import Base, engine, Session
@@ -809,14 +809,24 @@ class MainWindow(QWidget):
         def _on_result(available, latest, notes):
             if not available:
                 return
-            from ui.toast import Toast
-            Toast.show(
-                self,
-                f"Mise à jour disponible : v{latest} — rendez-vous dans À propos",
-                kind="info",
+            # Rappel depuis un thread daemon → marshaller vers le thread principal
+            QMetaObject.invokeMethod(
+                self, "_show_update_toast",
+                Qt.QueuedConnection,
+                Q_ARG(str, latest),
             )
 
         check_async(callback=_on_result)
+
+    def _show_update_toast(self, latest: str):
+        """Appelé depuis le thread principal pour afficher la notification."""
+        from ui.toast import Toast
+        Toast.show(
+            self,
+            f"Mise à jour disponible : v{latest} — rendez-vous dans À propos",
+            kind="info",
+            duration=5000,
+        )
 
     def _notify_upcoming_recurring(self):
         """Affiche une notification Windows pour chaque récurrente proche."""
