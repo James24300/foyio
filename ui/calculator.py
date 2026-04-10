@@ -1,3 +1,4 @@
+import logging
 """
 Calculatrice flottante Foyio.
 Accessible via raccourci Ctrl+K depuis n'importe quelle vue.
@@ -9,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
+logger = logging.getLogger(__name__)
 
 
 class Calculator(QDialog):
@@ -133,8 +135,7 @@ class Calculator(QDialog):
                 # Mettre à jour l'expression
                 self._expr = str(val)
             except Exception:
-                pass
-
+                logger.debug("Exception silencieuse", exc_info=True)
         elif text == "%":
             try:
                 val = float(self._display.text().replace(",", ".").replace(" ", ""))
@@ -142,8 +143,7 @@ class Calculator(QDialog):
                 self._display.setText(self._fmt(val))
                 self._expr = str(val)
             except Exception:
-                pass
-
+                logger.debug("Exception silencieuse", exc_info=True)
         elif text in ("+", "−", "×", "÷"):
             if self._display.text() not in ("Erreur", "0") or self._expr:
                 op_map = {"−": "-", "×": "*", "÷": "/"}

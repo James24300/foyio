@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QScrollArea, QTabWidget, QComboBox
 )
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal, QMetaObject, Q_ARG
 from PySide6.QtGui import QIcon
 
 from db import Base, engine, Session
@@ -62,6 +62,7 @@ from ui.crypto_view import CryptoView
 from ui.ideas_view import IdeasView
 from services.update_service import get_current_version
 from ui.password_dialog import PasswordDialog
+logger = logging.getLogger(__name__)
 
 
 class AnimatedNavBtn(QPushButton):
@@ -802,36 +803,30 @@ class MainWindow(QWidget):
         self._restart_lock_timer()
 
     def _do_update_check(self):
-        """Vérifie directement si une mise à jour est disponible."""
-        try:
-            import urllib.request
-            import json as _json
-            url = "https://raw.githubusercontent.com/James24300/foyio/main/version.json"
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                data = _json.loads(resp.read())
-            latest = data.get("version", "")
-            notes = data.get("notes", "")
-            current = get_current_version()
-            # Comparer les versions
-            def _vt(v):
-                try:
-                    return tuple(int(x) for x in v.strip().split("."))
-                except Exception:
-                    return (0, 0, 0)
-            if _vt(latest) <= _vt(current):
+        """Vérifie les mises à jour en arrière-plan et notifie via Toast."""
+        from services.update_service import check_async
+
+        def _on_result(available, latest, notes):
+            if not available:
                 return
-            from PySide6.QtWidgets import QMessageBox
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Mise à jour disponible")
-            msg.setText(f"Une nouvelle version de Foyio est disponible : v{latest}")
-            msg.setInformativeText(
-                f"{notes}\n\nRendez-vous sur la page À propos pour mettre à jour."
+            # Rappel depuis un thread daemon → marshaller vers le thread principal
+            QMetaObject.invokeMethod(
+                self, "_show_update_toast",
+                Qt.QueuedConnection,
+                Q_ARG(str, latest),
             )
-            msg.setIcon(QMessageBox.Information)
-            msg.setStandardButtons(QMessageBox.Ok)
-            msg.exec()
-        except Exception:
-            pass  # Pas de connexion → on ignore silencieusement
+
+        check_async(callback=_on_result)
+
+    def _show_update_toast(self, latest: str):
+        """Appelé depuis le thread principal pour afficher la notification."""
+        from ui.toast import Toast
+        Toast.show(
+            self,
+            f"Mise à jour disponible : v{latest} — rendez-vous dans À propos",
+            kind="info",
+            duration=5000,
+        )
 
     def _notify_upcoming_recurring(self):
         """Affiche une notification Windows pour chaque récurrente proche."""
@@ -853,8 +848,7 @@ class MainWindow(QWidget):
                 5000
             )
         except Exception:
-            pass
-
+            logger.warning("Exception silencieuse", exc_info=True)
     def closeEvent(self, event):
         """Minimiser dans le systray au lieu de fermer."""
         event.ignore()
@@ -1057,8 +1051,7 @@ class MainWindow(QWidget):
                 else:
                     self.btn_recurring.setText(" Récurrentes")
         except Exception:
-            pass
-
+            logger.warning("Exception silencieuse", exc_info=True)
     def refresh_all(self):
         self._update_sidebar_badges()
         if hasattr(self, "accueil"):      self.accueil.refresh()
@@ -1103,7 +1096,7 @@ try:
                     if msg.message == self._WM_HOTKEY and msg.wParam == self._ID:
                         self._cb()
                 except Exception:
-                    pass
+                    logger.warning("Exception silencieuse", exc_info=True)
             return False, 0
 
         def unregister(self):
@@ -1135,22 +1128,19 @@ def main():
         from services.transaction_recognition import clean_bad_rules
         clean_bad_rules()
     except Exception:
-        pass
-
+        logger.warning("Exception silencieuse", exc_info=True)
     # Sync automatique épargne ↔ transactions
     try:
         from services.savings_service import sync_savings_from_transactions
         sync_savings_from_transactions()
     except Exception:
-        pass
-
+        logger.warning("Exception silencieuse", exc_info=True)
     # ── AppUserModelID Windows (icône correcte dans la barre des tâches) ──
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Foyio.App.1")
     except Exception:
-        pass
-
+        logger.warning("Exception silencieuse", exc_info=True)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     QLocale.setDefault(QLocale(QLocale.French, QLocale.France))
@@ -1199,8 +1189,7 @@ def main():
             _hotkey = _GlobalHotkeyFilter(_bring_to_front)
             app.installNativeEventFilter(_hotkey)
         except Exception:
-            pass
-
+            logger.warning("Exception silencieuse", exc_info=True)
     ret = app.exec()
     if _hotkey:
         _hotkey.unregister()

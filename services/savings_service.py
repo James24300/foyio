@@ -1,3 +1,4 @@
+import logging
 """
 Service épargne — objectifs, taux, évolution, simulation.
 """
@@ -7,6 +8,7 @@ from db import Session, safe_session
 from models import SavingsGoal, Transaction, Category
 from sqlalchemy import func
 import account_state
+logger = logging.getLogger(__name__)
 
 
 # ── Objectifs ────────────────────────────────────────────────────────────────

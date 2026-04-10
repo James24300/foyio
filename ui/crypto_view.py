@@ -1,3 +1,4 @@
+import logging
 """
 Vue Crypto-monnaie — Foyio
 4 onglets : Portefeuille | Transactions | Simulateur | Alertes
@@ -38,6 +39,7 @@ from services.watchlist_service import (
 
 import urllib.request as _urllib_req
 import time as _time
+logger = logging.getLogger(__name__)
 _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 
@@ -47,6 +49,9 @@ class _VertLabel(QWidget):
     def __init__(self, text="", parent=None):
         super().__init__(parent)
         self._text = text
+        self.setSizePolicy(
+            QSizePolicy.Fixed, QSizePolicy.Expanding
+        )
 
     def setText(self, text):
         self._text = text
@@ -54,6 +59,14 @@ class _VertLabel(QWidget):
 
     def text(self):
         return self._text
+
+    def sizeHint(self):
+        from PySide6.QtCore import QSize
+        fm = self.fontMetrics()
+        return QSize(fm.height() + 8, fm.horizontalAdvance(self._text) + 8)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -116,7 +129,7 @@ class _EvoFetcher(QThread):
                 if hist:
                     result[h.coingecko_id] = (h.quantity, hist)
         except Exception:
-            pass
+            logger.debug("Exception silencieuse", exc_info=True)
         self.done.emit(result)
 
 
@@ -142,7 +155,7 @@ class _CompFetcher(QThread):
                     daily[day] = daily.get(day, 0.0) + h.quantity * price
             result["portfolio"] = sorted(daily.items())
         except Exception:
-            pass
+            logger.debug("Exception silencieuse", exc_info=True)
         self.done.emit(result)
 
 
@@ -175,9 +188,7 @@ class _LogoFetcher(QThread):
                 self.logo_ready.emit(cg_id, data)
                 _time.sleep(0.05)
             except Exception:
-                pass
-
-
+                logger.debug("Exception silencieuse", exc_info=True)
 class CryptoView(QWidget):
 
     def __init__(self):

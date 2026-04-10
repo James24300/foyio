@@ -1,3 +1,4 @@
+import logging
 import os
 
 from PySide6.QtWidgets import (
@@ -29,6 +30,8 @@ from services.transaction_service import (
     save_tags,
     get_tags_for_transactions,
 )
+
+logger = logging.getLogger(__name__)
 
 
 _SORT_ROLE = Qt.UserRole + 1

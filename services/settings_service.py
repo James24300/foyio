@@ -1,9 +1,11 @@
+import logging
 """
 Service de paramètres utilisateur — Foyio
 Stocke les préférences dans un fichier JSON local.
 """
 import json, os
 from config import APP_DIR
+logger = logging.getLogger(__name__)
 
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 
