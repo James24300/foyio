@@ -47,6 +47,9 @@ class _VertLabel(QWidget):
     def __init__(self, text="", parent=None):
         super().__init__(parent)
         self._text = text
+        self.setSizePolicy(
+            QSizePolicy.Fixed, QSizePolicy.Expanding
+        )
 
     def setText(self, text):
         self._text = text
@@ -54,6 +57,14 @@ class _VertLabel(QWidget):
 
     def text(self):
         return self._text
+
+    def sizeHint(self):
+        from PySide6.QtCore import QSize
+        fm = self.fontMetrics()
+        return QSize(fm.height() + 8, fm.horizontalAdvance(self._text) + 8)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
 
     def paintEvent(self, event):
         p = QPainter(self)
