@@ -139,17 +139,15 @@ class DashboardView(QWidget):
         # ── Cartes KPI (ligne 2 : revenus / dépenses / solde) ──
         cards_layout = QGridLayout()
         cards_layout.setHorizontalSpacing(12)
-        self.income_card   = create_card("Revenus",       "#22c55e", "income.png")
-        self.expense_card  = create_card("Dépenses",      "#ef4444", "expense.png")
-        self.balance_card  = create_card("Solde du mois", "#7a8494", "balance.png")
-        self.cumul_card    = create_card("Solde cumulé",  "#a855f7", "balance.png")
+        self.income_card  = create_card("Revenus",       "#22c55e", "income.png")
+        self.expense_card = create_card("Dépenses",      "#ef4444", "expense.png")
+        self.balance_card = create_card("Solde du mois", "#7a8494", "balance.png")
         cards_layout.addWidget(self.income_card["widget"],  0, 0)
         cards_layout.addWidget(self.expense_card["widget"], 0, 1)
         cards_layout.addWidget(self.balance_card["widget"], 0, 2)
-        cards_layout.addWidget(self.cumul_card["widget"],   0, 3)
         main_layout.addLayout(cards_layout)
 
-        # Sous-labels comparaison mois précédent
+        # Sous-labels comparaison mois précédent + solde cumulé
         cmp_layout = QHBoxLayout()
         cmp_layout.setSpacing(12)
         self._income_cmp  = QLabel()
@@ -158,9 +156,14 @@ class DashboardView(QWidget):
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setStyleSheet("font-size:11px; color:#6b7280; background:transparent;")
             lbl.setVisible(False)
+        self._cumul_lbl = QLabel()
+        self._cumul_lbl.setAlignment(Qt.AlignCenter)
+        self._cumul_lbl.setStyleSheet(
+            "font-size:12px; font-weight:600; color:#a855f7; background:transparent;"
+        )
         cmp_layout.addWidget(self._income_cmp,  1)
         cmp_layout.addWidget(self._expense_cmp, 1)
-        cmp_layout.addStretch(1)
+        cmp_layout.addWidget(self._cumul_lbl,   1)
         main_layout.addLayout(cmp_layout)
 
         # ── Santé financière ──
@@ -1166,7 +1169,6 @@ class DashboardView(QWidget):
         # ── Cartes KPI ──
         global_color  = "#22c55e" if all_balance >= 0 else "#ef4444"
         balance_color = "#22c55e" if balance >= 0 else "#ef4444"
-        cumul_color   = "#22c55e" if cumul >= 0 else "#ef4444"
         bar_style = "border-radius:4px 0 0 4px; border:none; background:{c};"
 
         self.global_card["value"].setStyleSheet(
@@ -1179,22 +1181,25 @@ class DashboardView(QWidget):
         )
         if "bar" in self.balance_card:
             self.balance_card["bar"].setStyleSheet(bar_style.format(c=balance_color))
-        self.cumul_card["value"].setStyleSheet(
-            f"font-size:24px; font-weight:700; color:{cumul_color}; background:transparent; border:none;"
-        )
-        if "bar" in self.cumul_card:
-            self.cumul_card["bar"].setStyleSheet(bar_style.format(c=cumul_color))
 
         # Compteurs animés
         sign_b = "+" if balance >= 0 else ""
-        sign_c = "+" if cumul >= 0 else ""
         self._anim_global  = CounterAnimation(self.global_card["value"],  abs(all_balance), prefix="" if all_balance >= 0 else "-")
         self._anim_income  = CounterAnimation(self.income_card["value"],  income)
         self._anim_expense = CounterAnimation(self.expense_card["value"], expense)
         self._anim_balance = CounterAnimation(self.balance_card["value"], abs(balance), prefix=sign_b if balance >= 0 else "-")
-        self._anim_cumul   = CounterAnimation(self.cumul_card["value"],   abs(cumul),   prefix=sign_c if cumul >= 0 else "-")
-        for anim in [self._anim_global, self._anim_income, self._anim_expense, self._anim_balance, self._anim_cumul]:
+        for anim in [self._anim_global, self._anim_income, self._anim_expense, self._anim_balance]:
             anim.start()
+
+        # ── Label solde cumulé (sous les cartes) ──
+        sign_c = "+" if cumul >= 0 else ""
+        color_c = "#22c55e" if cumul >= 0 else "#ef4444"
+        self._cumul_lbl.setText(
+            f"Solde cumulé jusqu'à fin {self._month_label()} : "
+            f"<span style='color:{color_c}'>{sign_c}{cumul:,.2f} €</span>"
+        )
+        self._cumul_lbl.setTextFormat(Qt.RichText)
+        self._cumul_lbl.setVisible(True)
 
         # ── Comparaison mois précédent ──
         try:
@@ -1277,6 +1282,13 @@ class DashboardView(QWidget):
 
         self._update_analysis(income, expense, balance)
         self._refresh_crypto_widget()
+
+    def _month_label(self) -> str:
+        MONTHS_FR = ["", "janvier", "février", "mars", "avril", "mai", "juin",
+                     "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
+        import period_state
+        p = period_state.get()
+        return f"{MONTHS_FR[p.month]} {p.year}"
 
     def _refresh_crypto_widget(self):
         """Met à jour le mini-widget crypto. Lance un fetch si le cache est vide."""
