@@ -86,8 +86,7 @@ def check_async(callback=None):
             try:
                 callback(_update_available, _latest_version, _release_notes)
             except Exception:
-                pass
-
+                logger.warning("Exception silencieuse", exc_info=True)
     threading.Thread(target=_run, daemon=True).start()
 
 
@@ -184,7 +183,7 @@ def _update_windows(progress_callback=None) -> tuple[bool, str]:
             import webbrowser
             webbrowser.open(releases_page)
         except Exception:
-            pass
+            logger.warning("Exception silencieuse", exc_info=True)
         return False, (
             f"Téléchargement automatique impossible ({e}).\n\n"
             f"La page de téléchargement s'est ouverte dans votre navigateur :\n{releases_page}"

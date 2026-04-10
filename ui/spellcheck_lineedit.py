@@ -1,3 +1,4 @@
+import logging
 """
 SpellCheckLineEdit — QLineEdit avec correction orthographique automatique.
 
@@ -15,6 +16,7 @@ Comportement :
 from PySide6.QtWidgets import QLineEdit
 from PySide6.QtCore import Qt
 import re
+logger = logging.getLogger(__name__)
 
 # ── Chargement optionnel du correcteur ──
 _spell = None

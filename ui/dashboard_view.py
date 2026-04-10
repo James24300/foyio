@@ -1,3 +1,4 @@
+import logging
 from PySide6.QtWidgets import (
     QWidget, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -20,6 +21,7 @@ from services.dashboard_service import (
     forecast_income
 )
 import period_state
+logger = logging.getLogger(__name__)
 
 DONUT_COLORS = [
     "#22c55e", "#7a8494", "#f59e0b", "#ef4444",
@@ -1090,8 +1092,7 @@ class DashboardView(QWidget):
                     layout.removeWidget(w)
                     layout.addWidget(w)
         except Exception:
-            pass
-
+            logger.debug("Exception silencieuse", exc_info=True)
     def _refresh_savings_widget(self):
         """Met à jour le mini-widget épargne."""
         try:
@@ -1136,8 +1137,7 @@ class DashboardView(QWidget):
             self._sav_bar.setMaximum(100)
             self._sav_bar.setValue(pct)
         except Exception:
-            pass
-
+            logger.debug("Exception silencieuse", exc_info=True)
     def refresh(self):
         income, expense, balance = get_month_summary()
         self._total_expense = expense
@@ -1369,8 +1369,7 @@ class DashboardView(QWidget):
                 )
                 self._crypto_chg_lbl.setText("")
         except Exception:
-            pass
-
+            logger.debug("Exception silencieuse", exc_info=True)
     def _update_analysis(self, income, expense, balance):
         from datetime import date
         import calendar

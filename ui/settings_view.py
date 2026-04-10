@@ -1,3 +1,4 @@
+import logging
 """
 Vue Paramètres utilisateur — Foyio
 """
@@ -9,6 +10,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from services.settings_service import load_settings, save_settings
 from ui.toast import Toast
+logger = logging.getLogger(__name__)
 
 
 def _sep():
@@ -301,5 +303,5 @@ class SettingsView(QWidget):
             from utils.formatters import invalidate_currency_cache
             invalidate_currency_cache()
         except Exception:
-            pass
+            logger.debug("Exception silencieuse", exc_info=True)
         Toast.show(self, "Paramètres enregistrés", kind="success")

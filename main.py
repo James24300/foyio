@@ -62,6 +62,7 @@ from ui.crypto_view import CryptoView
 from ui.ideas_view import IdeasView
 from services.update_service import get_current_version
 from ui.password_dialog import PasswordDialog
+logger = logging.getLogger(__name__)
 
 
 class AnimatedNavBtn(QPushButton):
@@ -853,8 +854,7 @@ class MainWindow(QWidget):
                 5000
             )
         except Exception:
-            pass
-
+            logger.warning("Exception silencieuse", exc_info=True)
     def closeEvent(self, event):
         """Minimiser dans le systray au lieu de fermer."""
         event.ignore()
@@ -1057,8 +1057,7 @@ class MainWindow(QWidget):
                 else:
                     self.btn_recurring.setText(" Récurrentes")
         except Exception:
-            pass
-
+            logger.warning("Exception silencieuse", exc_info=True)
     def refresh_all(self):
         self._update_sidebar_badges()
         if hasattr(self, "accueil"):      self.accueil.refresh()
@@ -1103,7 +1102,7 @@ try:
                     if msg.message == self._WM_HOTKEY and msg.wParam == self._ID:
                         self._cb()
                 except Exception:
-                    pass
+                    logger.warning("Exception silencieuse", exc_info=True)
             return False, 0
 
         def unregister(self):
@@ -1135,22 +1134,19 @@ def main():
         from services.transaction_recognition import clean_bad_rules
         clean_bad_rules()
     except Exception:
-        pass
-
+        logger.warning("Exception silencieuse", exc_info=True)
     # Sync automatique épargne ↔ transactions
     try:
         from services.savings_service import sync_savings_from_transactions
         sync_savings_from_transactions()
     except Exception:
-        pass
-
+        logger.warning("Exception silencieuse", exc_info=True)
     # ── AppUserModelID Windows (icône correcte dans la barre des tâches) ──
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Foyio.App.1")
     except Exception:
-        pass
-
+        logger.warning("Exception silencieuse", exc_info=True)
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     QLocale.setDefault(QLocale(QLocale.French, QLocale.France))
@@ -1199,8 +1195,7 @@ def main():
             _hotkey = _GlobalHotkeyFilter(_bring_to_front)
             app.installNativeEventFilter(_hotkey)
         except Exception:
-            pass
-
+            logger.warning("Exception silencieuse", exc_info=True)
     ret = app.exec()
     if _hotkey:
         _hotkey.unregister()
