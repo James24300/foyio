@@ -13,7 +13,7 @@ from utils.formatters import format_money
 from utils.icons import get_icon
 from ui.dashboard_widgets import create_card, create_category_chart, CounterAnimation
 from services.transaction_service import get_month_summary
-from services.stats_service import expenses_by_category
+from services.stats_service import expenses_by_category, get_cumulative_balance
 from services.dashboard_service import (
     top_expenses, forecast_balance, biggest_category,
     compare_with_previous, recent_transactions, budget_alerts,
@@ -139,12 +139,14 @@ class DashboardView(QWidget):
         # ── Cartes KPI (ligne 2 : revenus / dépenses / solde) ──
         cards_layout = QGridLayout()
         cards_layout.setHorizontalSpacing(12)
-        self.income_card  = create_card("Revenus",  "#22c55e", "income.png")
-        self.expense_card = create_card("Dépenses", "#ef4444", "expense.png")
-        self.balance_card = create_card("Solde",    "#7a8494", "balance.png")
+        self.income_card   = create_card("Revenus",       "#22c55e", "income.png")
+        self.expense_card  = create_card("Dépenses",      "#ef4444", "expense.png")
+        self.balance_card  = create_card("Solde du mois", "#7a8494", "balance.png")
+        self.cumul_card    = create_card("Solde cumulé",  "#a855f7", "balance.png")
         cards_layout.addWidget(self.income_card["widget"],  0, 0)
         cards_layout.addWidget(self.expense_card["widget"], 0, 1)
         cards_layout.addWidget(self.balance_card["widget"], 0, 2)
+        cards_layout.addWidget(self.cumul_card["widget"],   0, 3)
         main_layout.addLayout(cards_layout)
 
         # Sous-labels comparaison mois précédent
@@ -1155,9 +1157,16 @@ class DashboardView(QWidget):
         # ── Graphique solde ──
         self._update_balance_chart()
 
+        # ── Solde cumulé ──
+        try:
+            cumul = get_cumulative_balance()
+        except Exception:
+            cumul = 0.0
+
         # ── Cartes KPI ──
         global_color  = "#22c55e" if all_balance >= 0 else "#ef4444"
         balance_color = "#22c55e" if balance >= 0 else "#ef4444"
+        cumul_color   = "#22c55e" if cumul >= 0 else "#ef4444"
         bar_style = "border-radius:4px 0 0 4px; border:none; background:{c};"
 
         self.global_card["value"].setStyleSheet(
@@ -1170,15 +1179,21 @@ class DashboardView(QWidget):
         )
         if "bar" in self.balance_card:
             self.balance_card["bar"].setStyleSheet(bar_style.format(c=balance_color))
+        self.cumul_card["value"].setStyleSheet(
+            f"font-size:24px; font-weight:700; color:{cumul_color}; background:transparent; border:none;"
+        )
+        if "bar" in self.cumul_card:
+            self.cumul_card["bar"].setStyleSheet(bar_style.format(c=cumul_color))
 
         # Compteurs animés
-        sign_g = "+" if all_balance >= 0 else "-"
         sign_b = "+" if balance >= 0 else ""
+        sign_c = "+" if cumul >= 0 else ""
         self._anim_global  = CounterAnimation(self.global_card["value"],  abs(all_balance), prefix="" if all_balance >= 0 else "-")
         self._anim_income  = CounterAnimation(self.income_card["value"],  income)
         self._anim_expense = CounterAnimation(self.expense_card["value"], expense)
         self._anim_balance = CounterAnimation(self.balance_card["value"], abs(balance), prefix=sign_b if balance >= 0 else "-")
-        for anim in [self._anim_global, self._anim_income, self._anim_expense, self._anim_balance]:
+        self._anim_cumul   = CounterAnimation(self.cumul_card["value"],   abs(cumul),   prefix=sign_c if cumul >= 0 else "-")
+        for anim in [self._anim_global, self._anim_income, self._anim_expense, self._anim_balance, self._anim_cumul]:
             anim.start()
 
         # ── Comparaison mois précédent ──

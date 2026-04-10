@@ -64,7 +64,28 @@ def expenses_by_category_annual(months: int = 12):
         ).all()
 
 
-def monthly_balance():
+def get_cumulative_balance() -> float:
+    """
+    Solde cumulé depuis la première transaction jusqu'à la fin
+    de la période sélectionnée (revenus − dépenses, compte actif).
+    """
+    import calendar
+    p = period_state.get()
+    last_day = calendar.monthrange(p.year, p.month)[1]
+    cutoff = datetime(p.year, p.month, last_day, 23, 59, 59)
+
+    with Session() as session:
+        q = session.query(
+            func.sum(case(
+                (Transaction.type == "income",   Transaction.amount),
+                (Transaction.type == "expense", -Transaction.amount),
+                else_=0,
+            ))
+        ).filter(Transaction.date <= cutoff)
+        return _af(q).scalar() or 0.0
+
+
+
     """Solde net par mois pour le compte actif."""
     MONTHS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin",
                  "Juil","Août","Sep","Oct","Nov","Déc"]
