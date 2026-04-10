@@ -85,7 +85,7 @@ def get_cumulative_balance() -> float:
         return _af(q).scalar() or 0.0
 
 
-
+def monthly_balance():
     """Solde net par mois pour le compte actif."""
     MONTHS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin",
                  "Juil","Août","Sep","Oct","Nov","Déc"]
