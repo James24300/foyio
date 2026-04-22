@@ -16,7 +16,7 @@ from utils.icons import get_icon
 from ui.toast import Toast
 from services.loan_service import (
     add_loan, update_loan, get_loans, delete_loan,
-    get_amortization_schedule, get_loan_summary,
+    get_amortization_schedule, get_loan_summary, compute_current_remaining,
 )
 
 
@@ -341,8 +341,9 @@ class LoansView(QWidget):
             total_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             self.table.setItem(i, 1, total_item)
 
-            # Restant
-            remaining_item = QTableWidgetItem(format_money(loan.remaining_amount))
+            # Restant (calculé dynamiquement selon les mois écoulés)
+            actual_remaining = compute_current_remaining(loan)
+            remaining_item = QTableWidgetItem(format_money(actual_remaining))
             remaining_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             remaining_item.setForeground(QColor("#ef4444"))
             self.table.setItem(i, 2, remaining_item)
@@ -361,7 +362,7 @@ class LoansView(QWidget):
             pct = 0
             if loan.total_amount > 0:
                 pct = int(
-                    ((loan.total_amount - loan.remaining_amount) / loan.total_amount) * 100
+                    ((loan.total_amount - actual_remaining) / loan.total_amount) * 100
                 )
             bar = QProgressBar()
             bar.setValue(pct)
@@ -551,10 +552,23 @@ class LoansView(QWidget):
     # ------------------------------------------------------------------
     def _show_schedule(self, loan_id, loan_name):
         """Affiche le tableau d'amortissement dans un dialogue."""
+        from datetime import date as _date
+        from dateutil.relativedelta import relativedelta as _rd
         schedule = get_amortization_schedule(loan_id)
         if not schedule:
             Toast.show(self, "\u2715  Impossible de calculer l\u2019amortissement", kind="error")
             return
+
+        # Ligne du mois en cours dans le tableau
+        loans_list = get_loans(active_only=False)
+        loan_obj = next((l for l in loans_list if l.id == loan_id), None)
+        current_row = -1
+        if loan_obj:
+            today = _date.today()
+            if today > loan_obj.start_date:
+                delta = _rd(today, loan_obj.start_date)
+                months_elapsed = delta.years * 12 + delta.months
+                current_row = min(months_elapsed, len(schedule) - 1)
 
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Amortissement \u2014 {loan_name}")
@@ -620,6 +634,8 @@ class LoansView(QWidget):
         """)
 
         for i, row in enumerate(schedule):
+            is_current = (i == current_row)
+
             num_item = QTableWidgetItem(str(row["month_num"]))
             num_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
             table.setItem(i, 0, num_item)
@@ -645,6 +661,17 @@ class LoansView(QWidget):
             rem_item = QTableWidgetItem(format_money(row["remaining"]))
             rem_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
             table.setItem(i, 5, rem_item)
+
+            # Mettre en évidence le mois en cours
+            if is_current:
+                highlight = QColor("#1e3a5f")
+                for col in range(6):
+                    item = table.item(i, col)
+                    if item:
+                        item.setBackground(highlight)
+
+        if current_row >= 0:
+            table.scrollToItem(table.item(current_row, 0))
 
         vl.addWidget(table, 1)
 
