@@ -325,10 +325,10 @@ class CryptoView(QWidget):
         vl.addLayout(btn_row)
 
         # Tableau
-        self._portfolio_table = QTableWidget(0, 8)
+        self._portfolio_table = QTableWidget(0, 9)
         self._portfolio_table.setHorizontalHeaderLabels([
-            "", "Crypto", "Quantité", "Prix achat moy.", "Prix actuel",
-            "Valeur", "P&L €", "P&L %"
+            "", "Crypto", "Quantité", "Prix achat moy.", "Prix actuel €",
+            "Prix actuel $", "Valeur", "P&L €", "P&L %"
         ])
         self._portfolio_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._portfolio_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -341,9 +341,10 @@ class CryptoView(QWidget):
         hdr.setSectionResizeMode(2, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(2, 120)
         hdr.setSectionResizeMode(3, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(3, 130)
         hdr.setSectionResizeMode(4, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(4, 130)
-        hdr.setSectionResizeMode(5, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(5, 120)
-        hdr.setSectionResizeMode(6, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(6, 110)
-        hdr.setSectionResizeMode(7, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(7, 90)
+        hdr.setSectionResizeMode(5, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(5, 130)
+        hdr.setSectionResizeMode(6, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(6, 120)
+        hdr.setSectionResizeMode(7, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(7, 110)
+        hdr.setSectionResizeMode(8, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(8, 90)
         self._portfolio_table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
             QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }
@@ -1262,9 +1263,12 @@ class CryptoView(QWidget):
                     it.setForeground(QColor(fg))
                 return it
 
+            price_usd = info.get("price_usd", 0)
+
             qty_str = f"{h.quantity:,.8f}".rstrip("0").rstrip(".")
             tbl.setItem(i, 2, _item(qty_str, Qt.AlignRight | Qt.AlignVCenter))
             tbl.setItem(i, 3, _item(f"{h.avg_buy_price:,.2f} €"))
+
             price_str = f"{price:,.2f} €" if price else "—"
             chg_color = "#22c55e" if chg >= 0 else "#ef4444"
             price_item = _item(price_str)
@@ -1272,11 +1276,15 @@ class CryptoView(QWidget):
                 price_item.setText(f"{price_str}  ({'+' if chg>=0 else ''}{chg:.1f}%)")
                 price_item.setForeground(QColor(chg_color))
             tbl.setItem(i, 4, price_item)
-            tbl.setItem(i, 5, _item(f"{value:,.2f} €" if price else "—"))
+
+            usd_str = f"${price_usd:,.2f}" if price_usd else "—"
+            tbl.setItem(i, 5, _item(usd_str))
+
+            tbl.setItem(i, 6, _item(f"{value:,.2f} €" if price else "—"))
 
             pnl_c = "#22c55e" if pnl >= 0 else "#ef4444"
-            tbl.setItem(i, 6, _item(f"{'+' if pnl>=0 else ''}{pnl:,.2f} €", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
-            tbl.setItem(i, 7, _item(f"{'+' if pnl_p>=0 else ''}{pnl_p:.1f}%", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
+            tbl.setItem(i, 7, _item(f"{'+' if pnl>=0 else ''}{pnl:,.2f} €", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
+            tbl.setItem(i, 8, _item(f"{'+' if pnl_p>=0 else ''}{pnl_p:.1f}%", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
 
             # Pie : valeur réelle si prix connu, sinon prix d'achat (fallback)
             pie_value = value if value > 0 else h.quantity * h.avg_buy_price

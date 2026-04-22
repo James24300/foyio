@@ -92,11 +92,20 @@ def get_prices(coingecko_ids: list[str]) -> dict:
                     "price":      coin.get("current_price", 0) or 0,
                     "change_24h": coin.get("price_change_percentage_24h", 0) or 0,
                     "market_cap": coin.get("market_cap", 0) or 0,
+                    "price_usd":  0,
                     "ts":         now,
                 }
-                # Image récupérée en même temps — aucun appel supplémentaire
                 if coin.get("image"):
                     _image_url_cache[cid] = coin["image"]
+
+        # Prix USD via simple/price (appel léger)
+        url_usd = (f"{COINGECKO_BASE}/simple/price"
+                   f"?ids={ids_param}&vs_currencies=usd")
+        data_usd = _get(url_usd)
+        if data_usd:
+            for cid, vals in data_usd.items():
+                if cid in _price_cache:
+                    _price_cache[cid]["price_usd"] = vals.get("usd", 0) or 0
 
     return {
         cid: {k: v for k, v in _price_cache[cid].items() if k != "ts"}
