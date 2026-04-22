@@ -137,8 +137,12 @@ def _update_windows(progress_callback=None) -> tuple[bool, str]:
 
     latest = _latest_version or get_current_version()
     filename = f"FoyioSetup-{latest}.exe"
-    url = f"{RELEASE_BASE_URL}/v{latest}/{filename}"
-    releases_page = f"https://github.com/James24300/foyio/releases/tag/v{latest}"
+    # Essayer les deux formats de tag : v1.1.1 et v.1.1.1
+    url_candidates = [
+        f"{RELEASE_BASE_URL}/v{latest}/{filename}",
+        f"{RELEASE_BASE_URL}/v.{latest}/{filename}",
+    ]
+    releases_page = f"https://github.com/James24300/foyio/releases/latest"
 
     try:
         downloads = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -154,19 +158,32 @@ def _update_windows(progress_callback=None) -> tuple[bool, str]:
         if progress_callback:
             progress_callback(5)
 
-        req = urllib.request.Request(url, headers={"User-Agent": "Foyio-Updater"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            total = int(resp.headers.get("Content-Length", 0))
-            downloaded = 0
-            with open(dest, "wb") as f:
-                while True:
-                    chunk = resp.read(65536)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total and progress_callback:
-                        progress_callback(5 + int(downloaded / total * 90))
+        # Essayer chaque URL candidate jusqu'à en trouver une valide
+        resp = None
+        last_err = None
+        for url in url_candidates:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Foyio-Updater"})
+                resp = urllib.request.urlopen(req, timeout=60)
+                break
+            except Exception as e:
+                last_err = e
+                continue
+        if resp is None:
+            raise last_err
+
+        total = int(resp.headers.get("Content-Length", 0))
+        downloaded = 0
+        with open(dest, "wb") as f:
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                f.write(chunk)
+                downloaded += len(chunk)
+                if total and progress_callback:
+                    progress_callback(5 + int(downloaded / total * 90))
+        resp.close()
 
         if progress_callback:
             progress_callback(100)
