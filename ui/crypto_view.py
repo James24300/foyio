@@ -1164,6 +1164,8 @@ class CryptoView(QWidget):
                         hl.addWidget(name_lbl)
                         hl.addStretch()
                         self._dca_table.setCellWidget(row, 0, cell)
+                        # Effacer le texte de l'item pour éviter le chevauchement
+                        item.setText("")
                     break
 
     # ── Chargement données ────────────────────────────────────────────────────
