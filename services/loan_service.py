@@ -114,6 +114,29 @@ def get_amortization_schedule(loan_id: int) -> list:
         return schedule
 
 
+def compute_current_remaining(loan) -> float:
+    """Capital restant dû à ce jour, calculé par le tableau d'amortissement."""
+    from datetime import date as _date
+    today = _date.today()
+    if today <= loan.start_date:
+        return float(loan.total_amount)
+
+    remaining = float(loan.total_amount)
+    monthly_rate = (loan.interest_rate / 100) / 12
+    payment = float(loan.monthly_payment)
+    current = loan.start_date
+
+    while current < today and remaining > 0.01:
+        interest = remaining * monthly_rate
+        principal = min(payment - interest, remaining)
+        if principal <= 0:
+            break
+        remaining = max(remaining - principal, 0.0)
+        current = current + relativedelta(months=1)
+
+    return round(remaining, 2)
+
+
 def get_loan_summary() -> dict:
     """
     Résumé global des prêts actifs :
@@ -131,7 +154,7 @@ def get_loan_summary() -> dict:
                 "estimated_end": None,
             }
 
-        total_remaining = sum(l.remaining_amount for l in loans)
+        total_remaining = sum(compute_current_remaining(l) for l in loans)
         total_monthly = sum(l.monthly_payment for l in loans)
         estimated_end = max(l.end_date for l in loans)
 
