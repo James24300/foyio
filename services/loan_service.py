@@ -74,6 +74,14 @@ def get_amortization_schedule(loan_id: int) -> list:
         if not loan:
             return []
 
+        # Durée contractuelle en mois (respecte end_date)
+        max_months = (
+            (loan.end_date.year - loan.start_date.year) * 12
+            + (loan.end_date.month - loan.start_date.month)
+        )
+        if max_months <= 0:
+            max_months = 600
+
         remaining = loan.total_amount
         monthly_rate = (loan.interest_rate / 100) / 12
         payment = loan.monthly_payment
@@ -81,20 +89,19 @@ def get_amortization_schedule(loan_id: int) -> list:
         schedule = []
         month_num = 0
 
-        while remaining > 0.01 and month_num < 600:  # max 50 ans
+        while remaining > 0.01 and month_num < max_months:
             month_num += 1
             interest = remaining * monthly_rate
             principal = min(payment - interest, remaining)
 
-            # Dernier mois : ajuster le paiement
             if principal <= 0:
-                # Le paiement ne couvre même pas les intérêts
                 principal = 0
                 actual_payment = interest
             else:
                 actual_payment = principal + interest
 
-            if remaining - principal < 0.01:
+            # Dernier mois contractuel : solder le reste
+            if month_num == max_months or remaining - principal < 0.01:
                 principal = remaining
                 actual_payment = principal + interest
 
