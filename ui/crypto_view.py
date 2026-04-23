@@ -445,7 +445,10 @@ class CryptoView(QWidget):
         self._tx_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self._tx_table.customContextMenuRequested.connect(self._ctx_crypto_tx)
         self._tx_table.itemDoubleClicked.connect(
-            lambda item: self._edit_crypto_tx(item.data(Qt.UserRole))
+            lambda item: self._edit_crypto_tx(
+                self._tx_table.item(item.row(), 0).data(Qt.UserRole)
+                if self._tx_table.item(item.row(), 0) else None
+            )
         )
         hdr = self._tx_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Fixed);  self._tx_table.setColumnWidth(0, 130)
@@ -1342,7 +1345,10 @@ class CryptoView(QWidget):
         item = self._tx_table.itemAt(pos)
         if not item:
             return
-        tx_id = self._tx_table.item(item.row(), 0).data(Qt.UserRole)
+        col0 = self._tx_table.item(item.row(), 0)
+        if not col0:
+            return
+        tx_id = col0.data(Qt.UserRole)
         if not tx_id:
             return
         from PySide6.QtWidgets import QMenu
