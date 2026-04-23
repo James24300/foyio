@@ -307,7 +307,6 @@ def get_transactions(holding_id: int = None) -> list:
     """Retourne l'historique des transactions crypto (holdings actifs uniquement)."""
     acc_id = account_state.get_id()
     with Session() as session:
-        # Jointure pour n'inclure que les transactions des holdings actifs
         q = (session.query(CryptoTransaction)
              .join(CryptoHolding, CryptoTransaction.holding_id == CryptoHolding.id)
              .filter(CryptoHolding.active == True))
@@ -318,6 +317,53 @@ def get_transactions(holding_id: int = None) -> list:
         txs = q.order_by(CryptoTransaction.date.desc()).limit(500).all()
         session.expunge_all()
         return txs
+
+
+def _recompute_holding(holding_id: int, session):
+    """Recalcule quantity et avg_buy_price d'un holding depuis ses transactions."""
+    txs = session.query(CryptoTransaction).filter_by(holding_id=holding_id).all()
+    buy_qty   = sum(t.quantity for t in txs if t.type == "buy")
+    sell_qty  = sum(t.quantity for t in txs if t.type == "sell")
+    net_qty   = round(buy_qty - sell_qty, 8)
+    buys      = [t for t in txs if t.type == "buy"]
+    total_cost = sum(t.quantity * t.price_eur for t in buys)
+    total_buy  = sum(t.quantity for t in buys)
+    avg_price  = round(total_cost / total_buy, 2) if total_buy > 0 else 0.0
+    h = session.query(CryptoHolding).filter_by(id=holding_id).first()
+    if h:
+        h.quantity      = max(net_qty, 0.0)
+        h.avg_buy_price = avg_price
+        h.active        = net_qty > 0
+
+
+def delete_crypto_transaction(tx_id: int):
+    """Supprime une transaction crypto et recalcule le holding."""
+    with safe_session() as session:
+        tx = session.query(CryptoTransaction).filter_by(id=tx_id).first()
+        if not tx:
+            return
+        holding_id = tx.holding_id
+        session.delete(tx)
+        session.flush()
+        _recompute_holding(holding_id, session)
+
+
+def update_crypto_transaction(tx_id: int, tx_type: str, quantity: float,
+                               price_eur: float, date, note: str = ""):
+    """Modifie une transaction crypto et recalcule le holding."""
+    with safe_session() as session:
+        tx = session.query(CryptoTransaction).filter_by(id=tx_id).first()
+        if not tx:
+            return
+        holding_id    = tx.holding_id
+        tx.type       = tx_type
+        tx.quantity   = round(quantity, 8)
+        tx.price_eur  = round(price_eur, 2)
+        tx.total_eur  = round(quantity * price_eur, 2)
+        tx.date       = date
+        tx.note       = note.strip() or None
+        session.flush()
+        _recompute_holding(holding_id, session)
 
 
 # ── CRUD Alertes ──────────────────────────────────────────────────────────────
