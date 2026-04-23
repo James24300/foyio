@@ -30,6 +30,7 @@ from services.crypto_service import (
     get_dca_plans, add_dca_plan, delete_dca_plan, toggle_dca_plan,
     get_due_dca_plans, execute_dca, compute_fifo_report,
     get_coin_image_urls, update_dca_plan,
+    delete_crypto_transaction, update_crypto_transaction,
 )
 from services.watchlist_service import (
     get_watchlist, add_to_watchlist, remove_from_watchlist,
@@ -441,6 +442,11 @@ class CryptoView(QWidget):
         self._tx_table.setShowGrid(False)
         self._tx_table.verticalHeader().setVisible(False)
         self._tx_table.verticalHeader().setDefaultSectionSize(38)
+        self._tx_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._tx_table.customContextMenuRequested.connect(self._ctx_crypto_tx)
+        self._tx_table.itemDoubleClicked.connect(
+            lambda item: self._edit_crypto_tx(item.data(Qt.UserRole))
+        )
         hdr = self._tx_table.horizontalHeader()
         hdr.setSectionResizeMode(0, QHeaderView.Fixed);  self._tx_table.setColumnWidth(0, 130)
         hdr.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -1319,7 +1325,9 @@ class CryptoView(QWidget):
             color = "#22c55e" if tx.type == "buy" else "#ef4444"
             type_lbl = "Achat" if tx.type == "buy" else "Vente"
 
-            tbl.setItem(i, 0, QTableWidgetItem(tx.date.strftime("%d/%m/%Y %H:%M")))
+            date_item = QTableWidgetItem(tx.date.strftime("%d/%m/%Y %H:%M"))
+            date_item.setData(Qt.UserRole, tx.id)
+            tbl.setItem(i, 0, date_item)
             tbl.setItem(i, 1, QTableWidgetItem(name))
             ti = QTableWidgetItem(type_lbl); ti.setForeground(QColor(color)); tbl.setItem(i, 2, ti)
 
@@ -1327,6 +1335,137 @@ class CryptoView(QWidget):
             tbl.setItem(i, 3, QTableWidgetItem(qty_str))
             tbl.setItem(i, 4, QTableWidgetItem(f"{tx.price_eur:,.2f} €"))
             ti2 = QTableWidgetItem(f"{tx.total_eur:,.2f} €"); ti2.setForeground(QColor(color)); tbl.setItem(i, 5, ti2)
+
+    # ── Transactions crypto : menu contextuel, modifier, supprimer ────────────
+
+    def _ctx_crypto_tx(self, pos):
+        item = self._tx_table.itemAt(pos)
+        if not item:
+            return
+        tx_id = self._tx_table.item(item.row(), 0).data(Qt.UserRole)
+        if not tx_id:
+            return
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu { background:#292d32; color:#c8cdd4; border:1px solid #3d4248;
+                    border-radius:8px; padding:4px; }
+            QMenu::item { padding:8px 20px; border-radius:6px; font-size:12px; }
+            QMenu::item:selected { background:#3e4550; }
+        """)
+        act_edit = menu.addAction("  Modifier")
+        menu.addSeparator()
+        act_del  = menu.addAction("  Supprimer")
+        action = menu.exec(self._tx_table.viewport().mapToGlobal(pos))
+        if action == act_edit:
+            self._edit_crypto_tx(tx_id)
+        elif action == act_del:
+            self._delete_crypto_tx(tx_id)
+
+    def _delete_crypto_tx(self, tx_id: int):
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Supprimer")
+        msg.setText("Supprimer cette transaction crypto ?\nLe portefeuille sera recalculé.")
+        btn_yes = msg.addButton("Oui", QMessageBox.DestructiveRole)
+        msg.addButton("Non", QMessageBox.RejectRole)
+        msg.exec()
+        if msg.clickedButton() != btn_yes:
+            return
+        delete_crypto_transaction(tx_id)
+        self.load()
+        Toast.show(self, "Transaction supprimée", kind="warning")
+
+    def _edit_crypto_tx(self, tx_id):
+        if not tx_id:
+            return
+        from db import Session as _S
+        from models import CryptoTransaction as _CT, CryptoHolding as _CH
+        from PySide6.QtWidgets import (
+            QDialog, QFormLayout, QComboBox, QDoubleSpinBox,
+            QDateTimeEdit, QLineEdit, QDialogButtonBox, QLabel
+        )
+        from PySide6.QtCore import QDateTime
+
+        with _S() as s:
+            tx = s.query(_CT).filter_by(id=tx_id).first()
+            if not tx:
+                return
+            h = s.query(_CH).filter_by(id=tx.holding_id).first()
+            crypto_name = f"{h.name} ({h.symbol})" if h else "—"
+            t_type     = tx.type
+            t_qty      = tx.quantity
+            t_price    = tx.price_eur
+            t_date     = tx.date
+            t_note     = tx.note or ""
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Modifier — {crypto_name}")
+        dlg.setMinimumWidth(360)
+        form = QFormLayout(dlg)
+        form.setContentsMargins(20, 20, 20, 20)
+        form.setSpacing(10)
+
+        type_combo = QComboBox()
+        type_combo.addItem("Achat",  "buy")
+        type_combo.addItem("Vente", "sell")
+        type_combo.setCurrentIndex(0 if t_type == "buy" else 1)
+        type_combo.setMinimumHeight(34)
+        form.addRow("Type :", type_combo)
+
+        qty_spin = QDoubleSpinBox()
+        qty_spin.setRange(0.000001, 999_999_999)
+        qty_spin.setDecimals(8)
+        qty_spin.setValue(t_qty)
+        qty_spin.setMinimumHeight(34)
+        form.addRow("Quantité :", qty_spin)
+
+        price_spin = QDoubleSpinBox()
+        price_spin.setRange(0.01, 999_999_999)
+        price_spin.setDecimals(2)
+        price_spin.setValue(t_price)
+        price_spin.setSuffix(" €")
+        price_spin.setMinimumHeight(34)
+        form.addRow("Prix unitaire :", price_spin)
+
+        dt_edit = QDateTimeEdit(QDateTime(
+            t_date.year, t_date.month, t_date.day,
+            t_date.hour, t_date.minute
+        ))
+        dt_edit.setCalendarPopup(True)
+        dt_edit.setDisplayFormat("dd/MM/yyyy HH:mm")
+        dt_edit.setMinimumHeight(34)
+        form.addRow("Date :", dt_edit)
+
+        note_edit = QLineEdit(t_note)
+        note_edit.setPlaceholderText("Note optionnelle")
+        note_edit.setMinimumHeight(34)
+        form.addRow("Note :", note_edit)
+
+        btns = QDialogButtonBox()
+        btns.addButton("Enregistrer", QDialogButtonBox.AcceptRole)
+        btns.addButton("Annuler",     QDialogButtonBox.RejectRole)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        form.addRow(btns)
+
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        from datetime import datetime as _dt
+        qdt = dt_edit.dateTime()
+        new_date = _dt(qdt.date().year(), qdt.date().month(), qdt.date().day(),
+                       qdt.time().hour(), qdt.time().minute())
+        update_crypto_transaction(
+            tx_id,
+            type_combo.currentData(),
+            qty_spin.value(),
+            price_spin.value(),
+            new_date,
+            note_edit.text(),
+        )
+        self.load()
+        Toast.show(self, "Transaction modifiée", kind="success")
 
     def _load_alerts(self):
         holdings_map = {h.id: h for h in self._holdings}
