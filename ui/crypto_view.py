@@ -1698,7 +1698,7 @@ class CryptoView(QWidget):
         note_edit = QLineEdit(); note_edit.setPlaceholderText("Note (optionnel)"); note_edit.setMinimumHeight(34)
 
         chk_link_sell = QCheckBox("Enregistrer comme revenu dans les transactions")
-        chk_link_sell.setChecked(True)
+        chk_link_sell.setChecked(False)
         chk_link_sell.setStyleSheet("color:#c8cdd4; font-size:12px;")
 
         vl.addWidget(lbl(f"Quantité disponible : {h.quantity}")); vl.addWidget(qty_spin)
