@@ -1302,7 +1302,8 @@ class CryptoView(QWidget):
                 sl.setColor(QColor(color))
                 sl.setLabelVisible(False)
                 sl.setLabelColor(QColor("#ffffff"))
-                sl.setLabelPosition(sl.LabelOutside)
+                from PySide6.QtCharts import QPieSlice as _QPS
+                sl.setLabelPosition(_QPS.LabelPosition.LabelOutside)
 
                 def _hover(state, s=sl, sym=h.symbol):
                     if state:
