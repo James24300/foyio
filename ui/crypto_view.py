@@ -337,7 +337,7 @@ class CryptoView(QWidget):
         self._portfolio_table.verticalHeader().setVisible(False)
         self._portfolio_table.verticalHeader().setDefaultSectionSize(46)
         hdr = self._portfolio_table.horizontalHeader()
-        hdr.setSectionResizeMode(0, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(0, 36)
+        hdr.setSectionResizeMode(0, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(0, 44)
         hdr.setSectionResizeMode(1, QHeaderView.Stretch)
         hdr.setSectionResizeMode(2, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(2, 120)
         hdr.setSectionResizeMode(3, QHeaderView.Fixed);  self._portfolio_table.setColumnWidth(3, 130)
@@ -1131,7 +1131,7 @@ class CryptoView(QWidget):
         from PySide6.QtGui import QPixmap
         px = QPixmap()
         if px.loadFromData(raw):
-            _pixmap_cache[cg_id] = px.scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            _pixmap_cache[cg_id] = px.scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
     def _apply_logos(self):
         """Met à jour les cellules icône dans le tableau portefeuille et DCA."""
@@ -1143,7 +1143,8 @@ class CryptoView(QWidget):
                 lbl = QLabel()
                 lbl.setPixmap(px)
                 lbl.setAlignment(Qt.AlignCenter)
-                lbl.setStyleSheet("background:transparent; border:none;")
+                lbl.setScaledContents(False)
+                lbl.setStyleSheet("background:transparent; border:none; padding:0; margin:0;")
                 self._portfolio_table.setCellWidget(i, 0, lbl)
         # DCA : col 0 (widget nom+logo)
         self._refresh_dca_logos()
