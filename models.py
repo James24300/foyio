@@ -220,6 +220,7 @@ class CryptoTransaction(Base):
     quantity   = Column(Float, nullable=False)
     price_eur  = Column(Float, nullable=False)         # prix unitaire en € au moment de la tx
     total_eur  = Column(Float, nullable=False)         # quantité × prix
+    fees       = Column(Float, nullable=True, default=0.0)  # frais de transaction
     date       = Column(DateTime, nullable=False)
     note       = Column(String(500), nullable=True)
     account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)

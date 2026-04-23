@@ -415,3 +415,13 @@ def migrate_database():
                     "ALTER TABLE ideas ADD COLUMN response VARCHAR(2000)"))
                 conn.commit()
             logger.info("Migration v6.8b : response ajouté sur ideas")
+
+    # v6.9 : fees sur crypto_transactions
+    try:
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE crypto_transactions ADD COLUMN fees REAL DEFAULT 0.0"))
+            conn.commit()
+        logger.info("Migration v6.9 : fees ajouté sur crypto_transactions")
+    except Exception:
+        pass
