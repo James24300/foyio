@@ -1302,18 +1302,20 @@ class CryptoView(QWidget):
                 sl = pie.append(h.symbol, pie_value)
                 sl.setColor(QColor(color))
                 sl.setLabelVisible(False)
-                sl.setLabelColor(QColor("#ffffff"))
-                from PySide6.QtCharts import QPieSlice as _QPS
-                sl.setLabelPosition(_QPS.LabelPosition.LabelOutside)
 
                 def _hover(state, s=sl, sym=h.symbol):
                     if state:
-                        s.setLabel(f"{sym}  {s.percentage() * 100:.1f} %")
-                        s.setLabelVisible(True)
+                        from PySide6.QtWidgets import QToolTip
+                        from PySide6.QtGui import QCursor
+                        QToolTip.showText(
+                            QCursor.pos(),
+                            f"{sym}  {s.percentage() * 100:.1f} %"
+                        )
                         s.setExploded(True)
                         s.setExplodeDistanceFactor(0.08)
                     else:
-                        s.setLabelVisible(False)
+                        from PySide6.QtWidgets import QToolTip
+                        QToolTip.hideText()
                         s.setExploded(False)
 
                 sl.hovered.connect(_hover)
