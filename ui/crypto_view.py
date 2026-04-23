@@ -1436,7 +1436,7 @@ class CryptoView(QWidget):
 
         dt_edit = QDateTimeEdit(QDateTime(
             t_date.year, t_date.month, t_date.day,
-            t_date.hour, t_date.minute
+            t_date.hour, t_date.minute, t_date.second
         ))
         dt_edit.setCalendarPopup(True)
         dt_edit.setDisplayFormat("dd/MM/yyyy HH:mm")
