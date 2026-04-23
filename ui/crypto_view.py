@@ -231,7 +231,7 @@ class CryptoView(QWidget):
         # Rafraîchissement auto toutes les 3 min (évite les 429 CoinGecko)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._fetch_prices)
-        self._refresh_timer.start(360_000)  # 6 min — aligné sur le TTL cache (5 min)
+        self._refresh_timer.start(120_000)  # 2 min — le cache service (5 min TTL) évite les appels API redondants
 
         self.load()
 
