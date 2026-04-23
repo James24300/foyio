@@ -43,6 +43,7 @@ from services.dashboard_service import (
 )
 
 from utils.theme import DARK_THEME, LIGHT_THEME, BANK_THEME
+from utils.clipboard import FoyioApp
 
 from ui.dashboard_view import DashboardView
 from ui.transactions_view import Transactions
@@ -1141,7 +1142,7 @@ def main():
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Foyio.App.1")
     except Exception:
         logger.warning("Exception silencieuse", exc_info=True)
-    app = QApplication(sys.argv)
+    app = FoyioApp(sys.argv)
     app.setStyle("Fusion")
     QLocale.setDefault(QLocale(QLocale.French, QLocale.France))
     app.setStyleSheet(BANK_THEME)
