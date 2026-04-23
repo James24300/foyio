@@ -1592,7 +1592,7 @@ class CryptoView(QWidget):
         note_edit = QLineEdit(); note_edit.setPlaceholderText("Note (optionnel)"); note_edit.setMinimumHeight(34)
 
         chk_link = QCheckBox("Enregistrer comme dépense dans les transactions")
-        chk_link.setChecked(True)
+        chk_link.setChecked(False)
         chk_link.setStyleSheet("color:#c8cdd4; font-size:12px;")
 
         vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
@@ -2240,7 +2240,7 @@ class CryptoView(QWidget):
         price_spin.setMinimumHeight(34)
 
         chk_link = QCheckBox("Enregistrer comme dépense dans les transactions")
-        chk_link.setChecked(True)
+        chk_link.setChecked(False)
         chk_link.setStyleSheet("color:#c8cdd4; font-size:12px;")
 
         vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
