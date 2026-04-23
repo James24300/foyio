@@ -254,7 +254,8 @@ def add_holding(symbol: str, name: str, coingecko_id: str,
     return holding_id
 
 
-def sell_holding(holding_id: int, quantity: float, sell_price: float, note: str = "") -> bool:
+def sell_holding(holding_id: int, quantity: float, sell_price: float,
+                 note: str = "", fees: float = 0.0) -> bool:
     """Enregistre une vente partielle ou totale."""
     acc_id = account_state.get_id()
     with safe_session() as session:
@@ -270,6 +271,7 @@ def sell_holding(holding_id: int, quantity: float, sell_price: float, note: str 
             quantity=round(quantity, 8),
             price_eur=round(sell_price, 2),
             total_eur=round(quantity * sell_price, 2),
+            fees=round(fees, 2),
             date=datetime.now(),
             note=note.strip() or None,
             account_id=acc_id,
@@ -349,7 +351,8 @@ def delete_crypto_transaction(tx_id: int):
 
 
 def update_crypto_transaction(tx_id: int, tx_type: str, quantity: float,
-                               price_eur: float, date, note: str = ""):
+                               price_eur: float, date, note: str = "",
+                               fees: float = 0.0):
     """Modifie une transaction crypto et recalcule le holding."""
     with safe_session() as session:
         tx = session.query(CryptoTransaction).filter_by(id=tx_id).first()
@@ -360,6 +363,7 @@ def update_crypto_transaction(tx_id: int, tx_type: str, quantity: float,
         tx.quantity   = round(quantity, 8)
         tx.price_eur  = round(price_eur, 2)
         tx.total_eur  = round(quantity * price_eur, 2)
+        tx.fees       = round(fees, 2)
         tx.date       = date
         tx.note       = note.strip() or None
         session.flush()

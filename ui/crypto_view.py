@@ -433,9 +433,9 @@ class CryptoView(QWidget):
         vl.setContentsMargins(16, 16, 16, 16)
         vl.setSpacing(12)
 
-        self._tx_table = QTableWidget(0, 6)
+        self._tx_table = QTableWidget(0, 7)
         self._tx_table.setHorizontalHeaderLabels([
-            "Date", "Crypto", "Type", "Quantité", "Prix unitaire", "Total €"
+            "Date", "Crypto", "Type", "Quantité", "Prix unitaire", "Frais", "Total €"
         ])
         self._tx_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self._tx_table.setSelectionBehavior(QTableWidget.SelectRows)
@@ -456,7 +456,8 @@ class CryptoView(QWidget):
         hdr.setSectionResizeMode(2, QHeaderView.Fixed);  self._tx_table.setColumnWidth(2, 80)
         hdr.setSectionResizeMode(3, QHeaderView.Fixed);  self._tx_table.setColumnWidth(3, 120)
         hdr.setSectionResizeMode(4, QHeaderView.Fixed);  self._tx_table.setColumnWidth(4, 130)
-        hdr.setSectionResizeMode(5, QHeaderView.Fixed);  self._tx_table.setColumnWidth(5, 120)
+        hdr.setSectionResizeMode(5, QHeaderView.Fixed);  self._tx_table.setColumnWidth(5, 90)
+        hdr.setSectionResizeMode(6, QHeaderView.Fixed);  self._tx_table.setColumnWidth(6, 120)
         self._tx_table.setStyleSheet("""
             QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }
             QTableWidget::item { border-bottom:1px solid #292d32; padding:0 8px; }
@@ -1352,7 +1353,17 @@ class CryptoView(QWidget):
             qty_str = f"{tx.quantity:,.8f}".rstrip("0").rstrip(".")
             tbl.setItem(i, 3, QTableWidgetItem(qty_str))
             tbl.setItem(i, 4, QTableWidgetItem(f"{tx.price_eur:,.2f} €"))
-            ti2 = QTableWidgetItem(f"{tx.total_eur:,.2f} €"); ti2.setForeground(QColor(color)); tbl.setItem(i, 5, ti2)
+
+            fees = tx.fees or 0.0
+            fees_item = QTableWidgetItem(f"{fees:,.2f} €" if fees else "—")
+            fees_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            if fees:
+                fees_item.setForeground(QColor("#f59e0b"))
+            tbl.setItem(i, 5, fees_item)
+
+            ti2 = QTableWidgetItem(f"{tx.total_eur:,.2f} €")
+            ti2.setForeground(QColor(color))
+            tbl.setItem(i, 6, ti2)
 
     # ── Transactions crypto : menu contextuel, modifier, supprimer ────────────
 
@@ -1417,6 +1428,7 @@ class CryptoView(QWidget):
             t_type     = tx.type
             t_qty      = tx.quantity
             t_price    = tx.price_eur
+            t_fees     = tx.fees or 0.0
             t_date     = tx.date
             t_note     = tx.note or ""
 
@@ -1448,6 +1460,14 @@ class CryptoView(QWidget):
         price_spin.setSuffix(" €")
         price_spin.setMinimumHeight(34)
         form.addRow("Prix unitaire :", price_spin)
+
+        fees_spin = QDoubleSpinBox()
+        fees_spin.setRange(0, 999_999)
+        fees_spin.setDecimals(2)
+        fees_spin.setValue(t_fees)
+        fees_spin.setSuffix(" €")
+        fees_spin.setMinimumHeight(34)
+        form.addRow("Frais :", fees_spin)
 
         dt_edit = QDateTimeEdit(QDateTime(
             t_date.year, t_date.month, t_date.day,
@@ -1484,6 +1504,7 @@ class CryptoView(QWidget):
             price_spin.value(),
             new_date,
             note_edit.text(),
+            fees_spin.value(),
         )
         self.load()
         Toast.show(self, "Transaction modifiée", kind="success")
@@ -1673,6 +1694,7 @@ class CryptoView(QWidget):
 
         qty_spin = QDoubleSpinBox(); qty_spin.setRange(0.000001, h.quantity); qty_spin.setDecimals(8); qty_spin.setValue(h.quantity); qty_spin.setMinimumHeight(34)
         price_spin = QDoubleSpinBox(); price_spin.setRange(0.000001, 9_999_999); price_spin.setDecimals(2); price_spin.setSuffix(" €"); price_spin.setValue(round(price, 2)); price_spin.setMinimumHeight(34)
+        fees_spin = QDoubleSpinBox(); fees_spin.setRange(0, 9_999_999); fees_spin.setDecimals(2); fees_spin.setSuffix(" €"); fees_spin.setValue(0.0); fees_spin.setMinimumHeight(34)
         note_edit = QLineEdit(); note_edit.setPlaceholderText("Note (optionnel)"); note_edit.setMinimumHeight(34)
 
         chk_link_sell = QCheckBox("Enregistrer comme revenu dans les transactions")
@@ -1681,6 +1703,7 @@ class CryptoView(QWidget):
 
         vl.addWidget(lbl(f"Quantité disponible : {h.quantity}")); vl.addWidget(qty_spin)
         vl.addWidget(lbl("Prix de vente unitaire :")); vl.addWidget(price_spin)
+        vl.addWidget(lbl("Frais de transaction :")); vl.addWidget(fees_spin)
         vl.addWidget(lbl("Note :")); vl.addWidget(note_edit)
         vl.addWidget(chk_link_sell)
 
@@ -1694,7 +1717,7 @@ class CryptoView(QWidget):
         def _do_sell():
             qty   = qty_spin.value()
             sp    = price_spin.value()
-            ok = sell_holding(h.id, qty, sp, note_edit.text())
+            ok = sell_holding(h.id, qty, sp, note_edit.text(), fees_spin.value())
             if not ok:
                 Toast.show(self, "✕  Quantité insuffisante", kind="error"); return
             if chk_link_sell.isChecked():
