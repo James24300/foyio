@@ -9,14 +9,15 @@ from PySide6.QtWidgets import (
     QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget,
     QDialog, QFormLayout, QLineEdit, QDoubleSpinBox, QComboBox,
     QSpinBox, QMessageBox, QFrame, QScrollArea, QSizePolicy,
-    QProgressBar, QCheckBox
+    QProgressBar, QCheckBox, QStackedWidget
 )
 from PySide6.QtCharts import (
     QChart, QChartView, QLineSeries, QPieSeries, QValueAxis, QAreaSeries,
-    QDateTimeAxis
+    QDateTimeAxis, QStackedBarSeries, QBarSet, QBarCategoryAxis
 )
-from PySide6.QtCore import Qt, QTimer, QThread, Signal, QDateTime
-from PySide6.QtGui import QColor, QPainter, QFont, QPen
+from PySide6.QtCore import Qt, QTimer, QThread, Signal, QDateTime, QRectF, QPointF
+from PySide6.QtGui import QColor, QPainter, QFont, QPen, QBrush
+import math
 
 from utils.formatters import format_money
 from utils.icons import get_icon
@@ -43,6 +44,127 @@ import time as _time
 logger = logging.getLogger(__name__)
 _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
+
+# ── Widget bulles (style CryptoBubbles) ──────────────────────────────────────
+class _BubbleWidget(QWidget):
+    """Affiche les cryptos sous forme de bulles colorées par performance globale."""
+
+    _COLORS = [
+        (10,  "#15803d"), (5,  "#16a34a"), (2,  "#22c55e"), (0,  "#4ade80"),
+        (-2, "#f87171"), (-5, "#ef4444"), (-10, "#dc2626"), (None, "#b91c1c"),
+    ]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._items = []       # [(symbol, pnl_pct, value_eur, coingecko_id)]
+        self._positions = []   # [(cx, cy, r), ...] aligned with _items
+        self.setMinimumHeight(220)
+
+    def set_data(self, items):
+        self._items = items
+        self._recompute()
+        self.update()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._recompute()
+        self.update()
+
+    @staticmethod
+    def _pnl_color(pct):
+        for threshold, color in _BubbleWidget._COLORS:
+            if threshold is None or pct >= threshold:
+                return QColor(color)
+        return QColor("#b91c1c")
+
+    def _recompute(self):
+        W, H = self.width(), self.height()
+        if not self._items or W < 20 or H < 20:
+            self._positions = []
+            return
+
+        values = [max(item[2], 0.01) for item in self._items]
+        max_v  = max(values)
+        base_r = max(22, min(W, H) * 0.16)
+        radii  = [max(20, int(base_r * math.sqrt(v / max_v))) for v in values]
+
+        order  = sorted(range(len(radii)), key=lambda i: -radii[i])
+        margin = 12
+        rows, cur_row, cur_w = [], [], margin
+
+        for idx in order:
+            diam = radii[idx] * 2 + margin
+            if cur_row and cur_w + diam > W - margin:
+                rows.append(cur_row[:])
+                cur_row, cur_w = [idx], margin + diam
+            else:
+                cur_row.append(idx)
+                cur_w += diam
+        if cur_row:
+            rows.append(cur_row)
+
+        row_heights = [max(radii[i] for i in row) * 2 for row in rows]
+        total_h = sum(row_heights) + margin * (len(rows) + 1)
+        y = max(margin, (H - total_h) // 2 + margin)
+
+        positions = [None] * len(self._items)
+        for ri, row in enumerate(rows):
+            rh = row_heights[ri]
+            row_w = sum(radii[i] * 2 + margin for i in row) + margin
+            x = max(margin, (W - row_w) // 2 + margin)
+            for idx in row:
+                r = radii[idx]
+                positions[idx] = (x + r, y + rh // 2, r)
+                x += r * 2 + margin
+            y += rh + margin
+        self._positions = positions
+
+    def paintEvent(self, event):
+        if not self._items or not self._positions:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.fillRect(self.rect(), QColor("#1e2023"))
+
+        for i, (symbol, pnl_pct, value, cg_id) in enumerate(self._items):
+            pos = self._positions[i] if i < len(self._positions) else None
+            if pos is None:
+                continue
+            cx, cy, r = pos
+            color = self._pnl_color(pnl_pct)
+
+            # Cercle principal
+            p.setBrush(QBrush(color))
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(QPointF(cx, cy), float(r), float(r))
+
+            # Reflet intérieur léger
+            glow = QColor(color.red(), color.green(), color.blue(), 55)
+            p.setBrush(QBrush(glow))
+            p.drawEllipse(QPointF(cx, cy - r * 0.18), r * 0.55, r * 0.38)
+
+            # Logo (si disponible et cercle assez grand)
+            px = _pixmap_cache.get(cg_id)
+            if px and r >= 26:
+                logo_sz = min(r - 6, 22)
+                scaled  = px.scaled(logo_sz, logo_sz, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                p.drawPixmap(int(cx - scaled.width() / 2), int(cy - r * 0.38 - scaled.height() / 2), scaled)
+
+            # Symbole
+            p.setPen(QColor("#ffffff"))
+            sym_fs = max(7, min(11, r // 3))
+            p.setFont(QFont("Segoe UI", sym_fs, QFont.Bold))
+            y_sym = cy - r * 0.08 if (px and r >= 26) else cy - r * 0.25
+            p.drawText(QRectF(cx - r, y_sym, r * 2, r * 0.55), Qt.AlignHCenter | Qt.AlignVCenter, symbol.upper())
+
+            # P&L %
+            pnl_fs = max(6, min(10, r // 4))
+            p.setFont(QFont("Segoe UI", pnl_fs))
+            pnl_str = f"{'+' if pnl_pct >= 0 else ''}{pnl_pct:.1f}%"
+            y_pnl = cy + r * 0.28 if (px and r >= 26) else cy + r * 0.22
+            p.drawText(QRectF(cx - r, y_pnl, r * 2, r * 0.45), Qt.AlignHCenter | Qt.AlignVCenter, pnl_str)
+
+        p.end()
 
 
 # ── Thread de recherche de cryptos ───────────────────────────────────────────
@@ -312,6 +434,49 @@ class CryptoView(QWidget):
         self._pie_chart_view.setBackgroundBrush(QColor("#1e2023"))
         vl.addWidget(self._pie_chart_view)
 
+        # ── Graphiques de performance ──────────────────────────────────────
+        perf_hdr = QHBoxLayout()
+        perf_lbl = QLabel("Performance du portefeuille")
+        perf_lbl.setStyleSheet("font-size:12px; font-weight:600; color:#7a8494;")
+        perf_hdr.addWidget(perf_lbl)
+        perf_hdr.addStretch()
+
+        _tog = """
+            QPushButton { background:#26292e; color:#7a8494; border:1px solid #3a3f47;
+                border-radius:6px; font-size:11px; font-weight:600; }
+            QPushButton:hover { color:#c8cdd4; }
+            QPushButton:checked { background:#3b82f6; color:#fff; border:none; }
+        """
+        self._btn_viz_bubble = QPushButton("Bulles")
+        self._btn_viz_bubble.setFixedSize(60, 26)
+        self._btn_viz_bubble.setCheckable(True)
+        self._btn_viz_bubble.setChecked(True)
+        self._btn_viz_bubble.setStyleSheet(_tog)
+        self._btn_viz_bubble.clicked.connect(lambda: self._set_viz_mode(0))
+
+        self._btn_viz_bar = QPushButton("Barres")
+        self._btn_viz_bar.setFixedSize(60, 26)
+        self._btn_viz_bar.setCheckable(True)
+        self._btn_viz_bar.setStyleSheet(_tog)
+        self._btn_viz_bar.clicked.connect(lambda: self._set_viz_mode(1))
+
+        perf_hdr.addWidget(self._btn_viz_bubble)
+        perf_hdr.addWidget(self._btn_viz_bar)
+        vl.addLayout(perf_hdr)
+
+        self._viz_stack = QStackedWidget()
+        self._viz_stack.setFixedHeight(260)
+
+        self._bubble_widget = _BubbleWidget()
+        self._viz_stack.addWidget(self._bubble_widget)
+
+        self._bar_chart_view = QChartView()
+        self._bar_chart_view.setRenderHint(QPainter.Antialiasing)
+        self._bar_chart_view.setStyleSheet("border:none;")
+        self._bar_chart_view.setBackgroundBrush(QColor("#1e2023"))
+        self._viz_stack.addWidget(self._bar_chart_view)
+
+        vl.addWidget(self._viz_stack)
         return w
 
     # ── Onglet Transactions ───────────────────────────────────────────────────
@@ -1107,6 +1272,82 @@ class CryptoView(QWidget):
         self._refresh_watchlist_prices()
         self._fetch_logos()  # URLs déjà dans _image_url_cache grâce à coins/markets
 
+    # ── Vues de performance (bulles / barres) ────────────────────────────────
+
+    def _set_viz_mode(self, mode: int):
+        self._viz_stack.setCurrentIndex(mode)
+        self._btn_viz_bubble.setChecked(mode == 0)
+        self._btn_viz_bar.setChecked(mode == 1)
+
+    def _update_viz_charts(self, items):
+        """items : [(symbol, pnl_pct, value_eur, coingecko_id)]"""
+        self._bubble_widget.set_data(items)
+        self._build_bar_chart(items)
+
+    def _build_bar_chart(self, items):
+        """Graphique barres : P&L % par crypto (vert = gain, rouge = perte)."""
+        if not items:
+            self._bar_chart_view.setChart(QChart())
+            return
+
+        green_set = QBarSet("")
+        red_set   = QBarSet("")
+        green_set.setColor(QColor("#22c55e"))
+        green_set.setBorderColor(QColor("#22c55e"))
+        red_set.setColor(QColor("#ef4444"))
+        red_set.setBorderColor(QColor("#ef4444"))
+
+        categories = []
+        for sym, pnl_pct, _val, _cid in items:
+            categories.append(sym)
+            green_set.append(max(0.0, pnl_pct))
+            red_set.append(min(0.0, pnl_pct))
+
+        series = QStackedBarSeries()
+        series.setBarWidth(0.55)
+        series.append(green_set)
+        series.append(red_set)
+
+        vals = [it[1] for it in items]
+        mn, mx = min(vals), max(vals)
+        pad = max(2.0, (abs(mx) + abs(mn)) * 0.15 + 1.0)
+
+        _bg   = QColor("#1e2023")
+        _ax_f = QFont("Segoe UI", 8)
+        _ax_c = QColor("#7a8494")
+
+        axis_x = QBarCategoryAxis()
+        axis_x.append(categories)
+        axis_x.setLabelsColor(QColor("#c8cdd4"))
+        axis_x.setLabelsFont(QFont("Segoe UI", 9))
+        axis_x.setGridLineVisible(False)
+
+        axis_y = QValueAxis()
+        axis_y.setRange(min(-1.0, mn - pad), max(1.0, mx + pad))
+        axis_y.setLabelsColor(_ax_c)
+        axis_y.setLabelsFont(_ax_f)
+        axis_y.setGridLineColor(QColor("#2e3238"))
+        axis_y.setLabelFormat("%.1f%%")
+        axis_y.setTickCount(5)
+
+        chart = QChart()
+        chart.addSeries(series)
+        chart.setBackgroundBrush(_bg)
+        chart.setBackgroundVisible(True)
+        chart.setDropShadowEnabled(False)
+        chart.setBackgroundRoundness(0)
+        chart.legend().hide()
+        chart.setContentsMargins(0, 0, 0, 0)
+        chart.layout().setContentsMargins(0, 0, 0, 0)
+        chart.addAxis(axis_x, Qt.AlignBottom)
+        chart.addAxis(axis_y, Qt.AlignLeft)
+        series.attachAxis(axis_x)
+        series.attachAxis(axis_y)
+
+        self._bar_chart_view.setChart(chart)
+        self._bar_chart_view.setBackgroundBrush(_bg)
+        self._bar_chart_view.viewport().update()
+
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
         self._lbl_total.setText(format_money(summary['total_value']))
@@ -1127,6 +1368,7 @@ class CryptoView(QWidget):
         tbl = self._portfolio_table
         tbl.setRowCount(len(self._holdings))
         pie = QPieSeries()
+        viz_items = []
 
         COLORS = ["#f7931a","#627eea","#9945ff","#f0b90b","#00adef",
                   "#e84142","#ff007a","#2775ca","#26a17b","#ff6b35"]
@@ -1181,6 +1423,10 @@ class CryptoView(QWidget):
             tbl.setItem(i, 7, _item(f"{'+' if pnl>=0 else ''}{pnl:,.2f} €", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
             tbl.setItem(i, 8, _item(f"{'+' if pnl_p>=0 else ''}{pnl_p:.1f}%", Qt.AlignRight | Qt.AlignVCenter, pnl_c))
 
+            # Viz (bulles / barres)
+            viz_val = value if value > 0 else h.quantity * h.avg_buy_price
+            viz_items.append((h.symbol.upper(), pnl_p, viz_val, h.coingecko_id))
+
             # Pie : valeur réelle si prix connu, sinon prix d'achat (fallback)
             pie_value = value if value > 0 else h.quantity * h.avg_buy_price
             if pie_value > 0:
@@ -1217,6 +1463,7 @@ class CryptoView(QWidget):
         legend.setFont(_QFont("Arial", 9))
         legend.setBackgroundVisible(False)
         self._pie_chart_view.setChart(chart)
+        self._update_viz_charts(viz_items)
 
     def _load_transactions(self):
         holdings_map = {h.id: h for h in self._holdings}
