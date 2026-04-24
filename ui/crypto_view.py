@@ -44,41 +44,6 @@ logger = logging.getLogger(__name__)
 _pixmap_cache: dict = {}  # {coingecko_id: QPixmap} — partagé entre instances
 
 
-# ── Label vertical (texte pivoté 90°) ────────────────────────────────────────
-class _VertLabel(QWidget):
-    """Widget affichant un texte pivoté -90° (lecture bas → haut)."""
-    def __init__(self, text="", parent=None):
-        super().__init__(parent)
-        self._text = text
-        self.setSizePolicy(
-            QSizePolicy.Fixed, QSizePolicy.Expanding
-        )
-
-    def setText(self, text):
-        self._text = text
-        self.update()
-
-    def text(self):
-        return self._text
-
-    def sizeHint(self):
-        from PySide6.QtCore import QSize
-        fm = self.fontMetrics()
-        return QSize(fm.height() + 8, fm.horizontalAdvance(self._text) + 8)
-
-    def minimumSizeHint(self):
-        return self.sizeHint()
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setPen(QColor("#c8cdd4"))
-        p.setFont(self.font())
-        p.translate(0, self.height())
-        p.rotate(-90)
-        p.drawText(0, 0, self.height(), self.width(), Qt.AlignCenter, self._text)
-        p.end()
-
 
 # ── Thread de recherche de cryptos ───────────────────────────────────────────
 class _SearchThread(QThread):
@@ -112,26 +77,6 @@ class _PriceFetcher(QThread):
         except Exception:
             self.done.emit({})
 
-
-class _EvoFetcher(QThread):
-    """Charge l'historique de prix de tous les holdings en arrière-plan."""
-    done = Signal(dict)   # {coingecko_id: [(ts_ms, price)]}
-
-    def __init__(self, holdings, days: int):
-        super().__init__()
-        self._holdings = holdings
-        self._days = days
-
-    def run(self):
-        result = {}
-        try:
-            for h in self._holdings:
-                hist = get_price_history(h.coingecko_id, self._days)
-                if hist:
-                    result[h.coingecko_id] = (h.quantity, hist)
-        except Exception:
-            logger.debug("Exception silencieuse", exc_info=True)
-        self.done.emit(result)
 
 
 class _CompFetcher(QThread):
@@ -231,7 +176,7 @@ class CryptoView(QWidget):
         # Rafraîchissement auto toutes les 3 min (évite les 429 CoinGecko)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._fetch_prices)
-        self._refresh_timer.start(360_000)  # 6 min — aligné sur le TTL cache (5 min)
+        self._refresh_timer.start(120_000)  # 2 min — le cache service (5 min TTL) évite les appels API redondants
 
         self.load()
 
@@ -367,63 +312,6 @@ class CryptoView(QWidget):
         self._pie_chart_view.setBackgroundBrush(QColor("#1e2023"))
         vl.addWidget(self._pie_chart_view)
 
-        # ── Évolution de la valeur totale ──
-        evo_header = QHBoxLayout()
-        evo_lbl = QLabel("Évolution du portefeuille")
-        evo_lbl.setStyleSheet("font-size:12px; font-weight:600; color:#7a8494;")
-        evo_header.addWidget(evo_lbl)
-        evo_header.addStretch()
-
-        self._evo_period = 30
-        self._evo_btns = {}
-        for label, days in [("7J", 7), ("30J", 30), ("90J", 90), ("1AN", 365)]:
-            btn = QPushButton(label)
-            btn.setFixedSize(52, 26)
-            btn.setCheckable(True)
-            btn.setChecked(days == 30)
-            btn.setStyleSheet("""
-                QPushButton { background:#26292e; color:#7a8494; border:1px solid #3a3f47;
-                    border-radius:6px; font-size:11px; font-weight:600; }
-                QPushButton:hover { color:#c8cdd4; }
-                QPushButton:checked { background:#3b82f6; color:#fff; border:none; }
-            """)
-            btn.clicked.connect(lambda checked, d=days: self._set_evo_period(d))
-            evo_header.addWidget(btn)
-            self._evo_btns[days] = btn
-
-        vl.addLayout(evo_header)
-
-        # Ligne : label € vertical + graphique (ou message chargement)
-        evo_row = QHBoxLayout()
-        evo_row.setSpacing(2)
-        evo_row.setContentsMargins(0, 0, 0, 0)
-
-        self._evo_unit_lbl = _VertLabel("\u20ac")
-        self._evo_unit_lbl.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self._evo_unit_lbl.setStyleSheet("color:#c8cdd4; background:transparent;")
-        self._evo_unit_lbl.setFixedWidth(22)
-        evo_row.addWidget(self._evo_unit_lbl)
-
-        evo_right = QVBoxLayout()
-        evo_right.setSpacing(0)
-        evo_right.setContentsMargins(0, 0, 0, 0)
-
-        self._evo_loading = QLabel("Chargement du graphique…")
-        self._evo_loading.setAlignment(Qt.AlignCenter)
-        self._evo_loading.setStyleSheet("color:#5a6472; font-size:12px; background:transparent;")
-        self._evo_loading.setFixedHeight(180)
-        self._evo_loading.hide()
-        evo_right.addWidget(self._evo_loading)
-
-        self._evo_chart_view = QChartView()
-        self._evo_chart_view.setRenderHint(QPainter.Antialiasing)
-        self._evo_chart_view.setFixedHeight(180)
-        self._evo_chart_view.setStyleSheet("border:none;")
-        self._evo_chart_view.setBackgroundBrush(QColor("#1e2023"))
-        evo_right.addWidget(self._evo_chart_view)
-
-        evo_row.addLayout(evo_right)
-        vl.addLayout(evo_row)
         return w
 
     # ── Onglet Transactions ───────────────────────────────────────────────────
@@ -1183,7 +1071,6 @@ class CryptoView(QWidget):
     # ── Chargement données ────────────────────────────────────────────────────
     def load(self):
         self._holdings = get_holdings()
-        self._evo_loaded = False   # reset : on rechargera l'évolution une fois les prix reçus
         self._load_portfolio()
         self._load_transactions()
         self._load_alerts()
@@ -1219,9 +1106,6 @@ class CryptoView(QWidget):
         self._check_alerts_now()
         self._refresh_watchlist_prices()
         self._fetch_logos()  # URLs déjà dans _image_url_cache grâce à coins/markets
-        # Évolution : seulement au 1er refresh (pas à chaque timer 6 min)
-        if self._holdings and not getattr(self, '_evo_loaded', False):
-            self._fetch_evolution()
 
     def _update_summary(self):
         summary = get_portfolio_summary(self._holdings, self._prices)
@@ -2749,101 +2633,6 @@ class CryptoView(QWidget):
         _load_chart(30)
         dlg.exec()
 
-    # ── Évolution portefeuille ────────────────────────────────────────────────
-    def _set_evo_period(self, days: int):
-        self._evo_period = days
-        for d, btn in self._evo_btns.items():
-            btn.setChecked(d == days)
-        if self._holdings:
-            self._fetch_evolution()
-
-    def _fetch_evolution(self):
-        self._evo_chart_view.hide()
-        self._evo_loading.show()
-        self._evo_fetcher = _EvoFetcher(self._holdings, self._evo_period)
-        self._evo_fetcher.done.connect(self._on_evo_received)
-        self._start_thread(self._evo_fetcher)
-
-    def _on_evo_received(self, data: dict):
-        self._evo_loading.hide()
-        self._evo_chart_view.show()
-        self._evo_loaded = True   # ne pas re-fetcher au prochain refresh de prix
-        """Reconstruit le graphique d'évolution à partir des historiques reçus."""
-        if not data:
-            return
-
-        # Agréger la valeur totale par jour
-        daily: dict[int, float] = {}
-        for cg_id, (qty, history) in data.items():
-            for ts_ms, price in history:
-                day = (ts_ms // 86_400_000) * 86_400_000
-                daily[day] = daily.get(day, 0.0) + qty * price
-
-        if len(daily) < 2:
-            return
-
-        points = sorted(daily.items())
-        min_v = min(v for _, v in points)
-        max_v = max(v for _, v in points)
-
-        # Choisir l'échelle selon l'ordre de grandeur
-        if max_v >= 1_000_000:
-            scale, unit_lbl, fmt = 1_000_000, "M\u20ac", "%.2f"
-        elif max_v >= 10_000:
-            scale, unit_lbl, fmt = 1_000,     "k\u20ac", "%.1f"
-        else:
-            scale, unit_lbl, fmt = 1,          "\u20ac",  "%.0f"
-
-        points_sc = [(ts, v / scale) for ts, v in points]
-        min_sc, max_sc = min_v / scale, max_v / scale
-
-        self._evo_series = QLineSeries()
-        pen = QPen(QColor("#3b82f6"))
-        pen.setWidth(2)
-        self._evo_series.setPen(pen)
-        for ts_ms, value in points_sc:
-            self._evo_series.append(ts_ms, value)
-
-        # Mettre à jour le label vertical avec la bonne unité
-        self._evo_unit_lbl.setText(unit_lbl)
-
-        _bg = QColor("#1e2023")
-        _axis_font = QFont("Segoe UI", 8)
-
-        chart = QChart()
-        chart.addSeries(self._evo_series)
-        # Le chart peint lui-même son fond sombre — fiable sur Windows
-        chart.setBackgroundBrush(_bg)
-        chart.setBackgroundVisible(True)
-        chart.setDropShadowEnabled(False)
-        chart.setBackgroundRoundness(0)
-        chart.legend().hide()
-        chart.setContentsMargins(0, 0, 0, 0)
-        chart.layout().setContentsMargins(0, 0, 0, 0)
-
-        axis_x = QDateTimeAxis()
-        axis_x.setFormat("dd/MM" if self._evo_period <= 90 else "MMM yy")
-        axis_x.setLabelsColor(QColor("#7a8494"))
-        axis_x.setLabelsFont(_axis_font)
-        axis_x.setGridLineColor(QColor("#2e3238"))
-        axis_x.setTickCount(min(6, len(points)))
-        chart.addAxis(axis_x, Qt.AlignBottom)
-        self._evo_series.attachAxis(axis_x)
-
-        axis_y = QValueAxis()
-        axis_y.setRange(min_sc * 0.98, max_sc * 1.02)
-        axis_y.setLabelsColor(QColor("#7a8494"))
-        axis_y.setLabelsFont(_axis_font)
-        axis_y.setGridLineColor(QColor("#2e3238"))
-        axis_y.setLabelFormat(fmt)   # unité dans _evo_unit_lbl (k€/M€/€)
-        axis_y.setTickCount(4)
-        chart.addAxis(axis_y, Qt.AlignLeft)
-        self._evo_series.attachAxis(axis_y)
-
-        self._evo_chart_view.setChart(chart)
-        # setChart() peut réinitialiser le brush de la vue — on le force après
-        self._evo_chart_view.setBackgroundBrush(_bg)
-        self._evo_chart_view.viewport().update()
 
     def _show_tray_msg(self, title: str, message: str):
         """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
