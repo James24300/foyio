@@ -521,14 +521,14 @@ class CryptoView(QWidget):
             QPushButton:checked { background:#3b82f6; color:#fff; border:none; }
         """
         self._btn_viz_bubble = QPushButton("Bulles")
-        self._btn_viz_bubble.setFixedSize(60, 26)
+        self._btn_viz_bubble.setFixedSize(72, 32)
         self._btn_viz_bubble.setCheckable(True)
         self._btn_viz_bubble.setChecked(True)
         self._btn_viz_bubble.setStyleSheet(_tog)
         self._btn_viz_bubble.clicked.connect(lambda: self._set_viz_mode(0))
 
         self._btn_viz_bar = QPushButton("Barres")
-        self._btn_viz_bar.setFixedSize(60, 26)
+        self._btn_viz_bar.setFixedSize(72, 32)
         self._btn_viz_bar.setCheckable(True)
         self._btn_viz_bar.setStyleSheet(_tog)
         self._btn_viz_bar.clicked.connect(lambda: self._set_viz_mode(1))
