@@ -102,7 +102,7 @@ class _BubbleWidget(QWidget):
         if reset or len(self._cur_pos) != n:
             self._cur_pos = [[p[0], p[1]] for p in init]
             self._vel = [
-                [self._rnd.uniform(-0.6, 0.6), self._rnd.uniform(-0.6, 0.6)]
+                [self._rnd.uniform(-0.8, 0.8), self._rnd.uniform(-0.8, 0.8)]
                 for _ in range(n)
             ]
         else:
@@ -175,19 +175,27 @@ class _BubbleWidget(QWidget):
             if y + r > H - mg: vy -= (y + r - (H - mg)) * 0.35
 
             # Légère attraction vers le centre
-            vx += (W / 2 - x) * 0.0015
-            vy += (H / 2 - y) * 0.0015
+            vx += (W / 2 - x) * 0.0008
+            vy += (H / 2 - y) * 0.0008
 
-            # Amortissement
-            vx *= 0.92
-            vy *= 0.92
+            # Impulsion aléatoire occasionnelle (~1% de chance par frame)
+            if self._rnd.random() < 0.01:
+                vx += self._rnd.uniform(-0.4, 0.4)
+                vy += self._rnd.uniform(-0.4, 0.4)
 
-            # Vitesse max
-            spd = math.sqrt(vx * vx + vy * vy)
-            if spd > 2.5:
-                vx = vx / spd * 2.5
-                vy = vy / spd * 2.5
-
+            # Pas d'amortissement — vitesse constante
+            # Vitesse min/max pour mouvement permanent
+            MIN_SPD = 0.3
+            MAX_SPD = 1.4
+            spd = math.sqrt(vx * vx + vy * vy) or 0.001
+            # Variation aléatoire de la vitesse à chaque frame
+            target_spd = self._rnd.uniform(MIN_SPD, MAX_SPD)
+            if spd > target_spd * 1.1:
+                vx = vx / spd * (spd * 0.98)
+                vy = vy / spd * (spd * 0.98)
+            elif spd < MIN_SPD:
+                vx = vx / spd * MIN_SPD
+                vy = vy / spd * MIN_SPD
             pos[i] = [x + vx, y + vy]
             vel[i] = [vx, vy]
 
@@ -1446,8 +1454,44 @@ class CryptoView(QWidget):
         COLORS = ["#f7931a","#627eea","#9945ff","#f0b90b","#00adef",
                   "#e84142","#ff007a","#2775ca","#26a17b","#ff6b35"]
 
+        def _assign_colors(n, colors):
+            """Répartit les couleurs pour éviter que deux teintes proches se touchent."""
+            if n == 0:
+                return []
+            if n >= len(colors):
+                # Intercaler les couleurs : prendre 1 sur 2 puis le reste
+                pool = colors * ((n // len(colors)) + 1)
+            else:
+                pool = colors
+            # Réorganiser en prenant alternativement début/fin de la liste
+            result = []
+            left, right = 0, len(pool) - 1
+            toggle = True
+            while len(result) < n:
+                if toggle:
+                    result.append(pool[left]); left += 1
+                else:
+                    result.append(pool[right]); right -= 1
+                toggle = not toggle
+            return result
+
+        assigned_colors = _assign_colors(len(self._holdings), COLORS)
+
+        # Calculer la valeur totale pour le seuil minimum
+        pie_raw = []
         for i, h in enumerate(self._holdings):
-            color = COLORS[i % len(COLORS)]
+            info  = self._prices.get(h.coingecko_id, {})
+            price = info.get("price", 0)
+            value = h.quantity * price
+            pie_value = value if value > 0 else h.quantity * h.avg_buy_price
+            pie_raw.append(pie_value)
+
+        total_pie = sum(pie_raw) or 1
+        # Seuil minimum : 2% de la valeur totale pour qu'une tranche soit visible
+        MIN_PCT = 0.02
+
+        for i, h in enumerate(self._holdings):
+            color = assigned_colors[i]
             info  = self._prices.get(h.coingecko_id, {})
             price = info.get("price", 0)
             chg   = info.get("change_24h", 0)
@@ -1503,7 +1547,9 @@ class CryptoView(QWidget):
             # Pie : valeur réelle si prix connu, sinon prix d'achat (fallback)
             pie_value = value if value > 0 else h.quantity * h.avg_buy_price
             if pie_value > 0:
-                sl = pie.append(h.symbol, pie_value)
+                # Appliquer un minimum de 2% pour les toutes petites tranches
+                effective_pie_value = max(pie_value, total_pie * MIN_PCT)
+                sl = pie.append(h.symbol, effective_pie_value)
                 sl.setColor(QColor(color))
                 sl.setLabelVisible(False)
 

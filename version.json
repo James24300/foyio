@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
-  "release_date": "2026-04-10",
-  "notes": "Fix double € Crypto, solde cumulé Accueil, crash monthly_balance, mise à jour en arrière-plan avec Toast, qualité de code, thread-safety"
+  "version": "1.1.2",
+  "release_date": "2026-05-03",
+  "notes": "Import CSV multi-banques (N26, Revolut, Wise, BoursoBank, CM/CIC, La Banque Postale, Banque Populaire, Caisse d'Épargne/BNP), fix affichage transaction après ajout, bulles Crypto animées en permanence, camembert Crypto (tranches visibles + couleurs alternées), transfert épargne avec ventilation automatique sur objectif, boîte à idées intégrée, compte lié configurable par catégorie"
 }

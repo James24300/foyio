@@ -369,9 +369,16 @@ class CategoryView(QWidget):
             cat = session.query(Category).filter_by(id=category_id).first()
             if not cat:
                 return
-            old_name  = cat.name
-            old_color = cat.color or "#7a8494"
-            old_icon  = cat.icon or "other.png"
+            old_name     = cat.name
+            old_color    = cat.color or "#7a8494"
+            old_icon     = cat.icon or "other.png"
+            old_transfer = cat.transfer_account_id
+
+        # Charger les comptes disponibles pour le transfert
+        from models import Account
+        with Session() as session:
+            accounts = session.query(Account).filter_by(active=True).order_by(Account.name).all()
+            accounts_data = [(a.id, a.name) for a in accounts]
 
         dialog = QDialog(self)
         dialog.setWindowTitle("Modifier la catégorie")
@@ -434,6 +441,15 @@ class CategoryView(QWidget):
 
         color_btn.clicked.connect(pick_color)
 
+        # Sélecteur compte lié (transfert automatique)
+        transfer_combo = QComboBox()
+        transfer_combo.setMinimumHeight(34)
+        transfer_combo.addItem("— Aucun —", None)
+        for acc_id_item, acc_name in accounts_data:
+            transfer_combo.addItem(acc_name, acc_id_item)
+            if acc_id_item == old_transfer:
+                transfer_combo.setCurrentIndex(transfer_combo.count() - 1)
+
         save_btn = QPushButton("Enregistrer")
         save_btn.setMinimumHeight(36)
 
@@ -441,13 +457,15 @@ class CategoryView(QWidget):
             new_name = name_input.text().strip()
             if not new_name:
                 return
-            new_icon = icon_combo.currentData() or old_icon
+            new_icon     = icon_combo.currentData() or old_icon
+            new_transfer = transfer_combo.currentData()
             with Session() as s:
                 c = s.query(Category).filter_by(id=category_id).first()
                 if c:
-                    c.name  = new_name
-                    c.color = chosen_color[0]
-                    c.icon  = new_icon
+                    c.name               = new_name
+                    c.color              = chosen_color[0]
+                    c.icon               = new_icon
+                    c.transfer_account_id = new_transfer
                     s.commit()
             dialog.accept()
             self.load()
@@ -458,6 +476,7 @@ class CategoryView(QWidget):
         form.addRow("Nom :", name_input)
         form.addRow("Icône :", icon_combo)
         form.addRow("Couleur :", color_btn)
+        form.addRow("Compte lié :", transfer_combo)
         form.addRow(save_btn)
         dialog.exec()
 

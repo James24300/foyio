@@ -1,9 +1,9 @@
-; Script Inno Setup — Foyio v1.0.3
+; Script Inno Setup — Foyio v1.1.1
 ; Généré automatiquement par build_windows.py
 
 #define MyAppName      "Foyio"
-#define MyAppVersion   "1.0.3"
-#define MyAppPublisher "James-William PULSFORD"
+#define MyAppVersion   "1.1.1"
+#define MyAppPublisher "Foyio"
 #define MyAppURL       "https://github.com/James24300/foyio"
 #define MyAppExeName   "Foyio.exe"
 
@@ -15,11 +15,11 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\{#MyAppName}
+DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
-OutputBaseFilename=FoyioSetup-v{#MyAppVersion}
+OutputBaseFilename=FoyioSetup-{#MyAppVersion}
 SetupIconFile=icons\foyio.ico
 Compression=lzma
 SolidCompression=yes
@@ -40,7 +40,7 @@ Source: "dist\Foyio\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 [Icons]
 Name: "{group}\{#MyAppName}";                        Filename: "{app}\{#MyAppExeName}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\{#MyAppName}";                 Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{userdesktop}\{#MyAppName}";                   Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 Name: "{userstartup}\{#MyAppName}";                   Filename: "{app}\{#MyAppExeName}"; Tasks: startupicon
 
 [Run]

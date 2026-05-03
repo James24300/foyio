@@ -1,4 +1,3 @@
-import logging
 import os
 
 from PySide6.QtWidgets import (
@@ -30,8 +29,6 @@ from services.transaction_service import (
     save_tags,
     get_tags_for_transactions,
 )
-
-logger = logging.getLogger(__name__)
 
 
 _SORT_ROLE = Qt.UserRole + 1
@@ -421,17 +418,30 @@ class Transactions(QWidget):
             Toast.show(self, f"✕  Erreur : {e}", kind="error")
             return
 
-        self.load()
-        main = self.window()
-        if hasattr(main, "accueil"):    main.accueil.refresh()
-        if hasattr(main, "budget"):     main.budget.refresh()
-        if hasattr(main, "categories"): main.categories.load()
-        if hasattr(main, "stats"):      main.stats.refresh()
-
         # Mémoriser les infos avant de vider les champs
         added_type   = self.type.currentText()
         added_note   = self.note.text().strip()
         added_amount = amount
+
+        # Synchroniser la période affichée avec la date de la transaction
+        import period_state as _ps
+        p = _ps.get()
+        if p.year != tx_date.year or p.month != tx_date.month:
+            _ps.set(tx_date.year, tx_date.month)
+            main = self.window()
+            if hasattr(main, "period_label"):
+                main.period_label.setText(_ps.label())
+
+        # Désactiver le filtre période personnalisée pour afficher la nouvelle transaction
+        if getattr(self, '_custom_date_range', None):
+            self._custom_date_range = None
+            self._custom_period_check.setChecked(False)
+
+        self.load()
+
+        main = self.window()
+        if hasattr(main, "refresh_all"):
+            main.refresh_all()
 
         self.amount.clear()
         self.note.clear()
@@ -461,19 +471,27 @@ class Transactions(QWidget):
     def _check_auto_transfer(self, category_id, amount, tx_date, note):
         """Propose un transfert automatique si la catégorie est liée à un compte épargne."""
         from services.transfer_service import get_transfer_account, create_mirror_transaction
+        from services.savings_service import get_goals, add_allocation
         from utils.formatters import format_money as _fmt
 
         acc_id, acc_name = get_transfer_account(category_id)
         if not acc_id:
             return
 
+        # Charger les objectifs épargne disponibles
+        goals = []
+        try:
+            goals = get_goals() or []
+        except Exception:
+            pass
+
         # Popup de confirmation avec montant modifiable
         from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
-            QLabel, QDoubleSpinBox, QDialogButtonBox)
+            QLabel, QDoubleSpinBox, QDialogButtonBox, QComboBox)
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Transfert épargne")
-        dlg.setMinimumWidth(380)
+        dlg.setMinimumWidth(400)
         vl = QVBoxLayout(dlg)
         vl.setContentsMargins(20, 20, 20, 20)
         vl.setSpacing(12)
@@ -503,17 +521,31 @@ class Transactions(QWidget):
         row.addStretch()
         vl.addLayout(row)
 
+        # Sélecteur d'objectif épargne
+        if goals:
+            goal_row = QHBoxLayout()
+            goal_row.setSpacing(8)
+            goal_lbl = QLabel("Ventiler sur :")
+            goal_lbl.setStyleSheet("font-size:12px; color:#848c94;")
+            goal_combo = QComboBox()
+            goal_combo.setMinimumHeight(34)
+            goal_combo.addItem("— Aucun objectif —", None)
+            for g in goals:
+                goal_combo.addItem(g.name, g.id)
+            goal_row.addWidget(goal_lbl)
+            goal_row.addWidget(goal_combo, 1)
+            vl.addLayout(goal_row)
+        else:
+            goal_combo = None
+
         # Résumé
-        summary = QLabel(
-            f"→ +{_fmt(amount)} sur {acc_name}"
-        )
+        summary = QLabel(f"→ +{_fmt(amount)} sur {acc_name}")
         summary.setStyleSheet(
             "font-size:12px; font-weight:600; color:#22c55e; "
             "background:#1a2a1a; border-radius:8px; padding:8px 12px;"
         )
         vl.addWidget(summary)
 
-        # Mettre à jour le résumé quand le montant change
         def _update_summary():
             summary.setText(f"→ +{_fmt(spin.value())} sur {acc_name}")
         spin.valueChanged.connect(_update_summary)
@@ -527,13 +559,20 @@ class Transactions(QWidget):
 
         if dlg.exec() == QDialog.Accepted:
             transfer_amount = spin.value()
-            create_mirror_transaction(
+            txn_id = create_mirror_transaction(
                 source_date=tx_date,
                 amount=transfer_amount,
                 category_id=category_id,
                 destination_account_id=acc_id,
                 note=note or "Transfert épargne"
             )
+            # Ventilation automatique sur l'objectif sélectionné
+            if goal_combo and goal_combo.currentData() and txn_id:
+                try:
+                    add_allocation(txn_id, goal_combo.currentData(), transfer_amount)
+                except Exception as e:
+                    logger.warning("Ventilation auto échouée : %s", e)
+
             Toast.show(self,
                 f"✓  +{_fmt(transfer_amount)} crédité sur {acc_name}",
                 kind="success"
@@ -948,6 +987,7 @@ class Transactions(QWidget):
     def load(self):
         self.table.setSortingEnabled(False)
         self.table.setUpdatesEnabled(False)
+        self.search.blockSignals(True)
         self.current_offset = 0
 
         # Les transactions arrivent triées par date DESC (plus récentes en haut).
@@ -961,7 +1001,6 @@ class Transactions(QWidget):
             data = get_transactions_for_period(self.page_size, 0)
 
         self.table.clearContents()
-        self.table.clearSpans()  # reset le span "Aucune transaction" éventuel
         self.table.setRowCount(len(data))
 
         if not data:
@@ -972,6 +1011,7 @@ class Transactions(QWidget):
             _ei.setFlags(Qt.ItemIsEnabled)
             self.table.setItem(0, 0, _ei)
             self.table.setSpan(0, 0, 1, self.table.columnCount())
+            self.search.blockSignals(False)
             self.update_totals()
             return
 
@@ -1082,6 +1122,7 @@ class Transactions(QWidget):
 
         self.table.setSortingEnabled(True)
         self.table.setUpdatesEnabled(True)
+        self.search.blockSignals(False)
         self.filter_table()
         # Afficher le message vide si aucune donnée
         self._update_empty_state(len(data))
@@ -1577,7 +1618,6 @@ class Transactions(QWidget):
         self.table.setUpdatesEnabled(False)
         data = get_transactions(limit=10000, offset=0)
         self.table.clearContents()
-        self.table.clearSpans()  # reset le span "Aucune transaction" éventuel
         self.table.setRowCount(len(data))
 
         if not data:
