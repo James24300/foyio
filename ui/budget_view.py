@@ -15,7 +15,10 @@ from utils.icons import get_icon
 from utils.formatters import format_money
 import period_state
 
-from services.transaction_service import set_budget, get_budget_status, delete_budget
+from services.transaction_service import (
+    set_budget, get_budget_status, delete_budget,
+    set_annual_budget, delete_annual_budget, get_annual_budget_status,
+)
 from ui.toast import Toast
 
 
@@ -154,11 +157,80 @@ class BudgetView(QWidget):
         """)
         tab2_layout.addWidget(self._history_table)
 
+        # Tab 3 : Budgets annuels
+        self._tab_annual = QWidget()
+        tab3_layout = QVBoxLayout(self._tab_annual)
+        tab3_layout.setContentsMargins(12, 12, 12, 12)
+        tab3_layout.setSpacing(10)
+
+        # Formulaire budget annuel
+        annual_form_card = QWidget()
+        annual_form_card.setStyleSheet(
+            "QWidget { background:#26292e; border-radius:10px; border:1px solid #3a3f47; }"
+        )
+        annual_form_inner = QVBoxLayout(annual_form_card)
+        annual_form_inner.setContentsMargins(14, 10, 14, 10)
+        annual_form_inner.setSpacing(8)
+
+        annual_form_title = QLabel("Définir un budget annuel")
+        annual_form_title.setStyleSheet(
+            "font-size:13px; font-weight:600; color:#c8cdd4; "
+            "background:transparent; border:none;"
+        )
+        annual_form_inner.addWidget(annual_form_title)
+
+        annual_sub = QLabel(
+            "Idéal pour les dépenses ponctuelles : assurance, impôts, vacances…"
+        )
+        annual_sub.setStyleSheet(
+            "font-size:11px; color:#5a6472; background:transparent; border:none;"
+        )
+        annual_form_inner.addWidget(annual_sub)
+
+        annual_form_row = QHBoxLayout()
+        annual_form_row.setSpacing(8)
+
+        self._annual_category = QComboBox()
+        self._annual_category.setMinimumHeight(36)
+        annual_form_row.addWidget(self._annual_category, 2)
+
+        self._annual_amount = QLineEdit()
+        self._annual_amount.setPlaceholderText("Limite annuelle (€)")
+        self._annual_amount.setMinimumHeight(36)
+        self._annual_amount.setFixedWidth(180)
+        self._annual_amount.returnPressed.connect(self._save_annual)
+        annual_form_row.addWidget(self._annual_amount)
+
+        btn_annual = QPushButton("  Enregistrer")
+        btn_annual.setMinimumHeight(36)
+        btn_annual.clicked.connect(self._save_annual)
+        annual_form_row.addWidget(btn_annual)
+
+        annual_form_inner.addLayout(annual_form_row)
+        tab3_layout.addWidget(annual_form_card)
+
+        # Liste des budgets annuels
+        annual_scroll = QScrollArea()
+        annual_scroll.setWidgetResizable(True)
+        annual_scroll.setFrameShape(QFrame.NoFrame)
+        annual_scroll.setStyleSheet("QScrollArea { background:transparent; border:none; }")
+
+        self._annual_budgets_widget = QWidget()
+        self._annual_budgets_widget.setStyleSheet("background:transparent;")
+        self._annual_results_layout = QVBoxLayout(self._annual_budgets_widget)
+        self._annual_results_layout.setSpacing(10)
+        self._annual_results_layout.setContentsMargins(0, 0, 0, 0)
+        self._annual_results_layout.addStretch()
+
+        annual_scroll.setWidget(self._annual_budgets_widget)
+        tab3_layout.addWidget(annual_scroll)
+
         self._tabs.addTab(self._tab_current, "Mois courant")
         self._tabs.addTab(self._tab_history, "Historique")
         self._tab_chart = QWidget()
         QVBoxLayout(self._tab_chart)
         self._tabs.addTab(self._tab_chart, "Graphique")
+        self._tabs.addTab(self._tab_annual, "Annuel")
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
         layout.addWidget(self._tabs, 1)
@@ -167,6 +239,7 @@ class BudgetView(QWidget):
         self._bar_anims = []
         self.load_categories()
         self.refresh()
+        self._refresh_annual()
 
     # ------------------------------------------------------------------
     def showEvent(self, event):
@@ -205,14 +278,16 @@ class BudgetView(QWidget):
         from utils.category_icons import get_category_icon
         with Session() as session:
             categories = session.query(Category).order_by(Category.name).all()
-        self.category.clear()
-        self.category.setIconSize(QSize(18, 18))
-        self.category.addItem("— Choisir une catégorie —", None)
-        for c in categories:
-            raw_icon = c.icon or ""
-            icon_file = raw_icon if raw_icon.endswith(".png") else get_category_icon(c.name)
-            self.category.addItem(get_icon(icon_file, 18), c.name, c.id)
-        self.category.setCurrentIndex(0)
+
+        for combo in (self.category, self._annual_category):
+            combo.clear()
+            combo.setIconSize(QSize(18, 18))
+            combo.addItem("— Choisir une catégorie —", None)
+            for c in categories:
+                raw_icon = c.icon or ""
+                icon_file = raw_icon if raw_icon.endswith(".png") else get_category_icon(c.name)
+                combo.addItem(get_icon(icon_file, 18), c.name, c.id)
+            combo.setCurrentIndex(0)
 
     def save(self):
         try:
@@ -260,6 +335,8 @@ class BudgetView(QWidget):
             self._build_history()
         elif index == 2:
             self._build_budget_chart()
+        elif index == 3:
+            self._refresh_annual()
 
     # ------------------------------------------------------------------
     def refresh(self):
@@ -672,3 +749,219 @@ class BudgetView(QWidget):
                         spent_item.setForeground(QColor("#4a5060"))
 
                     self._history_table.setItem(row, col, spent_item)
+
+    # ── Budgets annuels ────────────────────────────────────────────────────────
+
+    def _save_annual(self):
+        try:
+            amount = float(self._annual_amount.text().replace(",", "."))
+            if amount <= 0:
+                Toast.show(self, "✕  Le montant doit être positif", kind="error")
+                return
+        except ValueError:
+            Toast.show(self, "✕  Montant invalide", kind="error")
+            self._annual_amount.setFocus()
+            return
+
+        category_id = self._annual_category.currentData()
+        if not category_id:
+            Toast.show(self, "✕  Choisissez une catégorie", kind="error")
+            self._annual_category.showPopup()
+            return
+
+        set_annual_budget(category_id, amount)
+        self._annual_amount.clear()
+        self._annual_category.setCurrentIndex(0)
+        self._refresh_annual()
+        Toast.show(self, "✓  Budget annuel enregistré", kind="success")
+
+    def _refresh_annual(self):
+        from datetime import datetime
+        year = datetime.now().year
+
+        # Vider
+        while self._annual_results_layout.count() > 1:
+            child = self._annual_results_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        data = get_annual_budget_status(year)
+
+        with Session() as session:
+            categories = {c.id: c for c in session.query(Category).all()}
+
+        if not data:
+            empty = QLabel(f"Aucun budget annuel défini pour {year}.")
+            empty.setStyleSheet("color:#6b7280; font-style:italic; padding:12px 0;")
+            self._annual_results_layout.insertWidget(0, empty)
+            return
+
+        # En-tête année
+        year_lbl = QLabel(f"Année {year} — cumul du 1er janvier au 31 décembre")
+        year_lbl.setStyleSheet(
+            "font-size:12px; color:#7aaee8; font-weight:600; "
+            "background:transparent; border:none;"
+        )
+        self._annual_results_layout.insertWidget(0, year_lbl)
+
+        for i, (cat_id, annual_limit, ytd_spent) in enumerate(data, start=1):
+            cat   = categories.get(cat_id)
+            name  = cat.name  if cat else "Inconnu"
+            color = cat.color if cat and cat.color else "#7a8494"
+
+            row_widget = QWidget()
+            row_widget.setStyleSheet(
+                "background:#26292e; border-radius:10px; border:1px solid #3a3f47;"
+            )
+            row_layout = QVBoxLayout(row_widget)
+            row_layout.setContentsMargins(12, 10, 12, 10)
+            row_layout.setSpacing(6)
+
+            percent = min((ytd_spent / annual_limit) * 100, 100) if annual_limit > 0 else 0
+            reste   = max(annual_limit - ytd_spent, 0)
+
+            # Ligne 1 : nom + montants + supprimer
+            header_row = QHBoxLayout()
+            name_lbl = QLabel(name)
+            name_lbl.setStyleSheet(
+                "font-weight:600; font-size:13px; background:transparent; border:none;"
+            )
+
+            # Projection fin d'année
+            from datetime import datetime as _dt
+            now = _dt.now()
+            day_of_year = now.timetuple().tm_yday
+            days_in_year = 366 if now.year % 4 == 0 else 365
+            if day_of_year > 0 and ytd_spent > 0:
+                proj = round(ytd_spent / day_of_year * days_in_year, 2)
+                proj_color = "#ef4444" if proj > annual_limit else "#7a8494"
+                proj_lbl = QLabel(f"Projection fin d'année : {format_money(proj)}")
+                proj_lbl.setStyleSheet(
+                    f"font-size:11px; color:{proj_color}; "
+                    "background:transparent; border:none;"
+                )
+            else:
+                proj_lbl = None
+
+            amounts_lbl = QLabel(f"{format_money(ytd_spent)} / {format_money(annual_limit)}")
+            amounts_lbl.setAlignment(Qt.AlignRight)
+            amounts_lbl.setStyleSheet(
+                "color:#7a8494; font-size:12px; background:transparent; border:none;"
+            )
+
+            btn_edit = QPushButton("Modifier")
+            btn_edit.setFixedHeight(26)
+            btn_edit.setStyleSheet(
+                "background:#1a2a3a; color:#60a5fa; border:1px solid #2a4a6a;"
+                "border-radius:5px; font-size:11px; padding:0 8px;"
+            )
+            btn_edit.clicked.connect(
+                lambda _, cid=cat_id, lim=annual_limit: self._edit_annual(cid, lim)
+            )
+
+            btn_del = QPushButton("Supprimer")
+            btn_del.setFixedHeight(26)
+            btn_del.setStyleSheet(
+                "background:#2e2020; color:#e89090; border:1px solid #503030;"
+                "border-radius:5px; font-size:11px; padding:0 8px;"
+            )
+            btn_del.clicked.connect(lambda _, cid=cat_id: self._delete_annual(cid))
+
+            header_row.addWidget(name_lbl)
+            header_row.addStretch()
+            header_row.addWidget(amounts_lbl)
+            header_row.addSpacing(8)
+            header_row.addWidget(btn_edit)
+            header_row.addWidget(btn_del)
+            row_layout.addLayout(header_row)
+
+            # Barre de progression
+            bar = QProgressBar()
+            bar.setMaximum(100)
+            bar.setValue(0)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(8)
+
+            if percent >= 100:
+                bar_color = "#ef4444"
+                status_text = f"⚠ Budget annuel dépassé de {format_money(ytd_spent - annual_limit)}"
+                status_color = "#ef4444"
+            elif percent >= 80:
+                bar_color = "#f59e0b"
+                status_text = f"Attention — reste {format_money(reste)} pour l'année"
+                status_color = "#f59e0b"
+            else:
+                bar_color = color
+                status_text = f"Reste {format_money(reste)} pour l'année"
+                status_color = "#22c55e"
+
+            bar.setStyleSheet(f"""
+                QProgressBar {{ background:#17191c; border-radius:4px; }}
+                QProgressBar::chunk {{ background:{bar_color}; border-radius:4px; }}
+            """)
+            row_layout.addWidget(bar)
+            self._animate_bar(bar, int(percent))
+
+            # Statut + projection
+            status_row_layout = QHBoxLayout()
+            status_lbl = QLabel(status_text)
+            status_lbl.setStyleSheet(
+                f"color:{status_color}; font-size:11px; "
+                "background:transparent; border:none;"
+            )
+            pct_lbl = QLabel(f"{percent:.0f}%")
+            pct_lbl.setAlignment(Qt.AlignRight)
+            pct_lbl.setStyleSheet(
+                f"color:{status_color}; font-size:11px; font-weight:600; "
+                "background:transparent; border:none;"
+            )
+            status_row_layout.addWidget(status_lbl)
+            if proj_lbl:
+                status_row_layout.addStretch()
+                status_row_layout.addWidget(proj_lbl)
+            status_row_layout.addStretch()
+            status_row_layout.addWidget(pct_lbl)
+            row_layout.addLayout(status_row_layout)
+
+            self._annual_results_layout.insertWidget(i, row_widget)
+
+    def _edit_annual(self, category_id: int, current_limit: float):
+        from PySide6.QtWidgets import QDialog, QFormLayout, QDoubleSpinBox, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Modifier le budget annuel")
+        dlg.setFixedWidth(340)
+        form = QFormLayout(dlg)
+        form.setContentsMargins(20, 20, 20, 20)
+        form.setSpacing(10)
+
+        spin = QDoubleSpinBox()
+        spin.setRange(1, 9999999)
+        spin.setValue(current_limit)
+        spin.setSuffix(" €")
+        spin.setMinimumHeight(36)
+        form.addRow(QLabel("Nouvelle limite annuelle :"), spin)
+
+        btns = QDialogButtonBox()
+        btns.addButton("Enregistrer", QDialogButtonBox.AcceptRole)
+        btns.addButton("Annuler", QDialogButtonBox.RejectRole)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        form.addRow(btns)
+
+        if dlg.exec() == QDialog.Accepted:
+            set_annual_budget(category_id, spin.value())
+            self._refresh_annual()
+            Toast.show(self, "Budget annuel modifié", kind="success")
+
+    def _delete_annual(self, category_id: int):
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Supprimer le budget annuel")
+        msg.setText("Supprimer ce budget annuel ?")
+        btn_oui = msg.addButton("Supprimer", QMessageBox.AcceptRole)
+        msg.addButton("Annuler", QMessageBox.RejectRole)
+        msg.exec()
+        if msg.clickedButton() == btn_oui:
+            delete_annual_budget(category_id)
+            self._refresh_annual()
+            Toast.show(self, "Budget annuel supprimé", kind="warning")

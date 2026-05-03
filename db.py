@@ -425,3 +425,13 @@ def migrate_database():
         logger.info("Migration v6.9 : fees ajouté sur crypto_transactions")
     except Exception:
         pass
+
+    # v7.0 : annual_limit sur budgets
+    inspector = inspect(engine)
+    if _table_exists(inspector, "budgets") and \
+       not _col_exists(inspector, "budgets", "annual_limit"):
+        with engine.connect() as conn:
+            conn.execute(text(
+                "ALTER TABLE budgets ADD COLUMN annual_limit FLOAT"))
+            conn.commit()
+        logger.info("Migration v7.0 : annual_limit ajouté sur budgets")

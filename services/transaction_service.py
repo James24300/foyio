@@ -217,6 +217,74 @@ def get_budget_status():
     return results
 
 
+def set_annual_budget(category_id: int, amount: float):
+    """Définit ou met à jour le budget annuel d'une catégorie pour le compte actif."""
+    acc_id = account_state.get_id()
+    with safe_session() as session:
+        existing = session.query(Budget).filter_by(
+            category_id=category_id, account_id=acc_id
+        ).first()
+        if existing:
+            existing.annual_limit = amount
+        else:
+            # Crée une ligne Budget avec monthly_limit=0 et annual_limit renseigné
+            session.add(Budget(
+                category_id=category_id,
+                account_id=acc_id,
+                monthly_limit=0.0,
+                annual_limit=amount,
+            ))
+
+
+def delete_annual_budget(category_id: int):
+    """Supprime uniquement le budget annuel (conserve le budget mensuel si existant)."""
+    acc_id = account_state.get_id()
+    with safe_session() as session:
+        q = session.query(Budget).filter_by(category_id=category_id)
+        if acc_id is not None:
+            q = q.filter(Budget.account_id == acc_id)
+        b = q.first()
+        if b:
+            b.annual_limit = None
+            # Si aucun budget mensuel non nul, supprimer la ligne entière
+            if not b.monthly_limit:
+                session.delete(b)
+
+
+def get_annual_budget_status(year: int = None) -> list:
+    """
+    Retourne [(category_id, annual_limit, ytd_spent)] pour le compte actif.
+    ytd_spent = dépenses cumulées du 1er janvier au 31 décembre de l'année.
+    """
+    from datetime import datetime
+    acc_id = account_state.get_id()
+    if year is None:
+        year = datetime.now().year
+    results = []
+
+    with Session() as session:
+        bq = session.query(Budget).filter(Budget.annual_limit.isnot(None))
+        if acc_id is not None:
+            bq = bq.filter(Budget.account_id == acc_id)
+        budgets = bq.all()
+
+        for b in budgets:
+            if not b.annual_limit:
+                continue
+            q = (
+                session.query(func.sum(Transaction.amount))
+                .filter(Transaction.category_id == b.category_id)
+                .filter(Transaction.type == "expense")
+                .filter(func.extract("year", Transaction.date) == year)
+            )
+            if acc_id is not None:
+                q = q.filter(Transaction.account_id == acc_id)
+            spent = q.scalar() or 0.0
+            results.append((b.category_id, b.annual_limit, round(spent, 2)))
+
+    return results
+
+
 # ──────────────────────────────────────────────────────────────
 # Détection de doublons mensuels
 # ──────────────────────────────────────────────────────────────

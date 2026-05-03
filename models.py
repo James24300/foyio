@@ -75,13 +75,14 @@ class Transaction(Base):
 
 
 class Budget(Base):
-    """Budget mensuel par catégorie et par compte."""
+    """Budget mensuel et/ou annuel par catégorie et par compte."""
     __tablename__ = "budgets"
 
     id            = Column(Integer, primary_key=True)
     category_id   = Column(Integer, ForeignKey("categories.id"), nullable=False)
     account_id    = Column(Integer, ForeignKey("accounts.id"),   nullable=True)
     monthly_limit = Column(Float, nullable=False)
+    annual_limit  = Column(Float, nullable=True)   # None = pas de budget annuel
 
 
 class TransactionRule(Base):
