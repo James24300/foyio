@@ -53,6 +53,7 @@ from ui.statistics_view import StatisticsView
 from ui.recurring_view import RecurringView
 from ui.accounts_view import AccountsView
 from ui.savings_view import SavingsView
+from ui.networth_view import NetWorthView
 from ui.calculator import Calculator
 from ui.tools_view import ToolsView
 from ui.about_view import AboutView
@@ -168,6 +169,7 @@ class MainWindow(QWidget):
             ("btn_transactions", " Transactions", "transactions.png"),
             ("btn_budget",       " Budgets",      "budget.png"),
             ("btn_savings",      " Épargne",       "epargne.png"),
+            ("btn_networth",     " Patrimoine",   "balance.png"),
             ("btn_stats",        " Statistiques", "stats.png"),
             ("btn_crypto",       " Crypto",       "money.png"),
         ]
@@ -413,22 +415,23 @@ class MainWindow(QWidget):
         self.categories   = CategoryView(self)
         self.stats        = StatisticsView()
         self.recurring    = RecurringView()
-        self.accounts     = AccountsView(self)
         self.savings      = SavingsView()
+        self.accounts     = AccountsView(self)
         self.loans        = LoansView()
-        self.crypto       = CryptoView()
         self.tools        = ToolsView()
-        self.about        = AboutView()
         self.settings_v   = SettingsView()
         self.features_v   = FeaturesView()
+        self.about        = AboutView()
+        self.crypto       = CryptoView()
         self.ideas_v      = IdeasView()
+        self.networth     = NetWorthView()
 
         for view in [
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
             self.savings, self.accounts, self.loans,
             self.tools, self.settings_v, self.features_v, self.about,
-            self.crypto, self.ideas_v
+            self.crypto, self.ideas_v, self.networth
         ]:
             self.stack.addTab(view, "")
 
@@ -452,6 +455,7 @@ class MainWindow(QWidget):
         self.btn_transactions.clicked.connect(lambda: self.set_active(1))
         self.btn_budget.clicked.connect(lambda: self.set_active(2))
         self.btn_savings.clicked.connect(lambda: self.set_active(6))
+        self.btn_networth.clicked.connect(lambda: self.set_active(15))
         self.btn_stats.clicked.connect(lambda: self.set_active(4))
         self.btn_crypto.clicked.connect(lambda: self.set_active(13))
         self.btn_plus.clicked.connect(self._open_plus_menu)
@@ -944,9 +948,9 @@ class MainWindow(QWidget):
     def toggle_sidebar(self):
         expanded = self.sidebar_expanded
         end_width = 60 if expanded else 220
-        labels = ["", "", "", "", "", ""] if expanded else [
+        labels = ["", "", "", "", "", "", ""] if expanded else [
             " Accueil", " Transactions", " Budgets",
-            " Épargne", " Statistiques", " Crypto",
+            " Épargne", " Patrimoine", " Statistiques", " Crypto",
         ]
         for btn, label in zip(self._nav_buttons, labels):
             btn.setText(label)
@@ -982,10 +986,11 @@ class MainWindow(QWidget):
             ("other.png",        "À propos"),
             ("money.png",        "Crypto-monnaies"),
             ("other.png",        "Boîte à idées"),
+            ("balance.png",      "Patrimoine Net"),
         ]
 
         # Indices correspondant aux boutons principaux de la sidebar
-        _MAIN_INDICES = [0, 1, 2, 6, 4, 13]
+        _MAIN_INDICES = [0, 1, 2, 6, 15, 4, 13]
         _PLUS_INDICES = {3, 5, 7, 8, 9, 10, 11, 12, 14}
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(_MAIN_INDICES[i] == index)
@@ -1064,6 +1069,7 @@ class MainWindow(QWidget):
         if hasattr(self, "recurring"):    self.recurring.load()
         if hasattr(self, "crypto"):       self.crypto.refresh()
         if hasattr(self, "ideas_v"):      self.ideas_v.refresh()
+        if hasattr(self, "networth"):     self.networth.refresh()
 
 
 
