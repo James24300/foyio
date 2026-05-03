@@ -6,7 +6,7 @@ from sqlalchemy import func
 from db import Session, safe_session
 from models import Transaction, Category, Budget, TransactionRule, Tag, TransactionTag
 from services.stats_service import monthly_totals
-from services.transaction_recognition import find_rule
+from services.transaction_recognition import find_rule, extract_keyword, learn_rule
 import period_state
 import account_state
 
@@ -116,10 +116,13 @@ def add_transaction(amount, type, category_id, note=None, date=None, tags=None, 
                 session.add(TransactionTag(transaction_id=t.id, tag_id=tag.id))
 
         if note_clean and category_id:
-            keyword = note_clean.lower()
-            rule = session.query(TransactionRule).filter_by(keyword=keyword).first()
-            if not rule:
-                session.add(TransactionRule(keyword=keyword, category_id=category_id))
+            keyword = extract_keyword(note_clean)
+            if keyword:
+                existing = session.query(TransactionRule).filter_by(keyword=keyword).first()
+                if existing:
+                    existing.category_id = category_id
+                else:
+                    session.add(TransactionRule(keyword=keyword, category_id=category_id))
 
 
 def get_transactions(limit=200, offset=0):

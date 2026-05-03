@@ -273,20 +273,32 @@ def learn_from_import(transactions_and_categories: list):
     Apprend depuis un import : pour chaque (label, category_id),
     crée une règle si le libellé est assez spécifique.
     """
-    # Mots trop génériques à ignorer comme clé d'apprentissage
-    SKIP = {"carte", "super", "sarl", "retrait", "frais", "paiement",
-            "commerce", "electronique", "hors", "zone", "euro",
-            "prelevement", "virement", "europeen", "abonnement"}
-
     for label, cat_id in transactions_and_categories:
         if not label or not cat_id:
             continue
-        # Extraire le mot le plus spécifique (ignore les mots génériques)
-        words = [w for w in re.split(r"\W+", normalize(label))
-                 if len(w) >= 3
-                 and w not in SKIP
-                 and not re.match(r'^x?\d+$', w)   # exclure X4832, 3355
-                 and not re.match(r'^\d{2}/\d{2}$', w)]  # exclure 16/03
-        if words:
-            keyword = max(words, key=len)
+        keyword = extract_keyword(label)
+        if keyword:
             learn_rule(keyword, cat_id)
+
+
+def extract_keyword(note: str) -> str | None:
+    """
+    Extrait le mot-clé le plus représentatif d'un libellé de transaction.
+    Ignore les mots génériques, les codes numériques et les dates.
+    Retourne None si aucun mot exploitable n'est trouvé.
+    """
+    SKIP = {"carte", "super", "sarl", "retrait", "frais", "paiement",
+            "commerce", "electronique", "hors", "zone", "euro",
+            "prelevement", "virement", "europeen", "abonnement",
+            "recu", "inst", "pour", "motif", "mandat", "avec", "chez",
+            "sepa", "prlv", "prel"}
+    note_n = normalize(note)
+    words = [w for w in re.split(r"\W+", note_n)
+             if len(w) >= 3
+             and w not in SKIP
+             and not re.match(r'^x?\d+$', w)       # exclure X4832, 3355
+             and not re.match(r'^\d{2}/\d{2}$', w) # exclure 16/03
+             and not re.match(r'^\d+$', w)]         # exclure nombres purs
+    if not words:
+        return None
+    return max(words, key=len)

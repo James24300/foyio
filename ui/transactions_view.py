@@ -1507,6 +1507,13 @@ class Transactions(QWidget):
             raw_tags = tags_edit.text().strip()
             new_tags = [t.strip() for t in raw_tags.split(",") if t.strip()] if raw_tags else []
             _save_tags(transaction_id, new_tags)
+
+            # Apprendre la règle si la catégorie a changé ou est nouvellement définie
+            if new_cat and new_note:
+                from services.transaction_recognition import extract_keyword, learn_rule
+                keyword = extract_keyword(new_note)
+                if keyword:
+                    learn_rule(keyword, new_cat)
         except Exception as e:
             from ui.toast import Toast
             Toast.show(self, f"Erreur sauvegarde : {e}", kind="error")
