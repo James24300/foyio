@@ -45,3 +45,32 @@ def set(key: str, value):
     s = load_settings()
     s[key] = value
     save_settings(s)
+
+
+# ── Filtres sauvegardés ──────────────────────────────────────────────────────
+
+def get_saved_filters() -> list[dict]:
+    """Retourne la liste des filtres sauvegardés [{name, query}]."""
+    return load_settings().get("saved_filters", [])
+
+
+def save_filter(name: str, query: str):
+    """Ajoute ou remplace un filtre sauvegardé par son nom."""
+    s = load_settings()
+    filters = s.get("saved_filters", [])
+    # Remplacer si le nom existe déjà
+    for f in filters:
+        if f["name"] == name:
+            f["query"] = query
+            save_settings(s)
+            return
+    filters.append({"name": name, "query": query})
+    s["saved_filters"] = filters
+    save_settings(s)
+
+
+def delete_filter(name: str):
+    """Supprime un filtre sauvegardé par son nom."""
+    s = load_settings()
+    s["saved_filters"] = [f for f in s.get("saved_filters", []) if f["name"] != name]
+    save_settings(s)

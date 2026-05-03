@@ -17,6 +17,7 @@ from utils.icons import get_icon
 from utils.formatters import format_money
 
 from services.transaction_recognition import find_rule
+from services.settings_service import get_saved_filters, save_filter, delete_filter
 from ui.toast import Toast
 from ui.spellcheck_lineedit import SpellCheckLineEdit
 from services.transaction_filter_service import match_transaction
@@ -197,6 +198,37 @@ class Transactions(QWidget):
         search_row.addWidget(self._all_periods_check)
 
         layout.addLayout(search_row)
+
+        # ── Filtres sauvegardés (pills) ──
+        self._filters_row = QHBoxLayout()
+        self._filters_row.setSpacing(6)
+        self._filters_row.setContentsMargins(0, 0, 0, 0)
+
+        self._btn_save_filter = QPushButton("+ Sauvegarder")
+        self._btn_save_filter.setFixedHeight(26)
+        self._btn_save_filter.setVisible(False)
+        self._btn_save_filter.setToolTip("Sauvegarder ce filtre pour le réutiliser")
+        self._btn_save_filter.setStyleSheet("""
+            QPushButton {
+                background:#1a2a3a; color:#60a5fa; border:1px solid #2a4a6a;
+                border-radius:13px; font-size:11px; padding:0 10px;
+            }
+            QPushButton:hover { background:#2a3a4a; }
+        """)
+        self._btn_save_filter.clicked.connect(self._save_current_filter)
+
+        self._filters_row.addWidget(self._btn_save_filter)
+        self._filters_row.addStretch()
+
+        filters_widget = QWidget()
+        filters_widget.setStyleSheet("background:transparent;")
+        filters_widget.setLayout(self._filters_row)
+        layout.addWidget(filters_widget)
+
+        self._load_filter_pills()
+
+        # Mettre à jour le bouton sauvegarder quand le texte change
+        self.search.textChanged.connect(self._on_search_changed)
 
         # Indicateur de doublons (invisible par défaut)
         self._dup_btn = QPushButton("")
@@ -1602,6 +1634,114 @@ class Transactions(QWidget):
             self._table_stack.setCurrentIndex(0)
 
     # ------------------------------------------------------------------
+    # ── Filtres sauvegardés ────────────────────────────────────────────────────
+
+    def _on_search_changed(self, text: str):
+        """Affiche le bouton '+ Sauvegarder' uniquement quand le champ n'est pas vide."""
+        self._btn_save_filter.setVisible(bool(text.strip()))
+
+    def _load_filter_pills(self):
+        """Recrée les pills de filtres sauvegardés depuis les settings."""
+        # Supprimer les pills existantes (tout sauf btn_save_filter et le stretch)
+        while self._filters_row.count() > 2:
+            item = self._filters_row.takeAt(1)  # index 1 = après le bouton sauvegarder
+            if item.widget():
+                item.widget().deleteLater()
+
+        filters = get_saved_filters()
+        if not filters:
+            return
+
+        # Insérer les pills entre le bouton et le stretch
+        for flt in filters:
+            pill = self._make_pill(flt["name"], flt["query"])
+            # Insérer avant le stretch (dernier élément)
+            self._filters_row.insertWidget(self._filters_row.count() - 1, pill)
+
+    def _make_pill(self, name: str, query: str) -> QPushButton:
+        pill = QPushButton(name)
+        pill.setFixedHeight(26)
+        pill.setToolTip(f'Filtre : {query}\nClic droit pour supprimer')
+        pill.setStyleSheet("""
+            QPushButton {
+                background:#23272b; color:#c8cdd4; border:1px solid #3a3f47;
+                border-radius:13px; font-size:11px; padding:0 12px;
+            }
+            QPushButton:hover { background:#2e3238; border-color:#5a6068; color:#ffffff; }
+            QPushButton:pressed { background:#3b82f6; border-color:#3b82f6; }
+        """)
+        pill.clicked.connect(lambda _, q=query: self._apply_saved_filter(q))
+        pill.setContextMenuPolicy(Qt.CustomContextMenu)
+        pill.customContextMenuRequested.connect(
+            lambda pos, n=name, p=pill: self._pill_context_menu(pos, n, p)
+        )
+        return pill
+
+    def _apply_saved_filter(self, query: str):
+        """Applique un filtre sauvegardé en remplissant la barre de recherche."""
+        self.search.setText(query)
+        self.filter_table()
+
+    def _save_current_filter(self):
+        """Ouvre une boîte de dialogue pour nommer et sauvegarder le filtre courant."""
+        query = self.search.text().strip()
+        if not query:
+            return
+
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QDialogButtonBox
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Sauvegarder ce filtre")
+        dlg.setFixedWidth(340)
+        vl = QVBoxLayout(dlg)
+        vl.setContentsMargins(20, 20, 20, 20)
+        vl.setSpacing(10)
+
+        vl.addWidget(QLabel(f'Filtre : <b>{query}</b>'))
+
+        name_edit = QLineEdit()
+        name_edit.setPlaceholderText("Nom du filtre (ex: Courses, Netflix…)")
+        name_edit.setMinimumHeight(34)
+        name_edit.setText(query[:30])
+        name_edit.selectAll()
+        vl.addWidget(name_edit)
+
+        btns = QDialogButtonBox()
+        btns.addButton("Sauvegarder", QDialogButtonBox.AcceptRole)
+        btns.addButton("Annuler", QDialogButtonBox.RejectRole)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        vl.addWidget(btns)
+
+        name_edit.returnPressed.connect(dlg.accept)
+
+        if dlg.exec() != QDialog.Accepted:
+            return
+
+        name = name_edit.text().strip()
+        if not name:
+            return
+
+        save_filter(name, query)
+        self._load_filter_pills()
+        Toast.show(self, f'✓  Filtre "{name}" sauvegardé', kind="success")
+
+    def _pill_context_menu(self, pos, name: str, pill: QPushButton):
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu { background:#1e2124; border:1px solid #2e3238; border-radius:6px; }
+            QMenu::item { color:#c8cdd4; font-size:12px; padding:6px 16px; }
+            QMenu::item:selected { background:#2e3238; }
+        """)
+        act_del = menu.addAction(f'Supprimer "{name}"')
+        action = menu.exec(pill.mapToGlobal(pos))
+        if action == act_del:
+            delete_filter(name)
+            self._load_filter_pills()
+            Toast.show(self, f'Filtre "{name}" supprimé', kind="warning")
+
+    # ── Fin filtres sauvegardés ────────────────────────────────────────────────
+
     def _on_global_search_toggled(self, checked: bool):
         """Recharge toutes les transactions ou revient à la période."""
         if checked:
