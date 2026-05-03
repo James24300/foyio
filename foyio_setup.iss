@@ -1,8 +1,8 @@
-; Script Inno Setup — Foyio v1.1.1
+; Script Inno Setup — Foyio v1.1.2
 ; Généré automatiquement par build_windows.py
 
 #define MyAppName      "Foyio"
-#define MyAppVersion   "1.1.1"
+#define MyAppVersion   "1.1.2"
 #define MyAppPublisher "Foyio"
 #define MyAppURL       "https://github.com/James24300/foyio"
 #define MyAppExeName   "Foyio.exe"

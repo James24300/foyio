@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QScrollArea, QTabWidget, QComboBox
 )
-from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal, QMetaObject, Q_ARG
+from PySide6.QtCore import Qt, QSize, QPropertyAnimation, QLocale, QEasingCurve, Signal, Slot, QMetaObject, Q_ARG
 from PySide6.QtGui import QIcon
 
 from db import Base, engine, Session
@@ -819,6 +819,7 @@ class MainWindow(QWidget):
 
         check_async(callback=_on_result)
 
+    @Slot(str)
     def _show_update_toast(self, latest: str):
         """Appelé depuis le thread principal pour afficher la notification."""
         from ui.toast import Toast
