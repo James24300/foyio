@@ -54,6 +54,7 @@ from ui.recurring_view import RecurringView
 from ui.accounts_view import AccountsView
 from ui.savings_view import SavingsView
 from ui.networth_view import NetWorthView
+from ui.forecast_view import ForecastView
 from ui.calculator import Calculator
 from ui.tools_view import ToolsView
 from ui.about_view import AboutView
@@ -425,13 +426,14 @@ class MainWindow(QWidget):
         self.crypto       = CryptoView()
         self.ideas_v      = IdeasView()
         self.networth     = NetWorthView()
+        self.forecast     = ForecastView()
 
         for view in [
             self.accueil, self.transactions, self.budget,
             self.categories, self.stats, self.recurring,
             self.savings, self.accounts, self.loans,
             self.tools, self.settings_v, self.features_v, self.about,
-            self.crypto, self.ideas_v, self.networth
+            self.crypto, self.ideas_v, self.networth, self.forecast
         ]:
             self.stack.addTab(view, "")
 
@@ -736,6 +738,7 @@ class MainWindow(QWidget):
             ("categories.png",   " Catégories",      3),
             ("bank.png",         " Comptes",          7),
             ("money.png",        " Prêts",            8),
+            ("stats.png",        " Prévisions",      16),
             ("stats.png",        " Outils",           9),
             (None, None, None),  # séparateur
             ("other.png",        " Paramètres",      10),
@@ -987,11 +990,12 @@ class MainWindow(QWidget):
             ("money.png",        "Crypto-monnaies"),
             ("other.png",        "Boîte à idées"),
             ("balance.png",      "Patrimoine Net"),
+            ("stats.png",        "Prévisions"),
         ]
 
         # Indices correspondant aux boutons principaux de la sidebar
         _MAIN_INDICES = [0, 1, 2, 6, 15, 4, 13]
-        _PLUS_INDICES = {3, 5, 7, 8, 9, 10, 11, 12, 14}
+        _PLUS_INDICES = {3, 5, 7, 8, 9, 10, 11, 12, 14, 16}
         for i, btn in enumerate(self._nav_buttons):
             btn.setChecked(_MAIN_INDICES[i] == index)
         if hasattr(self, "btn_plus"):
@@ -1070,6 +1074,7 @@ class MainWindow(QWidget):
         if hasattr(self, "crypto"):       self.crypto.refresh()
         if hasattr(self, "ideas_v"):      self.ideas_v.refresh()
         if hasattr(self, "networth"):     self.networth.refresh()
+        if hasattr(self, "forecast"):     self.forecast.refresh()
 
 
 
