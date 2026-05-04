@@ -125,11 +125,7 @@ def get_forecast(months_ahead: int = 6, history_months: int = 4,
             hy, hm = _prev_month(hy, hm)
 
         for _ in range(history_months):
-            hy, hm = _next_month(hy, hm) if history else (hy, hm)
-            if not history:
-                hy, hm = cy, cm
-                for _ in range(history_months - 1):
-                    hy, hm = _prev_month(hy, hm)
+            hy, hm = _next_month(hy, hm)
 
             income  = _month_sum(session, "income",  hy, hm, account_id)
             expense = _month_sum(session, "expense", hy, hm, account_id)
@@ -193,18 +189,8 @@ def get_forecast(months_ahead: int = 6, history_months: int = 4,
     # On remonte au début de l'historique pour recalculer proprement
     all_months = history + forecast
 
-    # Calculer le solde cumulé à la fin du mois juste avant history[0]
-    # en partant du solde actuel et en soustrayant les mois d'historique
-    running = current_balance
-    # D'abord recalculer pour les mois d'historique en sens inverse
-    rev_history = list(reversed(history))
-    for m in rev_history:
-        m["cumulative"] = round(running, 2)
-        running -= m["balance"]
-    running = current_balance  # reset pour aller vers le futur
-
     # Remettre les cumulés de l'historique en partant du plus ancien
-    cum = running - sum(m["balance"] for m in history)
+    cum = current_balance - sum(m["balance"] for m in history)
     for m in history:
         cum += m["balance"]
         m["cumulative"] = round(cum, 2)

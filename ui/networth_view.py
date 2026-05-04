@@ -385,7 +385,7 @@ class NetWorthView(QWidget):
             if self._crypto_fetcher and self._crypto_fetcher.isRunning():
                 self._crypto_fetcher.quit()
             self._crypto_fetcher = _CryptoPriceFetcher(ids)
-            self._crypto_fetcher.done.connect(self._on_crypto_prices)
+            self._crypto_fetcher.done.connect(self._on_crypto_prices, Qt.SingleShotConnection)
             self._crypto_fetcher.start()
         else:
             self._populate(crypto_value=0.0, prices={}, loading=False)

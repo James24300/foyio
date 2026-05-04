@@ -85,7 +85,7 @@ def add_transaction(amount, type, category_id, note=None, date=None, tags=None, 
         # Si note identique → doublon certain
         exact = q.filter(Transaction.note == note_clean).first()
         if exact:
-            logger.debug("Transaction doublon ignorée : {amount} {note_clean} {date.date()}")
+            logger.debug(f"Transaction doublon ignorée : {amount} {note_clean} {date.date()}")
             return
         # Si note vide des deux côtés → doublon probable
         if not note_clean:

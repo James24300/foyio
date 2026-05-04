@@ -1,3 +1,4 @@
+import logging
 import os
 
 from PySide6.QtWidgets import (
@@ -31,6 +32,7 @@ from services.transaction_service import (
     get_tags_for_transactions,
 )
 
+logger = logging.getLogger(__name__)
 
 _SORT_ROLE = Qt.UserRole + 1
 
@@ -673,82 +675,6 @@ class Transactions(QWidget):
         self.accueil.refresh()
         Toast.show(self, "Transaction supprimée", kind="warning")
         self._check_duplicates()
-
-    # ------------------------------------------------------------------
-    def edit_transaction(self, item):
-        row = item.row()
-        id_item = self.table.item(row, 1)
-        if not id_item:
-            return
-        transaction_id = id_item.data(Qt.UserRole)
-
-        with Session() as session:
-            t = session.query(Transaction).filter_by(id=transaction_id).first()
-            if not t:
-                return
-            t_id, t_amount, t_type = t.id, t.amount, t.type
-            t_note, t_date, t_cat_id = t.note or "", t.date, t.category_id
-            cats_data = [
-                (c.id, c.name,
-                 c.icon if c.icon and c.icon.endswith(".png") else None)
-                for c in session.query(Category).order_by(Category.name).all()
-            ]
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Modifier la transaction")
-        dialog.setMinimumWidth(340)
-        dlg_layout = QVBoxLayout(dialog)
-        dlg_layout.setSpacing(8)
-
-        type_input = QComboBox()
-        type_input.addItems(["Dépense", "Revenu"])
-        type_input.setCurrentIndex(0 if t_type == "expense" else 1)
-
-        amount_input = QLineEdit(str(t_amount))
-        note_input   = QLineEdit(t_note)
-
-        date_input = QDateEdit()
-        date_input.setCalendarPopup(True)
-        date_input.setDate(QDate(t_date.year, t_date.month, t_date.day))
-
-        cat_input = QComboBox()
-        from utils.icons import get_icon as _get_icon
-        for cid, clabel, cicon in cats_data:
-            icon_widget = _get_icon(cicon, 18) if cicon else _get_icon("other.png", 18)
-            cat_input.addItem(icon_widget, clabel, cid)
-            if cid == t_cat_id:
-                cat_input.setCurrentIndex(cat_input.count() - 1)
-
-        save_btn = QPushButton("Enregistrer")
-
-        def save():
-            try:
-                new_amount = float(amount_input.text().replace(",", "."))
-            except ValueError:
-                return
-            with Session() as s:
-                tr = s.query(Transaction).filter_by(id=t_id).first()
-                if tr:
-                    tr.amount      = new_amount
-                    tr.note        = note_input.text().strip()
-                    tr.type        = "income" if type_input.currentText() == "Revenu" else "expense"
-                    tr.category_id = cat_input.currentData()
-                    tr.date        = date_input.date().toPython()
-                    s.commit()
-            dialog.accept()
-            self.load()
-            self.accueil.refresh()
-
-        save_btn.clicked.connect(save)
-
-        for label_txt, widget in [
-            ("Type", type_input), ("Montant (€)", amount_input),
-            ("Description", note_input), ("Date", date_input), ("Catégorie", cat_input)
-        ]:
-            dlg_layout.addWidget(QLabel(label_txt))
-            dlg_layout.addWidget(widget)
-        dlg_layout.addWidget(save_btn)
-        dialog.exec()
 
     # ------------------------------------------------------------------
     def _show_share_dialog(self, filepath: str, count: int):
