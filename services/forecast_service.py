@@ -7,7 +7,7 @@ Projette les revenus, dépenses et solde cumulé mois par mois en combinant :
 """
 import logging
 from datetime import date, datetime
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from db import Session
 from models import Transaction, RecurringTransaction
@@ -105,7 +105,7 @@ def get_forecast(months_ahead: int = 6, history_months: int = 4,
     with Session() as session:
         # ── 1. Solde cumulé actuel (toutes transactions jusqu'à ce mois) ────
         q_bal = session.query(
-            func.sum(Transaction.amount * func.case(
+            func.sum(Transaction.amount * case(
                 (Transaction.type == "income",  1),
                 (Transaction.type == "expense", -1),
                 else_=0,
