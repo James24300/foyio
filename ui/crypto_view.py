@@ -1282,21 +1282,8 @@ class CryptoView(_CryptoDcaMixin, _CryptoWatchlistMixin, _CryptoTopMixin,
             Toast.show(self, f"✕  Erreur : {e}", kind="error")
 
     def _show_tray_msg(self, title: str, message: str):
-        """Affiche une notification systray en cherchant le _tray dans la hiérarchie."""
-        from PySide6.QtWidgets import QSystemTrayIcon
-        from PySide6.QtGui import QIcon
-        import os
-        # Chercher le _tray dans les parents ou dans les top-level widgets
-        w = self.window()
-        tray = getattr(w, "_tray", None)
-        if tray is None:
-            from PySide6.QtWidgets import QApplication
-            for tw in QApplication.topLevelWidgets():
-                if hasattr(tw, "_tray"):
-                    tray = tw._tray
-                    break
-        if tray:
-            tray.showMessage(title, message, QSystemTrayIcon.Information, 6000)
+        from services import notification_service as _notif
+        _notif.send(title, message)
 
     def _check_alerts_now(self):
         triggered = check_alerts(self._prices)

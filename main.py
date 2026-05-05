@@ -439,7 +439,8 @@ class MainWindow(QWidget):
 
         # ── Systray ──
         from PySide6.QtWidgets import QSystemTrayIcon, QMenu
-        self._tray = QSystemTrayIcon(QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")), self)
+        _icon_file = os.path.join(BASE_DIR, "icons", "foyio_logo.png")
+        self._tray = QSystemTrayIcon(QIcon(_icon_file), self)
         self._tray.setToolTip("Foyio")
         tray_menu = QMenu()
         tray_menu.addAction("Ouvrir Foyio", self.showNormal)
@@ -448,6 +449,9 @@ class MainWindow(QWidget):
         self._tray.setContextMenu(tray_menu)
         self._tray.activated.connect(self._on_tray_activated)
         self._tray.show()
+
+        from services import notification_service as _notif
+        _notif.set_icon(_icon_file)
 
         # Notifications de rappel pour les récurrentes à venir
         from PySide6.QtCore import QTimer as _QT
@@ -838,9 +842,10 @@ class MainWindow(QWidget):
         )
 
     def _notify_upcoming_recurring(self):
-        """Affiche une notification Windows pour chaque récurrente proche."""
+        """Envoie une notification OS pour les récurrentes à venir."""
         try:
             from services.recurring_service import get_upcoming_recurring
+            from services import notification_service as _notif
             from utils.formatters import format_money as _fmt
             upcoming = get_upcoming_recurring()
             if not upcoming:
@@ -850,23 +855,17 @@ class MainWindow(QWidget):
                 msg = f"{r['label']} — {_fmt(r['amount'])} dans {r['days_until']} jour(s)"
             else:
                 msg = f"{len(upcoming)} échéances à venir ce mois"
-            self._tray.showMessage(
-                "Foyio — Rappel récurrentes",
-                msg,
-                QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")),
-                5000
-            )
+            _notif.send("Foyio — Rappel récurrentes", msg)
         except Exception:
-            logger.warning("Exception silencieuse", exc_info=True)
+            logger.warning("Erreur notification récurrentes", exc_info=True)
     def closeEvent(self, event):
         """Minimiser dans le systray au lieu de fermer."""
         event.ignore()
         self.hide()
-        self._tray.showMessage(
+        from services import notification_service as _notif
+        _notif.send(
             "Foyio",
             "L'application tourne en arrière-plan.\nDouble-cliquez sur l'icône pour la rouvrir.",
-            QIcon(os.path.join(BASE_DIR, "icons", "foyio_logo.png")),
-            2500
         )
 
     def _on_tray_activated(self, reason):
