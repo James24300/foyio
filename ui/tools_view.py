@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTabWidget, QFormLayout, QComboBox,
     QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
-    QLineEdit, QSizePolicy, QGridLayout, QSpinBox
+    QLineEdit, QSizePolicy, QGridLayout, QSpinBox, QScrollArea
 )
 from PySide6.QtGui import QDoubleValidator, QIntValidator
 from PySide6.QtCore import Qt
@@ -975,14 +975,14 @@ class ToolsView(QWidget):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
 
+        # ── Titre + aide ──
         title_row = QHBoxLayout()
         title_row.addWidget(_lbl("Rapport fiscal annuel", bold=True, color="#c8cdd4"))
         title_row.addStretch()
         _help = QPushButton(" ? Aide")
         _help.setFixedHeight(26)
-        _help.setToolTip("Comment fonctionne le rapport fiscal ?")
         _help.setStyleSheet(
             "QPushButton { background:transparent; color:#5a6472; border:1px solid #3d4248; "
             "border-radius:6px; font-size:11px; font-weight:600; padding:0 8px; }"
@@ -991,90 +991,236 @@ class ToolsView(QWidget):
         from PySide6.QtWidgets import QMessageBox as _QMB
         _help.clicked.connect(lambda: _QMB.information(
             tab, "Rapport fiscal annuel",
-            "Ce rapport exporte un fichier PDF sur votre Bureau.\n\n"
-            "Il contient :\n"
-            "• Résumé annuel — revenus, dépenses, solde net\n"
-            "• Ventilation mensuelle — tableau mois par mois\n"
-            "• Répartition par catégorie — classée du plus grand au plus petit\n\n"
-            "Nécessite la bibliothèque reportlab.\n"
-            "Si elle n'est pas installée, lancez dans un terminal :\n"
+            "Calcule vos revenus, dépenses et solde net pour l'année choisie.\n\n"
+            "Le rapport in-app affiche :\n"
+            "• Synthèse (3 KPIs)\n"
+            "• Ventilation mensuelle\n"
+            "• Dépenses par catégorie\n"
+            "• Top 10 dépenses\n\n"
+            "L'export PDF nécessite reportlab :\n"
             "    python -m pip install reportlab"
         ))
         title_row.addWidget(_help)
         layout.addLayout(title_row)
-        layout.addWidget(_lbl(
-            "Générez un rapport PDF complet avec revenus, dépenses, "
-            "ventilation mensuelle et catégorielle.",
-            color="#5a6472"
-        ))
         layout.addWidget(_sep())
 
-        form = QFormLayout()
-        form.setSpacing(10)
+        # ── Barre de contrôle ──
+        ctrl = QHBoxLayout()
+        ctrl.setSpacing(10)
+        ctrl.addWidget(_lbl("Année :"))
 
         self._fiscal_year = QSpinBox()
-        self._fiscal_year.setRange(2020, 2030)
+        self._fiscal_year.setRange(2015, _dt.now().year + 1)
         self._fiscal_year.setValue(_dt.now().year)
-        self._fiscal_year.setMinimumHeight(36)
+        self._fiscal_year.setFixedHeight(36)
+        self._fiscal_year.setFixedWidth(110)
         self._fiscal_year.setStyleSheet(
             "QSpinBox { background:#292d32; color:#c8cdd4; border:1px solid #3d4248; "
-            "border-radius:8px; padding:6px 12px; font-size:13px; }"
-            "QSpinBox::up-button, QSpinBox::down-button { "
-            "background:#3e4550; border:none; width:20px; }"
-            "QSpinBox::up-arrow { image: url(icons/arrow_up.svg); width:10px; height:10px; }"
-            "QSpinBox::down-arrow { image: url(icons/arrow_down.svg); width:10px; height:10px; }"
+            "border-radius:8px; padding:4px 10px; font-size:13px; }"
+            "QSpinBox::up-button, QSpinBox::down-button { background:#3e4550; border:none; width:20px; }"
         )
-        form.addRow(_lbl("Année :"), self._fiscal_year)
-        layout.addLayout(form)
+        ctrl.addWidget(self._fiscal_year)
 
-        btn = QPushButton("  Générer le rapport PDF")
-        btn.setMinimumHeight(42)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setStyleSheet(
-            "QPushButton { background:#22c55e; color:#ffffff; "
-            "border:none; border-radius:8px; font-size:13px; font-weight:700; "
-            "padding:8px 20px; }"
-            "QPushButton:hover { background:#16a34a; }"
+        btn_calc = QPushButton("Calculer")
+        btn_calc.setFixedHeight(36)
+        btn_calc.setStyleSheet(
+            "QPushButton { background:#3b82f6; color:#fff; border:none; "
+            "border-radius:8px; font-size:13px; font-weight:700; padding:0 18px; }"
+            "QPushButton:hover { background:#2563eb; }"
         )
-        btn.clicked.connect(self._generate_fiscal_report)
-        layout.addWidget(btn)
+        btn_calc.clicked.connect(self._generate_fiscal_report)
+        ctrl.addWidget(btn_calc)
 
-        self._fiscal_result = _result_box("—")
-        layout.addWidget(self._fiscal_result)
+        self._btn_pdf = QPushButton("Exporter PDF")
+        self._btn_pdf.setFixedHeight(36)
+        self._btn_pdf.setEnabled(False)
+        self._btn_pdf.setStyleSheet(
+            "QPushButton { background:#26292e; color:#c8cdd4; border:1px solid #3d4248; "
+            "border-radius:8px; font-size:12px; padding:0 14px; }"
+            "QPushButton:hover { background:#2e3238; }"
+            "QPushButton:disabled { color:#3d4248; border-color:#2e3238; }"
+        )
+        self._btn_pdf.clicked.connect(self._export_fiscal_pdf)
+        ctrl.addWidget(self._btn_pdf)
+        ctrl.addStretch()
+        layout.addLayout(ctrl)
 
-        layout.addStretch()
+        # ── Zone de résultats (scrollable) ──
+        self._fiscal_scroll = QScrollArea()
+        self._fiscal_scroll.setWidgetResizable(True)
+        self._fiscal_scroll.setFrameShape(QFrame.NoFrame)
+        self._fiscal_scroll.setStyleSheet("background:transparent;")
+
+        placeholder = QLabel("Sélectionnez une année et cliquez sur Calculer.")
+        placeholder.setAlignment(Qt.AlignCenter)
+        placeholder.setStyleSheet("color:#5a6472; font-size:13px; background:transparent;")
+        self._fiscal_scroll.setWidget(placeholder)
+        layout.addWidget(self._fiscal_scroll, 1)
+
+        self._fiscal_report_data = None
         return tab
 
     def _generate_fiscal_report(self):
         from ui.toast import Toast
-        import os
+        year = self._fiscal_year.value()
+        try:
+            from services.fiscal_report_service import generate_fiscal_report
+            data = generate_fiscal_report(year)
+            self._fiscal_report_data = data
+            self._show_fiscal_data(year, data)
+            self._btn_pdf.setEnabled(True)
+        except Exception as e:
+            Toast.show(self, f"Erreur : {e}", kind="error")
 
+    def _show_fiscal_data(self, year: int, data: dict):
+        container = QWidget()
+        container.setStyleSheet("background:transparent;")
+        vl = QVBoxLayout(container)
+        vl.setContentsMargins(0, 0, 0, 16)
+        vl.setSpacing(16)
+
+        # ── KPIs ──
+        kpi_row = QHBoxLayout()
+        kpi_row.setSpacing(12)
+
+        def _kpi(label, value, color):
+            w = QWidget()
+            w.setStyleSheet(
+                f"background:#26292e; border-radius:10px; border:1px solid #3a3f47;"
+            )
+            wl = QVBoxLayout(w)
+            wl.setContentsMargins(16, 12, 16, 12)
+            wl.setSpacing(4)
+            t = QLabel(label)
+            t.setStyleSheet("font-size:10px; color:#5a6472; font-weight:600; background:transparent; border:none;")
+            v = QLabel(value)
+            v.setStyleSheet(f"font-size:18px; font-weight:700; color:{color}; background:transparent; border:none;")
+            wl.addWidget(t)
+            wl.addWidget(v)
+            return w
+
+        net = data["net_balance"]
+        net_color = "#22c55e" if net >= 0 else "#ef4444"
+        net_sign  = "+" if net >= 0 else ""
+        kpi_row.addWidget(_kpi("REVENUS TOTAUX",  f"+{format_money(data['total_income'])}", "#22c55e"))
+        kpi_row.addWidget(_kpi("DÉPENSES TOTALES", f"-{format_money(data['total_expense'])}", "#ef4444"))
+        kpi_row.addWidget(_kpi("SOLDE NET",        f"{net_sign}{format_money(net)}", net_color))
+        vl.addLayout(kpi_row)
+
+        # ── Ventilation mensuelle ──
+        vl.addWidget(_lbl("Ventilation mensuelle", bold=True, color="#c8cdd4"))
+        tbl_m = QTableWidget(12, 4)
+        tbl_m.setHorizontalHeaderLabels(["Mois", "Revenus", "Dépenses", "Solde"])
+        tbl_m.setEditTriggers(QTableWidget.NoEditTriggers)
+        tbl_m.setShowGrid(False)
+        tbl_m.setFrameShape(QFrame.NoFrame)
+        tbl_m.verticalHeader().setVisible(False)
+        tbl_m.verticalHeader().setDefaultSectionSize(34)
+        tbl_m.setFixedHeight(34 * 12 + tbl_m.horizontalHeader().height() + 4)
+        hdr = tbl_m.horizontalHeader()
+        hdr.setSectionResizeMode(0, QHeaderView.Stretch)
+        for c in [1, 2, 3]:
+            hdr.setSectionResizeMode(c, QHeaderView.Fixed)
+            tbl_m.setColumnWidth(c, 110)
+        tbl_m.setStyleSheet(
+            "QTableWidget { background:#1e2023; color:#c8cdd4; border:none; }"
+            "QTableWidget::item { border-bottom:1px solid #26292e; padding:0 8px; }"
+            "QHeaderView::section { background:#26292e; color:#7a8494; border:none; "
+            "border-bottom:1px solid #3a3f47; padding:5px 8px; font-size:11px; }"
+        )
+        for r, m in enumerate(data["monthly_breakdown"]):
+            tbl_m.setItem(r, 0, QTableWidgetItem(m["month"]))
+            inc_item = QTableWidgetItem(f"+{format_money(m['income'])}")
+            inc_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            inc_item.setForeground(QColor("#22c55e"))
+            tbl_m.setItem(r, 1, inc_item)
+            exp_item = QTableWidgetItem(f"-{format_money(m['expense'])}")
+            exp_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            exp_item.setForeground(QColor("#ef4444"))
+            tbl_m.setItem(r, 2, exp_item)
+            bal = m["balance"]
+            bal_item = QTableWidgetItem(f"{'+'if bal>=0 else ''}{format_money(bal)}")
+            bal_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            bal_item.setForeground(QColor("#22c55e" if bal >= 0 else "#ef4444"))
+            tbl_m.setItem(r, 3, bal_item)
+        vl.addWidget(tbl_m)
+
+        # ── Dépenses par catégorie ──
+        cat_data = [(k, v["expense"]) for k, v in data["category_totals"].items() if v["expense"] > 0]
+        if cat_data:
+            vl.addWidget(_lbl("Dépenses par catégorie", bold=True, color="#c8cdd4"))
+            total_exp = data["total_expense"] or 1
+            tbl_c = QTableWidget(len(cat_data), 3)
+            tbl_c.setHorizontalHeaderLabels(["Catégorie", "Montant", "% total"])
+            tbl_c.setEditTriggers(QTableWidget.NoEditTriggers)
+            tbl_c.setShowGrid(False)
+            tbl_c.setFrameShape(QFrame.NoFrame)
+            tbl_c.verticalHeader().setVisible(False)
+            tbl_c.verticalHeader().setDefaultSectionSize(32)
+            tbl_c.setFixedHeight(32 * len(cat_data) + tbl_c.horizontalHeader().height() + 4)
+            ch = tbl_c.horizontalHeader()
+            ch.setSectionResizeMode(0, QHeaderView.Stretch)
+            ch.setSectionResizeMode(1, QHeaderView.Fixed); tbl_c.setColumnWidth(1, 120)
+            ch.setSectionResizeMode(2, QHeaderView.Fixed); tbl_c.setColumnWidth(2, 80)
+            tbl_c.setStyleSheet(tbl_m.styleSheet())
+            for r, (cat, amt) in enumerate(cat_data):
+                tbl_c.setItem(r, 0, QTableWidgetItem(cat))
+                a_item = QTableWidgetItem(f"-{format_money(amt)}")
+                a_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                a_item.setForeground(QColor("#ef4444"))
+                tbl_c.setItem(r, 1, a_item)
+                p_item = QTableWidgetItem(f"{amt / total_exp * 100:.1f}%")
+                p_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                p_item.setForeground(QColor("#848c94"))
+                tbl_c.setItem(r, 2, p_item)
+            vl.addWidget(tbl_c)
+
+        # ── Top 10 dépenses ──
+        top = data.get("top_expenses", [])
+        if top:
+            vl.addWidget(_lbl("Top 10 dépenses", bold=True, color="#c8cdd4"))
+            tbl_t = QTableWidget(len(top), 4)
+            tbl_t.setHorizontalHeaderLabels(["Date", "Description", "Montant", "Catégorie"])
+            tbl_t.setEditTriggers(QTableWidget.NoEditTriggers)
+            tbl_t.setShowGrid(False)
+            tbl_t.setFrameShape(QFrame.NoFrame)
+            tbl_t.verticalHeader().setVisible(False)
+            tbl_t.verticalHeader().setDefaultSectionSize(32)
+            tbl_t.setFixedHeight(32 * len(top) + tbl_t.horizontalHeader().height() + 4)
+            th = tbl_t.horizontalHeader()
+            th.setSectionResizeMode(1, QHeaderView.Stretch)
+            for c_, w_ in [(0, 80), (2, 110), (3, 130)]:
+                th.setSectionResizeMode(c_, QHeaderView.Fixed)
+                tbl_t.setColumnWidth(c_, w_)
+            tbl_t.setStyleSheet(tbl_m.styleSheet())
+            for r, exp in enumerate(top):
+                tbl_t.setItem(r, 0, QTableWidgetItem(exp["date"]))
+                tbl_t.setItem(r, 1, QTableWidgetItem(exp["description"]))
+                a_item = QTableWidgetItem(f"-{format_money(exp['amount'])}")
+                a_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+                a_item.setForeground(QColor("#ef4444"))
+                tbl_t.setItem(r, 2, a_item)
+                tbl_t.setItem(r, 3, QTableWidgetItem(exp["category"]))
+            vl.addWidget(tbl_t)
+
+        vl.addStretch()
+        self._fiscal_scroll.setWidget(container)
+
+    def _export_fiscal_pdf(self):
+        from ui.toast import Toast
+        import os
+        if not self._fiscal_report_data:
+            return
         year = self._fiscal_year.value()
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         filepath = os.path.join(desktop, f"rapport_fiscal_{year}.pdf")
-
         try:
             from services.fiscal_report_service import export_fiscal_pdf
-            result_path = export_fiscal_pdf(year, filepath=filepath)
-            self._fiscal_result.setText(f"Rapport {year} exporté !")
-            self._fiscal_result.setStyleSheet(
-                "font-size:16px; font-weight:700; color:#22c55e; "
-                "background:#1a2a1a; border-radius:10px; padding:14px; border:none;"
-            )
+            export_fiscal_pdf(year, filepath=filepath)
             Toast.show(self, f"Rapport fiscal {year} enregistré sur le Bureau", kind="success")
         except ImportError:
-            self._fiscal_result.setText("reportlab non installé")
-            self._fiscal_result.setStyleSheet(
-                "font-size:14px; font-weight:700; color:#ef4444; "
-                "background:#2a1a1a; border-radius:10px; padding:14px; border:none;"
-            )
             Toast.show(self,
                 "reportlab non installé. Lancez : python -m pip install reportlab",
                 kind="error")
         except Exception as e:
-            self._fiscal_result.setText("Erreur")
-            self._fiscal_result.setStyleSheet(
-                "font-size:14px; font-weight:700; color:#ef4444; "
-                "background:#2a1a1a; border-radius:10px; padding:14px; border:none;"
-            )
-            Toast.show(self, f"Erreur rapport fiscal : {e}", kind="error")
+            Toast.show(self, f"Erreur export PDF : {e}", kind="error")
