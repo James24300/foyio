@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy import func
@@ -7,6 +8,8 @@ from models import Transaction, Category
 from services.stats_service import monthly_totals
 import period_state
 import account_state
+
+logger = logging.getLogger(__name__)
 
 
 def _af(query):

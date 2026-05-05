@@ -1,5 +1,8 @@
+import logging
 import re
 from datetime import date
+
+logger = logging.getLogger(__name__)
 
 # Formats de date reconnus dans la recherche
 # Exemples supportés :

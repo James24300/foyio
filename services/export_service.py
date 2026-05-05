@@ -1,3 +1,4 @@
+import logging
 """
 Service d'export des transactions au format CSV.
 """
@@ -8,6 +9,8 @@ from datetime import datetime
 from db import Session
 from models import Transaction, Category
 import period_state
+
+logger = logging.getLogger(__name__)
 
 
 def export_transactions_csv(filepath: str, all_periods: bool = False) -> int:

@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy import func, case
@@ -6,6 +7,8 @@ from db import Session
 from models import Transaction, Category
 import period_state
 import account_state
+
+logger = logging.getLogger(__name__)
 
 
 def _af(query):

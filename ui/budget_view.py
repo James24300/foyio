@@ -1,3 +1,4 @@
+import logging
 import account_state
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
@@ -20,6 +21,8 @@ from services.transaction_service import (
     set_annual_budget, delete_annual_budget, get_annual_budget_status,
 )
 from ui.toast import Toast
+
+logger = logging.getLogger(__name__)
 
 
 class BudgetView(QWidget):

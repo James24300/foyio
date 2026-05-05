@@ -1,3 +1,4 @@
+import logging
 """
 Service de transfert automatique — Foyio
 Quand une dépense est ajoutée sur une catégorie liée à un compte épargne,
@@ -5,6 +6,8 @@ propose de créer automatiquement le revenu correspondant sur ce compte.
 """
 from db import Session, safe_session
 from models import Category, Transaction, Account
+
+logger = logging.getLogger(__name__)
 
 
 def get_transfer_account(category_id: int):

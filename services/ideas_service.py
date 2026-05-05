@@ -1,8 +1,11 @@
+import logging
 """Service Boîte à idées — Foyio"""
 from datetime import datetime
 from db import Session, safe_session
 from models import Idea
 import account_state
+
+logger = logging.getLogger(__name__)
 
 
 def submit_idea(author: str, content: str) -> "Idea":

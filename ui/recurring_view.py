@@ -1,3 +1,4 @@
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLineEdit, QLabel, QComboBox, QSpinBox,
@@ -17,6 +18,8 @@ from ui.spellcheck_lineedit import SpellCheckLineEdit
 from services.recurring_service import (
     get_recurring, add_recurring, toggle_recurring, delete_recurring
 )
+
+logger = logging.getLogger(__name__)
 
 DAYS_FR = [
     "1er", "2", "3", "4", "5", "6", "7", "8", "9", "10",

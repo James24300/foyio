@@ -1,3 +1,4 @@
+import logging
 """
 Service prêts — gestion des crédits, tableau d'amortissement, résumé.
 """
@@ -6,6 +7,8 @@ from dateutil.relativedelta import relativedelta
 from db import Session, safe_session
 from models import Loan
 import account_state
+
+logger = logging.getLogger(__name__)
 
 
 def add_loan(name: str, total_amount: float, monthly_payment: float,

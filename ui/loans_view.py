@@ -1,3 +1,4 @@
+import logging
 """
 Vue Prêts — Foyio
 Gestion des prêts / crédits avec tableau d'amortissement.
@@ -18,6 +19,8 @@ from services.loan_service import (
     add_loan, update_loan, get_loans, delete_loan,
     get_amortization_schedule, get_loan_summary, compute_current_remaining,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class LoansView(QWidget):

@@ -13,9 +13,12 @@ Usage :
     learn_from_history()                  # apprendre depuis les transactions existantes
 """
 
+import logging
 import re
 from db import Session
 from models import TransactionRule, Transaction, Category
+
+logger = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────

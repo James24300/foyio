@@ -1,3 +1,4 @@
+import logging
 """
 Vue de gestion des comptes bancaires.
 Permet d'ajouter, renommer, supprimer des comptes et voir leur solde global.
@@ -20,6 +21,8 @@ from services.account_service import (
     get_accounts, add_account, rename_account, delete_account,
     get_account_balance, get_account_tx_count, update_account_url
 )
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

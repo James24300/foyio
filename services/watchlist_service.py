@@ -1,7 +1,10 @@
+import logging
 """Service Watchlist crypto — Foyio"""
 from datetime import datetime
 from db import Session, safe_session
 from models import WatchlistItem
+
+logger = logging.getLogger(__name__)
 
 
 def get_watchlist() -> list:
