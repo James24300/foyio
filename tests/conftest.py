@@ -20,6 +20,7 @@ from db import Base
 _MODULES_WITH_SESSION = [
     "services.transaction_service",
     "services.recurring_service",
+    "services.reminder_service",
     "services.account_service",
     "services.init_categories",
     "services.transaction_recognition",
