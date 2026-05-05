@@ -1,5 +1,5 @@
 {
-  "version": "1.1.2",
-  "release_date": "2026-05-03",
-  "notes": "Import CSV multi-banques (N26, Revolut, Wise, BoursoBank, CM/CIC, La Banque Postale, Banque Populaire, Caisse d'Épargne/BNP), fix affichage transaction après ajout, bulles Crypto animées en permanence, camembert Crypto (tranches visibles + couleurs alternées), transfert épargne avec ventilation automatique sur objectif, boîte à idées intégrée, compte lié configurable par catégorie"
+  "version": "1.2.0",
+  "release_date": "2026-05-05",
+  "notes": "Sécurité : mot de passe renforcé (scrypt + sel aléatoire, migration SHA-256 transparente, délai anti-brute-force, minimum 8 caractères). Notifications OS natives (Windows Action Center, notify-send Linux, osascript macOS). Rapport fiscal in-app : KPIs, ventilation mensuelle, catégories, top 10 dépenses sans dépendance externe. Refactoring crypto_view.py en 6 mixins (-59%). 110 tests automatisés. Corrections : SQLAlchemy case() 2.x, save_tags(), f-string manquante, forecast_service history loop."
 }
