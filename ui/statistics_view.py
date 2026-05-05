@@ -463,18 +463,8 @@ class StatisticsView(QWidget):
         text = f"{line1}\n{line2}" if line2 else line1
         self._center_label.setText(text)
 
-    def _reposition_center_label(self):
-        """Plus nécessaire avec QLabel overlay — gardé pour compatibilité."""
-        pass
-
-    def _force_center(self):
-        """Plus nécessaire avec QLabel overlay — gardé pour compatibilité."""
-        pass
-
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, "_center_label"):
-            self._reposition_center_label()
 
     def _on_hover(self, state):
         sl = self.sender()
