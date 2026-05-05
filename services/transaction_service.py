@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 
 def save_tags(transaction_id, tag_names):
     """Sauvegarde les tags pour une transaction (crée les tags manquants)."""
-    if not tag_names:
-        return
     with safe_session() as session:
         # Supprimer les liens existants
         session.query(TransactionTag).filter_by(transaction_id=transaction_id).delete()
+        if not tag_names:
+            return
         for name in tag_names:
             name = name.strip()
             if not name:
