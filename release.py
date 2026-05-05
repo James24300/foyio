@@ -95,11 +95,12 @@ def main():
     print(f"  update_service.py CURRENT_VERSION → {new_version}")
 
     # 4. Git commit + tag + push
-    print("\nCommit & push...")
+    branch = _run("git rev-parse --abbrev-ref HEAD", check=False).strip() or "main"
+    print(f"\nCommit & push sur '{branch}'...")
     _run("git add version.json services/update_service.py")
     _run(f'git commit -m "Release v{new_version}"')
     _run(f"git tag v{new_version}")
-    _run("git push origin main")
+    _run(f"git push origin {branch}")
     push_tag = subprocess.run(
         f"git push origin v{new_version}", shell=True,
         capture_output=True, text=True

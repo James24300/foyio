@@ -1061,7 +1061,7 @@ class MainWindow(QWidget):
                 else:
                     self.btn_recurring.setText(" Récurrentes")
         except Exception:
-            logger.warning("Exception silencieuse", exc_info=True)
+            logger.warning("Erreur mise à jour badges sidebar", exc_info=True)
     def refresh_all(self):
         self._update_sidebar_badges()
         if hasattr(self, "accueil"):      self.accueil.refresh()
@@ -1108,7 +1108,7 @@ try:
                     if msg.message == self._WM_HOTKEY and msg.wParam == self._ID:
                         self._cb()
                 except Exception:
-                    logger.warning("Exception silencieuse", exc_info=True)
+                    logger.debug("Erreur lecture message natif hotkey", exc_info=True)
             return False, 0
 
         def unregister(self):
@@ -1140,19 +1140,19 @@ def main():
         from services.transaction_recognition import clean_bad_rules
         clean_bad_rules()
     except Exception:
-        logger.warning("Exception silencieuse", exc_info=True)
+        logger.warning("Erreur nettoyage règles de reconnaissance", exc_info=True)
     # Sync automatique épargne ↔ transactions
     try:
         from services.savings_service import sync_savings_from_transactions
         sync_savings_from_transactions()
     except Exception:
-        logger.warning("Exception silencieuse", exc_info=True)
+        logger.warning("Erreur sync épargne ↔ transactions", exc_info=True)
     # ── AppUserModelID Windows (icône correcte dans la barre des tâches) ──
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Foyio.App.1")
     except Exception:
-        logger.warning("Exception silencieuse", exc_info=True)
+        logger.debug("AppUserModelID non défini (non-Windows)", exc_info=True)
     app = FoyioApp(sys.argv)
     app.setStyle("Fusion")
     QLocale.setDefault(QLocale(QLocale.French, QLocale.France))
@@ -1201,7 +1201,7 @@ def main():
             _hotkey = _GlobalHotkeyFilter(_bring_to_front)
             app.installNativeEventFilter(_hotkey)
         except Exception:
-            logger.warning("Exception silencieuse", exc_info=True)
+            logger.warning("Erreur installation filtre hotkey global", exc_info=True)
     ret = app.exec()
     if _hotkey:
         _hotkey.unregister()
