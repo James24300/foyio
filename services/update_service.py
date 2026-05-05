@@ -32,6 +32,7 @@ def get_current_version() -> str:
         with open(path, encoding="utf-8") as f:
             return json.load(f).get("version", CURRENT_VERSION)
     except Exception:
+        logger.debug("version.json introuvable, version par défaut utilisée", exc_info=True)
         return CURRENT_VERSION
 
 
@@ -151,6 +152,7 @@ def _update_windows(progress_callback=None) -> tuple[bool, str]:
             downloads = _tmp.gettempdir()
         dest = os.path.join(downloads, filename)
     except Exception:
+        logger.debug("Impossible de déterminer le dossier Téléchargements", exc_info=True)
         import tempfile as _tmp
         dest = os.path.join(_tmp.gettempdir(), filename)
 

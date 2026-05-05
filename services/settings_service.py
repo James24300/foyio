@@ -28,6 +28,7 @@ def load_settings() -> dict:
             data.setdefault(k, v)
         return data
     except Exception:
+        logger.warning("Impossible de lire settings.json, valeurs par défaut utilisées", exc_info=True)
         return dict(DEFAULTS)
 
 

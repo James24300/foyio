@@ -233,6 +233,7 @@ class _SearchThread(QThread):
             results = search_coins(self._query)
             self.done.emit(results)
         except Exception:
+            logger.debug("Recherche crypto échouée", exc_info=True)
             self.done.emit([])
 
 
@@ -249,6 +250,7 @@ class _PriceFetcher(QThread):
             prices = get_prices(self._ids)
             self.done.emit(prices)
         except Exception:
+            logger.debug("Récupération des prix échouée", exc_info=True)
             self.done.emit({})
 
 
@@ -286,6 +288,7 @@ class _TopFetcher(QThread):
         try:
             self.done.emit(get_top_coins(50))
         except Exception:
+            logger.debug("Récupération top cryptos échouée", exc_info=True)
             self.done.emit([])
 
 

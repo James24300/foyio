@@ -517,7 +517,7 @@ class Transactions(QWidget):
         try:
             goals = get_goals() or []
         except Exception:
-            pass
+            logger.warning("Impossible de charger les objectifs épargne", exc_info=True)
 
         # Popup de confirmation avec montant modifiable
         from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout,
@@ -1485,6 +1485,7 @@ class Transactions(QWidget):
             else:
                 self._dup_btn.setVisible(False)
         except Exception:
+            logger.debug("Erreur vérification doublons", exc_info=True)
             self._dup_btn.setVisible(False)
 
     def _show_duplicates(self):

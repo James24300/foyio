@@ -371,6 +371,7 @@ def savings_rate_target(target_rate: float = None) -> dict:
         with open(cfg_path) as f:
             return json.load(f)
     except Exception:
+        logger.debug("Impossible de lire la config épargne, taux par défaut utilisé", exc_info=True)
         return {"target_rate": 10.0}  # défaut 10%
 
 
