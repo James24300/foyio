@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# ── À mettre à jour quand tu auras créé ton dépôt GitHub ──────────
 # Dépôt GitHub de Foyio
 VERSION_URL = "https://raw.githubusercontent.com/James24300/foyio/main/version.json"
 
@@ -87,7 +86,7 @@ def check_async(callback=None):
             try:
                 callback(_update_available, _latest_version, _release_notes)
             except Exception:
-                logger.warning("Exception silencieuse", exc_info=True)
+                logger.warning("Erreur callback vérification mise à jour", exc_info=True)
     threading.Thread(target=_run, daemon=True).start()
 
 
@@ -202,7 +201,7 @@ def _update_windows(progress_callback=None) -> tuple[bool, str]:
             import webbrowser
             webbrowser.open(releases_page)
         except Exception:
-            logger.warning("Exception silencieuse", exc_info=True)
+            logger.warning("Impossible d'ouvrir le navigateur pour la page de releases", exc_info=True)
         return False, (
             f"Téléchargement automatique impossible ({e}).\n\n"
             f"La page de téléchargement s'est ouverte dans votre navigateur :\n{releases_page}"

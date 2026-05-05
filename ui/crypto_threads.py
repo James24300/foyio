@@ -277,7 +277,7 @@ class _CompFetcher(QThread):
                     daily[day] = daily.get(day, 0.0) + h.quantity * price
             result["portfolio"] = sorted(daily.items())
         except Exception:
-            logger.debug("Exception silencieuse", exc_info=True)
+            logger.debug("Erreur calcul historique portefeuille", exc_info=True)
         self.done.emit(result)
 
 
@@ -311,4 +311,4 @@ class _LogoFetcher(QThread):
                 self.logo_ready.emit(cg_id, data)
                 _time.sleep(0.05)
             except Exception:
-                logger.debug("Exception silencieuse", exc_info=True)
+                logger.debug("Erreur téléchargement logo crypto", exc_info=True)

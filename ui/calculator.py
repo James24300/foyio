@@ -135,7 +135,7 @@ class Calculator(QDialog):
                 # Mettre à jour l'expression
                 self._expr = str(val)
             except Exception:
-                logger.debug("Exception silencieuse", exc_info=True)
+                logger.debug("Erreur calcul résultat", exc_info=True)
         elif text == "%":
             try:
                 val = float(self._display.text().replace(",", ".").replace(" ", ""))
@@ -143,7 +143,7 @@ class Calculator(QDialog):
                 self._display.setText(self._fmt(val))
                 self._expr = str(val)
             except Exception:
-                logger.debug("Exception silencieuse", exc_info=True)
+                logger.debug("Erreur calcul pourcentage", exc_info=True)
         elif text in ("+", "−", "×", "÷"):
             if self._display.text() not in ("Erreur", "0") or self._expr:
                 op_map = {"−": "-", "×": "*", "÷": "/"}

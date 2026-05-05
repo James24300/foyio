@@ -283,7 +283,7 @@ def export_pdf(filepath: str, year: int, month: int, account_id=None) -> int:
             ]))
             story.append(sav_table)
     except Exception:
-        logger.warning("Exception silencieuse", exc_info=True)
+        logger.warning("Erreur génération section épargne PDF", exc_info=True)
     # ── Pied de page ──
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=C_BORDER, spaceAfter=6))

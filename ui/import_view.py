@@ -267,7 +267,7 @@ class ImportDialog(QDialog):
                         # Mettre à jour les autres lignes non catégorisées
                         self._auto_fill_similar(r.label, cid)
                     except Exception:
-                        logger.debug("Exception silencieuse", exc_info=True)
+                        logger.debug("Erreur apprentissage reconnaissance", exc_info=True)
             combo.currentIndexChanged.connect(_on_cat_changed)
             self._table.setCellWidget(i, 4, combo)
             self._cat_combos.append(combo)
@@ -394,7 +394,7 @@ class ImportDialog(QDialog):
                         from services.transaction_recognition import learn_from_import
                         learn_from_import([(row.label, cat_id)])
                     except Exception:
-                        logger.debug("Exception silencieuse", exc_info=True)
+                        logger.debug("Erreur apprentissage reconnaissance", exc_info=True)
             except Exception as e:
                 errors.append(f"{row.label}: {e}")
 
@@ -424,7 +424,7 @@ class ImportDialog(QDialog):
                 ]
                 learn_from_import(associations)
             except Exception:
-                logger.debug("Exception silencieuse", exc_info=True)
+                logger.debug("Erreur apprentissage batch reconnaissance", exc_info=True)
         # Proposer d'ajouter les récurrents détectés
         if imported > 0:
             try:
@@ -433,7 +433,7 @@ class ImportDialog(QDialog):
                 if candidates:
                     self._propose_recurring(candidates)
             except Exception:
-                logger.debug("Exception silencieuse", exc_info=True)
+                logger.debug("Erreur détection récurrentes candidates", exc_info=True)
         # Toujours fermer le dialogue
         self.accept()
 
@@ -495,7 +495,7 @@ class ImportDialog(QDialog):
                         )
                         added += 1
                     except Exception:
-                        logger.debug("Exception silencieuse", exc_info=True)
+                        logger.debug("Erreur ajout récurrente candidate", exc_info=True)
             from ui.toast import Toast
             if added:
                 Toast.show(self.parent() or self,

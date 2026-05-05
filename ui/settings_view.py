@@ -303,5 +303,5 @@ class SettingsView(QWidget):
             from utils.formatters import invalidate_currency_cache
             invalidate_currency_cache()
         except Exception:
-            logger.debug("Exception silencieuse", exc_info=True)
+            logger.debug("Erreur invalidation cache devise", exc_info=True)
         Toast.show(self, "Paramètres enregistrés", kind="success")

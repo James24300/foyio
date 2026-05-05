@@ -1092,7 +1092,7 @@ class DashboardView(QWidget):
                     layout.removeWidget(w)
                     layout.addWidget(w)
         except Exception:
-            logger.debug("Exception silencieuse", exc_info=True)
+            logger.debug("Erreur réorganisation widgets dashboard", exc_info=True)
     def _refresh_savings_widget(self):
         """Met à jour le mini-widget épargne."""
         try:
@@ -1137,7 +1137,7 @@ class DashboardView(QWidget):
             self._sav_bar.setMaximum(100)
             self._sav_bar.setValue(pct)
         except Exception:
-            logger.debug("Exception silencieuse", exc_info=True)
+            logger.debug("Erreur mise à jour widget épargne", exc_info=True)
     def refresh(self):
         income, expense, balance = get_month_summary()
         self._total_expense = expense
@@ -1369,7 +1369,7 @@ class DashboardView(QWidget):
                 )
                 self._crypto_chg_lbl.setText("")
         except Exception:
-            logger.debug("Exception silencieuse", exc_info=True)
+            logger.debug("Erreur mise à jour variation crypto", exc_info=True)
     def _update_analysis(self, income, expense, balance):
         from datetime import date
         import calendar
