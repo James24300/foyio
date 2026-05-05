@@ -3,8 +3,10 @@ Dialogue de mot de passe Foyio.
 - Premier lancement : création du mot de passe
 - Lancements suivants : vérification
 
-Le mot de passe est stocké sous forme de hash SHA-256 dans le dossier
+Le mot de passe est stocké sous forme de hash scrypt dans le dossier
 de configuration de l'application (APP_DIR).
+Format : scrypt:<salt_hex>:<hash_hex>
+Migration transparente depuis l'ancien format SHA-256.
 """
 import hashlib
 import os
@@ -13,16 +15,16 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QFrame
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap
 
 from config import APP_DIR
 
 PASSWORD_FILE = os.path.join(APP_DIR, "auth.key")
 
-
-def _hash(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+_SCRYPT_N = 2 ** 14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
 
 
 def _load_hash() -> str | None:
@@ -32,10 +34,30 @@ def _load_hash() -> str | None:
         return f.read().strip()
 
 
+def _hash_scrypt(password: str, salt: bytes) -> str:
+    return hashlib.scrypt(
+        password.encode("utf-8"), salt=salt,
+        n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P,
+    ).hex()
+
+
+def _make_stored(password: str) -> str:
+    salt = os.urandom(16)
+    return f"scrypt:{salt.hex()}:{_hash_scrypt(password, salt)}"
+
+
+def _verify(password: str, stored: str) -> bool:
+    if stored.startswith("scrypt:"):
+        _, salt_hex, hash_hex = stored.split(":")
+        return _hash_scrypt(password, bytes.fromhex(salt_hex)) == hash_hex
+    # Legacy SHA-256 (migration transparente)
+    return hashlib.sha256(password.encode("utf-8")).hexdigest() == stored
+
+
 def _save_hash(password: str):
     os.makedirs(APP_DIR, exist_ok=True)
     with open(PASSWORD_FILE, "w") as f:
-        f.write(_hash(password))
+        f.write(_make_stored(password))
 
 
 def is_password_set() -> bool:
@@ -46,7 +68,10 @@ def check_password(password: str) -> bool:
     stored = _load_hash()
     if stored is None:
         return False
-    return _hash(password) == stored
+    ok = _verify(password, stored)
+    if ok and not stored.startswith("scrypt:"):
+        _save_hash(password)  # mise à niveau silencieuse vers scrypt
+    return ok
 
 
 class PasswordDialog(QDialog):
@@ -58,6 +83,7 @@ class PasswordDialog(QDialog):
     def __init__(self):
         super().__init__()
         self._mode = "create" if not is_password_set() else "verify"
+        self._failed_attempts = 0
         self._setup_ui()
 
     def _setup_ui(self):
@@ -166,8 +192,8 @@ class PasswordDialog(QDialog):
 
         if self._mode == "create":
             confirm = self._confirm_input.text()
-            if len(pwd) < 4:
-                self._show_error("Minimum 4 caractères.")
+            if len(pwd) < 8:
+                self._show_error("Minimum 8 caractères.")
                 return
             if pwd != confirm:
                 self._show_error("Les mots de passe ne correspondent pas.")
@@ -181,9 +207,22 @@ class PasswordDialog(QDialog):
             if check_password(pwd):
                 self.accept()
             else:
-                self._show_error("Mot de passe incorrect.")
+                self._failed_attempts += 1
+                delay_ms = min(500 * (2 ** (self._failed_attempts - 1)), 8000)
+                self._btn.setEnabled(False)
+                self._pwd_input.setEnabled(False)
+                self._show_error(
+                    f"Mot de passe incorrect. Attente {delay_ms // 1000 or 1}s…"
+                    if delay_ms >= 1000
+                    else "Mot de passe incorrect."
+                )
+                QTimer.singleShot(delay_ms, self._unblock)
                 self._pwd_input.clear()
-                self._pwd_input.setFocus()
+
+    def _unblock(self):
+        self._btn.setEnabled(True)
+        self._pwd_input.setEnabled(True)
+        self._pwd_input.setFocus()
 
     def _show_error(self, msg: str):
         self._error_lbl.setText(msg)
@@ -223,7 +262,7 @@ class ChangePasswordDialog(QDialog):
 
         self._new = QLineEdit()
         self._new.setEchoMode(QLineEdit.Password)
-        self._new.setPlaceholderText("Nouveau mot de passe (min. 4 caractères)")
+        self._new.setPlaceholderText("Nouveau mot de passe (min. 8 caractères)")
         self._new.setMinimumHeight(38)
         layout.addWidget(self._new)
 
@@ -287,8 +326,8 @@ class ChangePasswordDialog(QDialog):
             self._current.clear()
             self._current.setFocus()
             return
-        if len(new_pwd) < 4:
-            self._show_error("Minimum 4 caractères.")
+        if len(new_pwd) < 8:
+            self._show_error("Minimum 8 caractères.")
             return
         if new_pwd != confirm:
             self._show_error("Les mots de passe ne correspondent pas.")
