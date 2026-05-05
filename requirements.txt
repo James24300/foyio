@@ -1,9 +1,17 @@
+# ── Dépendances obligatoires ────────────────────────────────────────────────
 PySide6>=6.5.0
 SQLAlchemy>=2.0.0
 pdfplumber>=0.11.0
-pyspellchecker>=0.8.0
 pywin32>=306; sys_platform=='win32'
+
+# ── Dépendances optionnelles ────────────────────────────────────────────────
+# Correcteur orthographique (notes de transactions)
+#   pip install pyspellchecker
+pyspellchecker>=0.8.0
+
+# Export PDF du rapport fiscal (Outils → Rapport fiscal → Exporter PDF)
+#   pip install reportlab
 reportlab>=4.0.0
 
-# Développement / tests
+# ── Développement / tests ───────────────────────────────────────────────────
 pytest>=8.0.0
