@@ -1189,7 +1189,7 @@ class ToolsView(QWidget):
             tbl_t.setFixedHeight(32 * len(top) + tbl_t.horizontalHeader().height() + 4)
             th = tbl_t.horizontalHeader()
             th.setSectionResizeMode(1, QHeaderView.Stretch)
-            for c_, w_ in [(0, 80), (2, 110), (3, 130)]:
+            for c_, w_ in [(0, 95), (2, 110), (3, 130)]:
                 th.setSectionResizeMode(c_, QHeaderView.Fixed)
                 tbl_t.setColumnWidth(c_, w_)
             tbl_t.setStyleSheet(tbl_m.styleSheet())
