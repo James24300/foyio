@@ -9,7 +9,12 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+BASE_DIR = (
+    os.path.dirname(_sys.executable)
+    if getattr(_sys, "frozen", False)
+    else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 # Dépôt GitHub de Foyio
 VERSION_URL = "https://raw.githubusercontent.com/James24300/foyio/main/version.json"

@@ -3,7 +3,7 @@ import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView,
-    QDialog, QLineEdit, QComboBox, QCheckBox,
+    QDialog, QLineEdit, QComboBox,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor

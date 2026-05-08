@@ -2,7 +2,11 @@ import logging
 import sys
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = (
+    os.path.dirname(sys.executable)
+    if getattr(sys, "frozen", False)
+    else os.path.dirname(os.path.abspath(__file__))
+)
 
 # ── Configuration du logging ─────────────────────────────────────
 from config import APP_DIR

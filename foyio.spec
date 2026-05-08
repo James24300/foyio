@@ -5,7 +5,10 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('icons', 'icons'),
+        ('version.json', '.'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
