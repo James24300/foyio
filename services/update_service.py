@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 import sys as _sys
 BASE_DIR = (
-    os.path.dirname(_sys.executable)
+    getattr(_sys, "_MEIPASS", os.path.dirname(_sys.executable))
     if getattr(_sys, "frozen", False)
     else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
