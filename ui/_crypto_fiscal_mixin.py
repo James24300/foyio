@@ -1,4 +1,5 @@
 # No Qt parent needed — mixed into CryptoView which is a QWidget
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
@@ -9,6 +10,8 @@ from PySide6.QtGui import QColor
 
 from services.crypto_service import compute_fifo_report
 from ui.toast import Toast
+
+logger = logging.getLogger(__name__)
 
 
 class _CryptoFiscalMixin:

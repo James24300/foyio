@@ -1,4 +1,5 @@
 # No Qt parent needed — mixed into CryptoView which is a QWidget
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
@@ -16,6 +17,8 @@ from services.crypto_service import (
 )
 from ui.toast import Toast
 from ui.crypto_threads import _pixmap_cache
+
+logger = logging.getLogger(__name__)
 
 
 class _CryptoDcaMixin:

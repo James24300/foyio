@@ -28,6 +28,9 @@ def add_loan(name: str, total_amount: float, monthly_payment: float,
             active=True,
         )
         session.add(loan)
+        session.flush()
+        session.refresh(loan)
+        session.expunge(loan)
     return loan
 
 
@@ -126,8 +129,7 @@ def get_amortization_schedule(loan_id: int) -> list:
 
 def compute_current_remaining(loan) -> float:
     """Capital restant dû à ce jour, calculé par le tableau d'amortissement."""
-    from datetime import date as _date
-    today = _date.today()
+    today = date.today()
     if today <= loan.start_date:
         return float(loan.total_amount)
 

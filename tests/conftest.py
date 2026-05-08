@@ -24,6 +24,9 @@ _MODULES_WITH_SESSION = [
     "services.account_service",
     "services.init_categories",
     "services.transaction_recognition",
+    "services.loan_service",
+    "services.transfer_service",
+    "services.export_service",
 ]
 
 

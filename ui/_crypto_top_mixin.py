@@ -1,4 +1,5 @@
 # No Qt parent needed — mixed into CryptoView which is a QWidget
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QLineEdit,
@@ -11,6 +12,8 @@ from services.crypto_service import add_holding, link_to_transaction
 from services.watchlist_service import add_to_watchlist, is_in_watchlist
 from ui.toast import Toast
 from ui.crypto_threads import _TopFetcher
+
+logger = logging.getLogger(__name__)
 
 
 class _CryptoTopMixin:

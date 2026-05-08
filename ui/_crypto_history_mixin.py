@@ -1,4 +1,5 @@
 # No Qt parent needed — mixed into CryptoView which is a QWidget
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
 )
@@ -9,6 +10,8 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPen
 
 from services.crypto_service import get_price_history
+
+logger = logging.getLogger(__name__)
 
 
 class _CryptoHistoryMixin:
