@@ -3,7 +3,7 @@ import sys
 import os
 
 BASE_DIR = (
-    os.path.dirname(sys.executable)
+    getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     if getattr(sys, "frozen", False)
     else os.path.dirname(os.path.abspath(__file__))
 )
