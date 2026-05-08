@@ -20,7 +20,8 @@ from ui.dashboard_widgets import CounterAnimation
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+BASE_DIR = getattr(_sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Palette cohérente avec le reste de l'app
 COLOR_ASSETS      = "#22c55e"   # vert

@@ -24,7 +24,8 @@ from services.account_service import (
 
 logger = logging.getLogger(__name__)
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+BASE_DIR = getattr(_sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ACCOUNT_TYPES = [
     ("checking", "Compte courant"),

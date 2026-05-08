@@ -31,7 +31,8 @@ from PySide6.QtWidgets import QGraphicsOpacityEffect
 
 from services.stats_service import expenses_by_category, monthly_balance
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+BASE_DIR = getattr(_sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class CounterAnimation:
