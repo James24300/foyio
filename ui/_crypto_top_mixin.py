@@ -213,7 +213,6 @@ class _CryptoTopMixin:
 
         chk_link = QCheckBox("Enregistrer comme dépense dans les transactions")
         chk_link.setChecked(False)
-        chk_link.setStyleSheet("color:#c8cdd4; font-size:12px;")
 
         vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
         vl.addWidget(lbl("Prix d'achat unitaire :")); vl.addWidget(price_spin)

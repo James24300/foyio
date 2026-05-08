@@ -286,7 +286,6 @@ class _CryptoDcaMixin:
         vl.addWidget(lbl)
 
         chk_link = QCheckBox("Lier à une transaction financière")
-        chk_link.setStyleSheet("color:#a0a8b4; font-size:11px;")
         vl.addWidget(chk_link)
 
         row = QHBoxLayout()

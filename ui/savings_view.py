@@ -1261,7 +1261,6 @@ class SavingsView(QWidget):
 
         from PySide6.QtWidgets import QCheckBox
         deadline_check = QCheckBox("Fixer une echeance")
-        deadline_check.setStyleSheet("color:#c8cdd4; font-size:12px;")
         deadline_check.setChecked(bool(goal and goal.deadline))
 
         deadline_edit = QDateEdit()

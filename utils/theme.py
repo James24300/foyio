@@ -192,6 +192,28 @@ QToolTip {
 QMessageBox { background:#292d32; color:#c8cdd4; }
 QDialog     { background:#1e2124; color:#c8cdd4; }
 
+QCheckBox {
+    color:#c8cdd4;
+    spacing:8px;
+    background:transparent;
+}
+QCheckBox::indicator {
+    width:16px;
+    height:16px;
+    border:2px solid #4a5060;
+    border-radius:4px;
+    background:#191c20;
+}
+QCheckBox::indicator:hover   { border-color:#6a7484; background:#1c2024; }
+QCheckBox::indicator:checked {
+    background:#22c55e;
+    border-color:#22c55e;
+    image:url(icons/check.svg);
+}
+QCheckBox::indicator:checked:hover { background:#16a34a; border-color:#16a34a; }
+QCheckBox::indicator:disabled { border-color:#2a2e34; background:#1a1d20; }
+QCheckBox:disabled { color:#4a5060; }
+
 """
 
 DARK_THEME  = BANK_THEME

@@ -984,7 +984,6 @@ class CryptoView(_CryptoDcaMixin, _CryptoWatchlistMixin, _CryptoTopMixin,
 
         chk_link = QCheckBox("Enregistrer comme dépense dans les transactions")
         chk_link.setChecked(False)
-        chk_link.setStyleSheet("color:#c8cdd4; font-size:12px;")
 
         vl.addWidget(lbl("Quantité :")); vl.addWidget(qty_spin)
         vl.addWidget(lbl("Prix d'achat unitaire :")); vl.addWidget(price_spin)
@@ -1090,7 +1089,6 @@ class CryptoView(_CryptoDcaMixin, _CryptoWatchlistMixin, _CryptoTopMixin,
 
         chk_link_sell = QCheckBox("Enregistrer comme revenu dans les transactions")
         chk_link_sell.setChecked(False)
-        chk_link_sell.setStyleSheet("color:#c8cdd4; font-size:12px;")
 
         vl.addWidget(lbl(f"Quantité disponible : {h.quantity}")); vl.addWidget(qty_spin)
         vl.addWidget(lbl("Prix de vente unitaire :")); vl.addWidget(price_spin)

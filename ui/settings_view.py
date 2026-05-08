@@ -117,7 +117,6 @@ class SettingsView(QWidget):
         # ── Notifications ──
         layout.addWidget(_section("Notifications"))
         self._notif_check = QCheckBox("Afficher les notifications au démarrage")
-        self._notif_check.setStyleSheet("color:#c8cdd4; font-size:12px;")
         self._notif_check.setChecked(settings.get("startup_notifications", True))
         layout.addWidget(self._notif_check)
 
@@ -332,7 +331,6 @@ class SettingsView(QWidget):
         layout.addLayout(sync_folder_row)
 
         self._sync_auto_check = QCheckBox("Synchroniser automatiquement au démarrage")
-        self._sync_auto_check.setStyleSheet("color:#c8cdd4; font-size:12px;")
         self._sync_auto_check.setChecked(bool(settings.get("sync_auto", False)))
         layout.addWidget(self._sync_auto_check)
 
