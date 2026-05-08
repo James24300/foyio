@@ -304,10 +304,33 @@ class AboutView(QWidget):
     def showEvent(self, event):
         """Rafraîchit la version et l'état du bouton à chaque affichage."""
         super().showEvent(event)
-        from services.update_service import get_current_version, is_update_available, get_latest_version
+        from services.update_service import (
+            get_current_version, is_update_available, get_latest_version,
+            check_async, _check_done,
+        )
         self._version_lbl.setText(f"Version {get_current_version()}")
         if is_update_available():
-            self._update_btn.setText(f"  Mettre à jour vers v{get_latest_version()}")
+            self._refresh_update_btn(True, get_latest_version())
+        elif not _check_done:
+            # Vérification pas encore terminée → lancer et rafraîchir quand prêt
+            self._update_btn.setText("  Vérification en cours…")
+            self._update_btn.setEnabled(False)
+
+            def _on_done(available, latest, _notes):
+                if available:
+                    self._refresh_update_btn(True, latest)
+                else:
+                    self._refresh_update_btn(False, None)
+
+            check_async(callback=_on_done)
+        else:
+            self._refresh_update_btn(False, None)
+
+    def _refresh_update_btn(self, available: bool, latest: str | None):
+        """Met à jour le texte et le style du bouton de mise à jour."""
+        self._update_btn.setEnabled(True)
+        if available and latest:
+            self._update_btn.setText(f"  Mettre à jour vers v{latest}")
             self._update_btn.setStyleSheet(
                 "background:#1a2a1a; color:#22c55e; border:1px solid #2a5a2a;"
                 "border-radius:8px; font-size:12px; font-weight:600; padding:0 14px;"
