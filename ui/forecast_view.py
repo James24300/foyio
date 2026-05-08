@@ -23,7 +23,8 @@ from utils.formatters import format_money
 from ui.dashboard_widgets import CounterAnimation
 
 logger = logging.getLogger(__name__)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+BASE_DIR = getattr(_sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 COLOR_INCOME  = "#22c55e"
 COLOR_EXPENSE = "#ef4444"

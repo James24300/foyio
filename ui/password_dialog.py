@@ -96,11 +96,10 @@ class PasswordDialog(QDialog):
         layout.setContentsMargins(32, 32, 32, 32)
 
         # Logo image
+        import sys as _sys
         import os as _os
-        _logo_path = _os.path.join(
-            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-            "icons", "foyio_logo.png"
-        )
+        _base = getattr(_sys, "_MEIPASS", None) or _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        _logo_path = _os.path.join(_base, "icons", "foyio_logo.png")
         logo = QLabel()
         logo.setAlignment(Qt.AlignCenter)
         logo.setPixmap(QIcon(_logo_path).pixmap(48, 48))

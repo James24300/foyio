@@ -1,10 +1,12 @@
 import os
+import sys
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtGui import QPainter, QImage
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# sys._MEIPASS est défini par PyInstaller et pointe vers le dossier des ressources
+BASE_DIR = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICON_DIR = os.path.join(BASE_DIR, "icons")
 
 ICON_CACHE = {}
