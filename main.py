@@ -1057,13 +1057,12 @@ class MainWindow(QWidget):
                 else:
                     self.btn_budget.setText(" Budgets")
 
-            # Badge Récurrentes
+            # Badge Récurrentes sur le bouton Plus (menu secondaire)
             n_rec = len(overdue) + len(upcoming)
-            if hasattr(self, "btn_recurring"):
-                if n_rec > 0:
-                    self.btn_recurring.setText(f" Récurrentes ({n_rec})")
-                else:
-                    self.btn_recurring.setText(" Récurrentes")
+            if n_rec > 0:
+                self.btn_plus.setText(f" Plus ({n_rec})")
+            else:
+                self.btn_plus.setText(" Plus")
         except Exception:
             logger.warning("Erreur mise à jour badges sidebar", exc_info=True)
     def refresh_all(self):

@@ -424,7 +424,7 @@ def migrate_database():
             conn.commit()
         logger.info("Migration v6.9 : fees ajouté sur crypto_transactions")
     except Exception:
-        pass
+        logger.debug("Migration v6.9 : fees déjà présent sur crypto_transactions")
 
     # v7.0 : annual_limit sur budgets
     inspector = inspect(engine)

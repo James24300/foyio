@@ -439,7 +439,7 @@ class ImportDialog(QDialog):
 
     def _propose_recurring(self, candidates: list):
         """Propose d'ajouter les transactions récurrentes détectées."""
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QCheckBox, QPushButton, QScrollArea, QWidget
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton, QScrollArea, QWidget
         from utils.formatters import format_money
 
         dlg = QDialog(self)
@@ -469,7 +469,7 @@ class ImportDialog(QDialog):
         scroll.setWidget(inner)
         vl.addWidget(scroll)
 
-        btn_row = __import__('PySide6.QtWidgets', fromlist=['QHBoxLayout']).QHBoxLayout()
+        btn_row = QHBoxLayout()
         btn_add = QPushButton("  Ajouter les sélectionnées")
         btn_add.setMinimumHeight(34)
         btn_skip = QPushButton("Ignorer")

@@ -5,6 +5,7 @@ Génère les données et le PDF du rapport fiscal annuel.
 import os
 import logging
 from datetime import datetime
+from services.settings_service import get as _get_setting
 
 logger = logging.getLogger(__name__)
 
@@ -327,7 +328,7 @@ def export_fiscal_pdf(year, account_id=None, filepath=None):
     story.append(HRFlowable(width="100%", thickness=0.5, color=C_BORDER, spaceAfter=6))
     story.append(Paragraph(
         "Foyio — Rapport fiscal annuel — " +
-        (__import__("services.settings_service", fromlist=["get"]).get("user_name") or "Foyio"),
+        (_get_setting("user_name") or "Foyio"),
         ParagraphStyle("footer", fontName="Helvetica", fontSize=8,
                        textColor=C_MUTED, alignment=TA_CENTER)
     ))

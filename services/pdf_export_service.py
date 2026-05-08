@@ -1,8 +1,8 @@
-import logging
 """
 Service d'export PDF — Rapport mensuel Foyio.
 Utilise reportlab pour générer un PDF mis en page.
 """
+import logging
 from datetime import datetime
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
@@ -12,6 +12,7 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+from services.settings_service import get as _get_setting
 logger = logging.getLogger(__name__)
 
 # ── Palette gris Foyio ──
@@ -287,7 +288,7 @@ def export_pdf(filepath: str, year: int, month: int, account_id=None) -> int:
     # ── Pied de page ──
     story.append(Spacer(1, 20))
     story.append(HRFlowable(width="100%", thickness=0.5, color=C_BORDER, spaceAfter=6))
-    story.append(Paragraph("Foyio — Gestion financiere personnelle — " + (__import__("services.settings_service", fromlist=["get"]).get("user_name") or "Foyio"),
+    story.append(Paragraph("Foyio — Gestion financiere personnelle — " + (_get_setting("user_name") or "Foyio"),
         ParagraphStyle("footer", fontName="Helvetica", fontSize=8,
         textColor=C_MUTED, alignment=TA_CENTER)))
 
