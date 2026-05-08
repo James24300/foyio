@@ -17,7 +17,7 @@ DB_PATH = os.path.join(APP_DIR, "finance.db")
 BACKUP_DIR = os.path.join(APP_DIR, "backups")
 ATTACHMENTS_DIR = os.path.join(APP_DIR, "attachments")
 
-# ── Migration ancien répertoire "FinanceFoyer" → "Foyio" ──
+# Migration ancien répertoire "FinanceFoyer" -> "Foyio"
 # Si l'ancien dossier existe et le nouveau est vide, on migre
 _OLD_NAME = "FinanceFoyer"
 if sys.platform == "win32":
@@ -38,7 +38,7 @@ if os.path.isdir(_OLD_DIR) and not os.path.exists(DB_PATH):
             elif os.path.isdir(src) and not os.path.exists(dst):
                 shutil.copytree(src, dst)
         import logging as _log
-        _log.getLogger(__name__).info("Migration : données déplacées de %s → %s", _OLD_NAME, APP_NAME)
+        _log.getLogger(__name__).info("Migration : données déplacées de %s -> %s", _OLD_DIR, APP_DIR)
     except Exception as e:
         import logging as _log
         _log.getLogger(__name__).warning("Migration warning : %s", e)
