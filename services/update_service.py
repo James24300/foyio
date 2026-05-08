@@ -34,7 +34,11 @@ def get_current_version() -> str:
     try:
         path = os.path.join(BASE_DIR, "version.json")
         with open(path, encoding="utf-8") as f:
-            return json.load(f).get("version", CURRENT_VERSION)
+            file_v = json.load(f).get("version", CURRENT_VERSION)
+        # Si le fichier bundlé est plus ancien que le code compilé, on préfère le code
+        if _version_tuple(file_v) < _version_tuple(CURRENT_VERSION):
+            return CURRENT_VERSION
+        return file_v
     except Exception:
         logger.debug("version.json introuvable, version par défaut utilisée", exc_info=True)
         return CURRENT_VERSION
