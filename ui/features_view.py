@@ -122,6 +122,20 @@ SECTIONS = [
           "Taux d'intérêt & mensualités calculées",
           "Durée restante & capital remboursé"]),
     ]),
+    ("Crypto & Investissement", "#a78bfa", [
+        ("🪙", "Portefeuille & Transactions",
+         ["Suivi multi-cryptos avec valeur en temps réel",
+          "Historique des achats/ventes par actif",
+          "Graphique d'évolution du portefeuille"]),
+        ("🔭", "Top Cryptos, Watchlist & Alertes",
+         ["Top 100 par capitalisation (prix temps réel)",
+          "Watchlist personnalisée avec cours suivis",
+          "Alertes de prix configurables (seuil haut/bas)"]),
+        ("📐", "DCA, Simulateur & Rapport fiscal",
+         ["Stratégie DCA : simulation d'investissement régulier",
+          "Simulateur de plus-value par scénario",
+          "Rapport fiscal FIFO : plus/moins-values · Export CSV"]),
+    ]),
     ("Outils & Import", "#3b82f6", [
         ("🛠️", "Outils financiers",
          ["Convertisseur de devises (taux temps réel)",
@@ -210,7 +224,7 @@ class FeaturesView(QWidget):
         )
 
         d = QLabel(
-            "Application de bureau Windows  ·  Interface sombre moderne  ·  13 modules intégrés"
+            "Application de bureau Windows  ·  Interface sombre moderne  ·  4 domaines · 16 modules intégrés"
         )
         d.setAlignment(Qt.AlignCenter)
         d.setStyleSheet(
