@@ -1,11 +1,12 @@
 import logging
+import os
 """
 Vue Paramètres utilisateur — Foyio
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QComboBox, QFrame,
-    QCheckBox, QScrollArea, QFormLayout
+    QCheckBox, QScrollArea, QFormLayout, QFileDialog
 )
 from PySide6.QtCore import Qt
 from services.settings_service import load_settings, save_settings
@@ -272,6 +273,172 @@ class SettingsView(QWidget):
         layout.addLayout(accent_row)
         layout.addWidget(_sep())
 
+        # ── Synchronisation ──
+        layout.addWidget(_section("Synchronisation"))
+
+        sync_info = QLabel(
+            "Choisissez un dossier partagé (Dropbox, Google Drive, OneDrive, NAS…). "
+            "Foyio y copie votre base lors d'un Push et la restaure lors d'un Pull."
+        )
+        sync_info.setWordWrap(True)
+        sync_info.setStyleSheet("font-size:11px; color:#7a8494;")
+        layout.addWidget(sync_info)
+
+        sync_folder_row = QHBoxLayout()
+        self._sync_folder = QLineEdit(settings.get("sync_folder", ""))
+        self._sync_folder.setPlaceholderText("Aucun dossier sélectionné")
+        self._sync_folder.setMinimumHeight(36)
+        self._sync_folder.setReadOnly(True)
+        self._sync_folder.setStyleSheet(
+            "background:#191c20; color:#c8cdd4; border:1px solid #3d4248;"
+            "border-radius:8px; padding:4px 10px;"
+        )
+
+        btn_browse = QPushButton("Parcourir…")
+        btn_browse.setMinimumHeight(36)
+        btn_browse.setFixedWidth(110)
+        btn_browse.setStyleSheet(
+            "background:#1e2124; color:#c8cdd4; border:1px solid #3d4248;"
+            "border-radius:8px; font-size:12px;"
+        )
+
+        btn_clear_sync = QPushButton("✕")
+        btn_clear_sync.setMinimumHeight(36)
+        btn_clear_sync.setFixedWidth(36)
+        btn_clear_sync.setToolTip("Effacer le dossier de synchronisation")
+        btn_clear_sync.setStyleSheet(
+            "background:#1e2124; color:#7a8494; border:1px solid #3d4248;"
+            "border-radius:8px; font-size:13px;"
+        )
+
+        def _browse_sync():
+            folder = QFileDialog.getExistingDirectory(
+                self, "Choisir le dossier de synchronisation",
+                self._sync_folder.text() or os.path.expanduser("~")
+            )
+            if folder:
+                self._sync_folder.setText(folder)
+                _refresh_sync_status()
+
+        def _clear_sync():
+            self._sync_folder.setText("")
+            _refresh_sync_status()
+
+        btn_browse.clicked.connect(_browse_sync)
+        btn_clear_sync.clicked.connect(_clear_sync)
+        sync_folder_row.addWidget(self._sync_folder)
+        sync_folder_row.addWidget(btn_browse)
+        sync_folder_row.addWidget(btn_clear_sync)
+        layout.addLayout(sync_folder_row)
+
+        self._sync_auto_check = QCheckBox("Synchroniser automatiquement au démarrage")
+        self._sync_auto_check.setStyleSheet("color:#c8cdd4; font-size:12px;")
+        self._sync_auto_check.setChecked(bool(settings.get("sync_auto", False)))
+        layout.addWidget(self._sync_auto_check)
+
+        sync_btn_row = QHBoxLayout()
+        sync_btn_row.setSpacing(10)
+
+        btn_push = QPushButton("⬆  Push (envoyer)")
+        btn_push.setMinimumHeight(36)
+        btn_push.setStyleSheet(
+            "background:#1e2124; color:#3b82f6; border:1px solid #3a3f47;"
+            "border-radius:8px; font-size:12px; font-weight:600; padding:0 14px;"
+        )
+
+        btn_pull = QPushButton("⬇  Pull (recevoir)")
+        btn_pull.setMinimumHeight(36)
+        btn_pull.setStyleSheet(
+            "background:#1e2124; color:#22c55e; border:1px solid #3a3f47;"
+            "border-radius:8px; font-size:12px; font-weight:600; padding:0 14px;"
+        )
+
+        self._sync_status = QLabel("")
+        self._sync_status.setStyleSheet("font-size:11px; color:#7a8494;")
+
+        def _save_sync_settings():
+            from services.sync_service import set_sync_folder, set_auto_sync
+            folder = self._sync_folder.text().strip()
+            set_sync_folder(folder)
+            set_auto_sync(self._sync_auto_check.isChecked())
+
+        def _refresh_sync_status():
+            folder = self._sync_folder.text().strip()
+            if not folder:
+                self._sync_status.setText("")
+                return
+            try:
+                from services.sync_service import get_status
+                st = get_status()
+                if not st.get("configured"):
+                    self._sync_status.setText("")
+                    return
+                lm = st["local_mtime"]
+                rm = st["remote_mtime"]
+                fmt = "%d/%m/%Y %H:%M"
+                local_s  = lm.strftime(fmt) if lm else "—"
+                remote_s = rm.strftime(fmt) if rm else "—"
+                if st["up_to_date"]:
+                    indicator = "✓ Synchronisé"
+                elif st["ahead"]:
+                    indicator = "↑ Local plus récent (Push recommandé)"
+                elif st["behind"]:
+                    indicator = "↓ Distant plus récent (Pull recommandé)"
+                else:
+                    indicator = ""
+                self._sync_status.setText(
+                    f"Local : {local_s}   Distant : {remote_s}   {indicator}"
+                )
+            except Exception as e:
+                self._sync_status.setText(f"Erreur : {e}")
+
+        def _do_push():
+            _save_sync_settings()
+            from services.sync_service import push
+            result = push()
+            if result["ok"]:
+                Toast.show(self, f"Push réussi → {result['path']}", kind="success")
+                _refresh_sync_status()
+            else:
+                Toast.show(self, f"Push échoué : {result['error']}", kind="error")
+
+        def _do_pull():
+            _save_sync_settings()
+            from services.sync_service import pull, get_status
+            st = get_status()
+            if st.get("ahead"):
+                from PySide6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self, "Conflit de synchronisation",
+                    "La base locale est plus récente que la version distante.\n"
+                    "Écraser quand même avec la version distante ?",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+                )
+                if reply != QMessageBox.Yes:
+                    return
+                result = pull(force=True)
+            else:
+                result = pull()
+            if result["ok"]:
+                backup = result.get("backup")
+                msg = "Pull réussi."
+                if backup:
+                    msg += f" Backup : {os.path.basename(backup)}"
+                Toast.show(self, msg, kind="success")
+                _refresh_sync_status()
+            else:
+                Toast.show(self, f"Pull échoué : {result['error']}", kind="error")
+
+        btn_push.clicked.connect(_do_push)
+        btn_pull.clicked.connect(_do_pull)
+        sync_btn_row.addWidget(btn_push)
+        sync_btn_row.addWidget(btn_pull)
+        sync_btn_row.addWidget(self._sync_status, 1)
+        layout.addLayout(sync_btn_row)
+
+        _refresh_sync_status()
+        layout.addWidget(_sep())
+
         # ── Bouton sauvegarder ──
         btn_row = QHBoxLayout()
         self._btn_save = QPushButton("  Enregistrer les paramètres")
@@ -297,6 +464,8 @@ class SettingsView(QWidget):
         settings["startup_notifications"] = self._notif_check.isChecked()
         settings["lock_after_minutes"] = self._lock_combo.currentData()
         settings["accent_color"] = self._accent_color
+        settings["sync_folder"] = self._sync_folder.text().strip()
+        settings["sync_auto"]   = self._sync_auto_check.isChecked()
         save_settings(settings)
         # Invalider le cache du symbole monétaire
         try:

@@ -16,6 +16,8 @@ DEFAULTS = {
     "language":      "fr",
     "startup_notifications": True,
     "theme":         "dark",
+    "sync_folder":   "",
+    "sync_auto":     False,
 }
 
 
