@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
-  "release_date": "2026-05-05",
-  "notes": "Sécurité : mot de passe renforcé (scrypt + sel aléatoire, migration SHA-256 transparente, délai anti-brute-force, minimum 8 caractères). Notifications OS natives (Windows Action Center, notify-send Linux, osascript macOS). Rapport fiscal in-app : KPIs, ventilation mensuelle, catégories, top 10 dépenses sans dépendance externe. Refactoring crypto_view.py en 6 mixins (-59%). 110 tests automatisés. Corrections : SQLAlchemy case() 2.x, save_tags(), f-string manquante, forecast_service history loop."
+  "version": "1.3.0",
+  "release_date": "2026-05-08",
+  "notes": "Synchronisation via dossier partagé (Dropbox, Google Drive, OneDrive, NAS) : push/pull avec détection de conflit, backup automatique avant pull, auto-sync au démarrage. 147 tests automatisés."
 }

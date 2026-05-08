@@ -1147,6 +1147,19 @@ def main():
         sync_savings_from_transactions()
     except Exception:
         logger.warning("Erreur sync épargne ↔ transactions", exc_info=True)
+    # Sync automatique au démarrage (si activé dans les paramètres)
+    try:
+        from services.sync_service import is_auto_sync, pull as sync_pull
+        if is_auto_sync():
+            result = sync_pull()
+            if result.get("ok"):
+                logger.info("Auto-sync pull réussi")
+            elif result.get("conflict"):
+                logger.warning("Auto-sync : conflit détecté (local plus récent), pull annulé")
+            else:
+                logger.warning("Auto-sync pull : %s", result.get("error", ""))
+    except Exception:
+        logger.warning("Erreur auto-sync au démarrage", exc_info=True)
     # ── AppUserModelID Windows (icône correcte dans la barre des tâches) ──
     try:
         import ctypes

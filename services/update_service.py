@@ -15,7 +15,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VERSION_URL = "https://raw.githubusercontent.com/James24300/foyio/main/version.json"
 
 # Version actuelle de l'application
-CURRENT_VERSION = "1.2.0"
+CURRENT_VERSION = "1.3.0"
 
 # Résultat de la vérification (rempli après check async)
 _update_available = False

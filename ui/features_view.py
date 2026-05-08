@@ -145,6 +145,10 @@ SECTIONS = [
          ["Notifications OS natives (Windows/Linux/macOS)",
           "Toast budget dépassé ou bientôt atteint",
           "Vérification de mise à jour au démarrage"]),
+        ("☁️", "Synchronisation",
+         ["Sync via dossier partagé (Dropbox, GDrive, OneDrive…)",
+          "Push/Pull avec détection de conflit automatique",
+          "Backup local créé automatiquement avant chaque Pull"]),
         ("⚡", "Raccourcis clavier",
          ["Ctrl+Shift+F : ouvrir depuis n'importe où",
           "Systray : l'appli reste en arrière-plan",
@@ -206,7 +210,7 @@ class FeaturesView(QWidget):
         )
 
         d = QLabel(
-            "Application de bureau Windows  ·  Interface sombre moderne  ·  12 modules intégrés"
+            "Application de bureau Windows  ·  Interface sombre moderne  ·  13 modules intégrés"
         )
         d.setAlignment(Qt.AlignCenter)
         d.setStyleSheet(

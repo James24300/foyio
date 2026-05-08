@@ -1,4 +1,3 @@
-import logging
 """
 Synchronisation Foyio via dossier partagé (Dropbox / Google Drive / OneDrive / NAS).
 
@@ -7,6 +6,7 @@ Principe :
   - pull() copie {sync_folder}/foyio_sync.db vers la DB locale (backup auto avant)
   - get_status() compare les horodatages pour indiquer qui est plus récent
 """
+import logging
 import os
 import shutil
 from datetime import datetime
